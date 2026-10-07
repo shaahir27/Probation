@@ -1,0 +1,118 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "probation"
+version = "0.1.0"
+description = "A personal AI that earns permission to act by proving on the user's history that it would have done what they did."
+readme = "../README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [
+    { name = "Probation Contributors" }
+]
+dependencies = [
+    "fastapi>=0.110.0",
+    "uvicorn[standard]>=0.28.0",
+    "pydantic>=2.6.0",
+    "pydantic-settings>=2.2.0",
+    "openai>=1.14.0",
+    "httpx>=0.27.0",
+    "tenacity>=8.2.3",
+    "numpy>=1.26.0",
+    "scipy>=1.12.0",
+    "scikit-learn>=1.4.0",
+    "fastembed>=0.2.5",
+    "icalendar>=5.0.12",
+    "python-dateutil>=2.9.0",
+    "dateparser>=1.2.0",
+    "publicsuffix2>=2.20191221",
+    "typer[all]>=0.12.0",
+    "rich>=13.7.0",
+    "watchdog>=4.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.1.0",
+    "pytest-cov>=4.1.0",
+    "hypothesis>=6.98.0",
+    "ruff>=0.3.0",
+    "mypy>=1.9.0",
+    "types-python-dateutil>=2.9.0.20240316",
+]
+
+[project.scripts]
+probation = "probation.cli:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/probation"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "N",   # pep8-naming
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+    "RUF", # ruff-specific rules
+]
+ignore = [
+    "E501", # line-too-long handled by formatter
+    "N818", # exception names BudgetExceeded and LedgerCorrupt specified in AGENTS.md
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+
+[[tool.mypy.overrides]]
+module = [
+    "probation.core.*",
+    "probation.engine.*",
+]
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+
+[[tool.mypy.overrides]]
+module = [
+    "fastembed.*",
+    "icalendar.*",
+    "dateparser.*",
+    "publicsuffix2.*",
+    "scipy.*",
+    "sklearn.*",
+]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+markers = [
+    "live: marks tests as requiring external live API calls (deselect with -m 'not live')",
+    "property: hypothesis property-based tests",
+    "integration: integration tests",
+]

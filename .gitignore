@@ -1,0 +1,42 @@
+# Environment and credentials
+.env
+*.env
+*.pem
+*.key
+
+# Local database and data directories
+data/
+*.db
+*.db-wal
+*.db-shm
+
+# Build history (Internal developer construction record; NEVER push to GitHub)
+build_history/
+
+# Python caches and environments
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+env/
+venv/
+dist/
+build/
+*.egg-info/
+
+# Frontend dependencies and build artifacts
+node_modules/
+frontend/dist/
+frontend/.turbo/
+.npm/
+
+# Operating system and IDE metadata
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
