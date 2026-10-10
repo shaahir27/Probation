@@ -1,0 +1,42 @@
+# Build History Index
+
+Master map of every feature built in Probation, where its technical comprehension log lives, and its current status.
+Governed by [`docs/BUILD_LOGGING_PROTOCOL.md`](file:///d:/Desktop/project/Probation/docs/BUILD_LOGGING_PROTOCOL.md).
+
+> **Developer Note**: This directory is gitignored and serves as your local guide to the codebase. Each feature log details exact file paths, key functions, why they exist, how they are called, and their verification tests.
+
+## Feature Registry
+
+| Feature | Phase | File | Status | Last Updated |
+|---|---|---|---|---|
+| Project Scaffold and Development Infrastructure | Phase 0 | [feature_001_project_scaffold.md](phase_00_foundations_spikes/feature_001_project_scaffold.md) | Built | 2026-10-07 |
+| Day-1 Spike Scripts and Budget Verification | Phase 0 | [feature_002_spike_scripts.md](phase_00_foundations_spikes/feature_002_spike_scripts.md) | Built | 2026-10-07 |
+| Core Types and Hash-Chained Ledger | Phase 1 | [feature_core_types_ledger.md](phase_01_core_ledger_llm/feature_core_types_ledger.md) | Built | 2026-10-10 |
+| PII Redaction Pipeline and Resilient LLM Client | Phase 1 | [feature_redaction_llm_client.md](phase_01_core_ledger_llm/feature_redaction_llm_client.md) | Built | 2026-10-10 |
+
+
+---
+
+### Status Legend
+- `Built`: Fully implemented, code boundaries verified, and unit/contract tests passing.
+- `Updated`: Built in an earlier phase, modified or extended in a subsequent phase (see change log inside the feature's file).
+- `Deferred`: Started or planned, intentionally incomplete (reason documented in Section 6 of the feature log).
+
+---
+
+### Phase Directories
+- `phase_00_foundations_spikes/`
+- `phase_01_core_ledger_llm/`
+- `phase_02_synth_world_importers/`
+- `phase_03_mail_calendar_packs/`
+- `phase_04_engine_core_backtest/`
+- `phase_05_evidence_licences_gate_drift/`
+- `phase_06_files_pack/`
+- `phase_06b_entity_facts_tavily/`
+- `phase_07_exam_board/`
+- `phase_08_chains_habits/`
+- `phase_08b_radar_reading_triage/`
+- `phase_09_api_dashboard/`
+- `phase_10_evaluation/`
+- `phase_11_deploy_demo/`
+- `phase_12_polish_submission/`
