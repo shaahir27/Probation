@@ -1,31 +1,76 @@
 """Cryptographic and deterministic hashing utilities.
 
-Authority: docs/CONTRACT.md section 4, invariants I-7, I-8.
+Authority: docs/CONTRACT.md section 4, invariants I-7, I-8, and docs/DATA_MODEL.md sections 2, 4.
 """
 
 import hashlib
 import json
+from datetime import UTC, datetime
 from typing import Any
 
+GENESIS = "0" * 64
 
-def canonical_json(data: Any) -> str:
+
+def _normalise(obj: Any) -> Any:
+    """Normalize floats to 6 decimal places, datetimes to ISO-8601 UTC 'Z', and dicts recursively."""
+    if isinstance(obj, float):
+        return round(obj, 6)
+    elif isinstance(obj, datetime):
+        if obj.tzinfo is None:
+            obj = obj.replace(tzinfo=UTC)
+        else:
+            obj = obj.astimezone(UTC)
+        return obj.strftime("%Y-%m-%dT%H:%M:%SZ")
+    elif isinstance(obj, dict):
+        return {str(k): _normalise(v) for k, v in obj.items()}
+    elif isinstance(obj, (list, tuple)):
+        return [_normalise(item) for item in obj]
+    return obj
+
+
+def canonical_json(obj: Any) -> str:
     """Serialize data to deterministic, canonical JSON string.
 
-    Keys are sorted, separators are compact (",", ":"), and no trailing whitespace.
+    Conforming to docs/DATA_MODEL.md section 4:
+    - sorted keys
+    - no spaces (separators=(",", ":"))
+    - UTF-8 (ensure_ascii=False)
+    - floats rounded to 6 decimals
+    - datetimes as ISO-8601 UTC 'Z' strings
     """
-    return json.dumps(data, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    if isinstance(obj, str):
+        try:
+            parsed = json.loads(obj)
+            return json.dumps(
+                _normalise(parsed), sort_keys=True, separators=(",", ":"), ensure_ascii=False
+            )
+        except Exception:
+            return obj
+    return json.dumps(_normalise(obj), sort_keys=True, separators=(",", ":"), ensure_ascii=False)
 
 
 def det_id(*parts: str) -> str:
-    """Compute deterministic SHA-256 hex digest from concatenated component strings."""
-    joined = ":".join(parts)
-    return hashlib.sha256(joined.encode("utf-8")).hexdigest()
+    """Compute deterministic ID as the first 32 hex chars of sha256("\x1f".join(parts)).
 
-
-def ledger_hash(prev_hash: str, seq: int, event_type: str, payload_json: str) -> str:
-    """Compute the SHA-256 hash for a tamper-evident ledger entry.
-
-    Hash chain structure: sha256(prev_hash + ":" + str(seq) + ":" + event_type + ":" + payload_json)
+    Authority: docs/DATA_MODEL.md section 2.
     """
-    content = f"{prev_hash}:{seq}:{event_type}:{payload_json}"
-    return hashlib.sha256(content.encode("utf-8")).hexdigest()
+    joined = "\x1f".join(str(p) for p in parts)
+    return hashlib.sha256(joined.encode("utf-8")).hexdigest()[:32]
+
+
+def ledger_hash(prev_hash: str, kind: str, ref_id: str, payload: dict[str, Any] | str) -> str:
+    """Compute SHA-256 hash for a tamper-evident ledger entry.
+
+    Authority: docs/DATA_MODEL.md section 4:
+    material = "\n".join([prev_hash, kind, ref_id, canonical_json(payload)])
+    """
+    if isinstance(payload, str):
+        try:
+            payload_obj = json.loads(payload)
+        except Exception:
+            payload_obj = payload
+    else:
+        payload_obj = payload
+
+    material = "\n".join([prev_hash, str(kind), str(ref_id), canonical_json(payload_obj)])
+    return hashlib.sha256(material.encode("utf-8")).hexdigest()

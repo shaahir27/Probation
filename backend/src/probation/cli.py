@@ -1,10 +1,15 @@
 """CLI entry point for Probation.
 
-Authority: docs/TECH_STACK_AND_REPO.md section 3 and docs/ENGINE_SPEC.md.
+Authority: docs/TECH_STACK_AND_REPO.md section 3, docs/ENGINE_SPEC.md, and docs/CONTRACT.md section 10.
 """
 
 import typer
 from rich.console import Console
+from rich.table import Table
+
+from probation.config import settings
+from probation.db.connection import get_connection, init_db
+from probation.db.ledger import verify_ledger
 
 app = typer.Typer(help="Probation: Earned autonomy personal AI engine.")
 db_app = typer.Typer(help="Database operations.")
@@ -25,19 +30,84 @@ console = Console()
 @db_app.command("init")
 def db_init() -> None:
     """Initialize database schema in WAL mode."""
-    console.print("[green]Database initialization placeholder (Phase 1).[/green]")
+    console.print(f"[bold cyan]Initializing SQLite database at:[/] {settings.db_path}")
+    init_db(settings.db_path)
+    console.print("[bold green]Database schema initialized successfully in WAL mode.[/]")
 
 
 @ledger_app.command("verify")
-def ledger_verify() -> None:
+def cli_ledger_verify() -> None:
     """Verify hash chain integrity."""
-    console.print("[green]Ledger verification placeholder (Phase 1).[/green]")
+    console.print(f"[bold cyan]Verifying ledger at:[/] {settings.db_path}")
+    conn = get_connection(settings.db_path)
+    try:
+        intact, corrupted_seq = verify_ledger(conn)
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) AS cnt, hash FROM ledger ORDER BY seq DESC LIMIT 1;")
+        row = cursor.fetchone()
+        count = row[0] if row else 0
+        head_hash = row[1] if row and count > 0 else "N/A"
+
+        if intact:
+            console.print(
+                f"[bold green]Ledger verified OK.[/] Entries: {count}, Head Hash: [yellow]{head_hash}[/]"
+            )
+        else:
+            console.print(
+                f"[bold red]Ledger corrupted at seq {corrupted_seq}![/] Total rows: {count}"
+            )
+            raise typer.Exit(code=1)
+    finally:
+        conn.close()
 
 
 @budget_app.command("show")
 def budget_show() -> None:
     """Display current LLM and Tavily budget consumption."""
-    console.print("[green]Budget display placeholder (Phase 1).[/green]")
+    conn = get_connection(settings.db_path)
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT call_kind, model_id, COUNT(*) AS calls,
+                   SUM(tokens_in) AS total_in, SUM(tokens_out) AS total_out,
+                   SUM(cost_usd) AS total_cost
+            FROM exposure_log
+            GROUP BY call_kind, model_id;
+            """
+        )
+        rows = cursor.fetchall()
+
+        table = Table(title="Probation LLM Budget & Exposure Summary")
+        table.add_column("Call Kind", style="cyan")
+        table.add_column("Model ID", style="magenta")
+        table.add_column("Calls", justify="right")
+        table.add_column("Tokens In", justify="right")
+        table.add_column("Tokens Out", justify="right")
+        table.add_column("Cost (USD)", justify="right", style="green")
+
+        total_cost = 0.0
+        for r in rows:
+            cost = float(r["total_cost"])
+            total_cost += cost
+            table.add_row(
+                str(r["call_kind"]),
+                str(r["model_id"]),
+                str(r["calls"]),
+                f"{r['total_in']:,}",
+                f"{r['total_out']:,}",
+                f"${cost:.4f}",
+            )
+
+        console.print(table)
+        remaining = settings.budget_hard_limit_usd - total_cost
+        console.print(
+            f"Total Spend: [bold green]${total_cost:.4f}[/] / "
+            f"Cap: [bold red]${settings.budget_hard_limit_usd:.2f}[/] "
+            f"(Remaining: [bold cyan]${remaining:.4f}[/])"
+        )
+    finally:
+        conn.close()
 
 
 @synth_app.command("generate")

@@ -20,16 +20,57 @@ class GateDecision(StrEnum):
 
     SHADOW = "SHADOW"
     SUGGEST = "SUGGEST"
-    HOLD_THEN_EXECUTE = "HOLD_THEN_EXECUTE"
-    EXECUTE_IMMEDIATELY = "EXECUTE_IMMEDIATELY"
     ASK = "ASK"
+    HOLD_THEN_EXECUTE = "HOLD_THEN_EXECUTE"
+    EXECUTE_UNDO = "EXECUTE_UNDO"
+    EXECUTE_SILENT = "EXECUTE_SILENT"
+    EXECUTE_IMMEDIATELY = "EXECUTE_SILENT"  # Alias for compatibility
 
 
-class EvidenceTier(StrEnum):
+Gate = GateDecision
+
+
+class ActionStatus(StrEnum):
+    """Lifecycle status of an executor action."""
+
+    PENDING = "PENDING"
+    HELD = "HELD"
+    DONE = "DONE"
+    UNDONE = "UNDONE"
+    CANCELLED = "CANCELLED"
+    FAILED = "FAILED"
+
+
+class EvidenceStrength(StrEnum):
     """Reliability tier of observed outcome."""
 
     STRONG = "STRONG"
     WEAK = "WEAK"
+
+
+Strength = EvidenceTier = EvidenceStrength
+
+
+class LedgerKind(StrEnum):
+    """Event kind in the hash-chained ledger."""
+
+    PROPOSAL = "proposal"
+    OUTCOME = "outcome"
+    ACTION = "action"
+    USER_RESPONSE = "user_response"
+    LICENCE_CHANGE = "licence_change"
+    EXAM_RUN = "exam_run"
+    DRIFT_ALARM = "drift_alarm"
+    AUDIT_DRAW = "audit_draw"
+
+
+class UserResponseKind(StrEnum):
+    """Explicit response options provided by the user."""
+
+    ACCEPT = "accept"
+    REJECT = "reject"
+    EDIT = "edit"
+    UNDO = "undo"
 
 
 class AlarmType(StrEnum):

@@ -37,7 +37,7 @@ def test_det_id_deterministic() -> None:
     id1 = det_id("mail", "msg_123", "situation")
     id2 = det_id("mail", "msg_123", "situation")
     assert id1 == id2
-    assert len(id1) == 64
+    assert len(id1) == 32
 
 
 def test_canonical_json_key_invariance() -> None:

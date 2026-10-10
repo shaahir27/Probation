@@ -1,14 +1,12 @@
 """Append-only, SHA-256 hash-chained tamper-evident ledger.
 
-Authority: docs/CONTRACT.md section 2, invariants I-7, I-8.
+Authority: docs/CONTRACT.md section 2, invariants I-7, I-8, and docs/DATA_MODEL.md section 4.
 """
 
 import sqlite3
 from typing import Any
 
-from probation.core.hashing import canonical_json, ledger_hash
-
-GENESIS_HASH = "0" * 64
+from probation.core.hashing import GENESIS, canonical_json, ledger_hash
 
 
 class LedgerCorrupt(Exception):
@@ -24,8 +22,11 @@ def append_ledger(
     payload: dict[str, Any] | str,
     created_at: str,
 ) -> int:
-    """Append a new record to the hash-chained ledger and return its sequence number."""
-    payload_json = canonical_json(payload) if isinstance(payload, dict) else payload
+    """Append a new record to the hash-chained ledger and return its sequence number.
+
+    Authority: docs/DATA_MODEL.md section 4.
+    """
+    payload_json = canonical_json(payload)
 
     cursor = conn.cursor()
     cursor.execute("SELECT seq, hash FROM ledger ORDER BY seq DESC LIMIT 1;")
@@ -33,12 +34,12 @@ def append_ledger(
 
     if last_row is None:
         seq = 1
-        prev_hash = GENESIS_HASH
+        prev_hash = GENESIS
     else:
         seq = int(last_row["seq"]) + 1
         prev_hash = str(last_row["hash"])
 
-    current_hash = ledger_hash(prev_hash, seq, kind, payload_json)
+    current_hash = ledger_hash(prev_hash, kind, ref_id, payload_json)
 
     cursor.execute(
         """
@@ -57,13 +58,16 @@ def verify_ledger(conn: sqlite3.Connection) -> tuple[bool, int | None]:
     Returns (True, None) if intact, or (False, seq) for the first corrupted sequence number.
     """
     cursor = conn.cursor()
-    cursor.execute("SELECT seq, kind, payload_json, prev_hash, hash FROM ledger ORDER BY seq ASC;")
+    cursor.execute(
+        "SELECT seq, kind, ref_id, payload_json, prev_hash, hash FROM ledger ORDER BY seq ASC;"
+    )
     rows = cursor.fetchall()
 
-    expected_prev = GENESIS_HASH
+    expected_prev = GENESIS
     for row in rows:
         seq = int(row["seq"])
         kind = str(row["kind"])
+        ref_id = str(row["ref_id"])
         payload_json = str(row["payload_json"])
         prev_hash = str(row["prev_hash"])
         stored_hash = str(row["hash"])
@@ -71,7 +75,7 @@ def verify_ledger(conn: sqlite3.Connection) -> tuple[bool, int | None]:
         if prev_hash != expected_prev:
             return (False, seq)
 
-        computed = ledger_hash(prev_hash, seq, kind, payload_json)
+        computed = ledger_hash(prev_hash, kind, ref_id, payload_json)
         if computed != stored_hash:
             return (False, seq)
 
