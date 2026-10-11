@@ -1,0 +1,553 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Probation//Synthetic World Generator//EN
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+BEGIN:VEVENT
+UID:inv-0-00000@national.ac.in
+DTSTAMP:20260101T160000Z
+DTSTART:20260101T160000Z
+DTEND:20260101T170000Z
+SUMMARY:Placement Cell General Body Meeting
+DESCRIPTION:Discussion on upcoming college symposium and hackathon logistics.
+ORGANIZER;CN=hackathons:mailto:hackathons@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=DECLINED;CN=meena.k:mailto:meena.k@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=DECLINED;CN=hackathons:mailto:hackathons@national.ac.in
+STATUS:CONFIRMED
+END:VEVENT
+BEGIN:VEVENT
+UID:inv-0-00001@national.ac.in
+DTSTAMP:20260106T150000Z
+DTSTART:20260106T150000Z
+DTEND:20260106T160000Z
+SUMMARY:Office Hours: CO302 Systems & Algorithms - Prof. Anita Swaminathan
+DESCRIPTION:Weekly office hours for questions regarding lecture concepts and assignments. Room 204 or via Google Meet.
+ORGANIZER;CN=a.swaminathan:mailto:a.swaminathan@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=DECLINED;CN=meena.k:mailto:meena.k@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=DECLINED;CN=a.swaminathan:mailto:a.swaminathan@national.ac.in
+STATUS:CONFIRMED
+END:VEVENT
+BEGIN:VEVENT
+UID:chain-block-0-00000@probation.sim
+DTSTAMP:20260102T111225Z
+DTSTART:20260108T190925Z
+DTEND:20260108T210925Z
+SUMMARY:Study Block: Lab Viva Schedule and Report Submission
+DESCRIPTION:Dedicated prep time for deadline: Lab Viva Schedule and Report Submission
+ORGANIZER;CN=meena.k:mailto:meena.k@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN=meena.k:mailto:meena.k@national.ac.in
+STATUS:CONFIRMED
+END:VEVENT
+BEGIN:VEVENT
+UID:chain-block-0-00002@probation.sim
+DTSTAMP:20260104T035709Z
+DTSTART:20260109T182609Z
+DTEND:20260109T202609Z
+SUMMARY:Study Block: Lab Viva Schedule and Report Submission
+DESCRIPTION:Dedicated prep time for deadline: Lab Viva Schedule and Report Submission
+ORGANIZER;CN=meena.k:mailto:meena.k@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN=meena.k:mailto:meena.k@national.ac.in
+STATUS:CONFIRMED
+END:VEVENT
+BEGIN:VEVENT
+UID:inv-0-00002@national.ac.in
+DTSTAMP:20260113T020000Z
+DTSTART:20260113T020000Z
+DTEND:20260113T030000Z
+SUMMARY:Office Hours: MA201 Linear Algebra & Probability - Prof. S. Chakrabarti
+DESCRIPTION:Weekly office hours for questions regarding lecture concepts and assignments. Room 204 or via Google Meet.
+ORGANIZER;CN=s.chakrabarti:mailto:s.chakrabarti@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN=meena.k:mailto:meena.k@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN=s.chakrabarti:mailto:s.chakrabarti@national.ac.in
+STATUS:CONFIRMED
+END:VEVENT
+BEGIN:VEVENT
+UID:inv-0-00003@national.ac.in
+DTSTAMP:20260118T220000Z
+DTSTART:20260118T220000Z
+DTEND:20260118T230000Z
+SUMMARY:CO301 Advanced Computer Science Practical Lab Session
+DESCRIPTION:Scheduled lab hours. Submission of lab report required by end of session.
+ORGANIZER;CN=r.ramanathan:mailto:r.ramanathan@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN=meena.k:mailto:meena.k@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN=r.ramanathan:mailto:r.ramanathan@national.ac.in
+STATUS:CONFIRMED
+END:VEVENT
+BEGIN:VEVENT
+UID:inv-0-00004@national.ac.in
+DTSTAMP:20260125T020000Z
+DTSTART:20260125T020000Z
+DTEND:20260125T030000Z
+SUMMARY:CO301 Advanced Computer Science Practical Lab Session
+DESCRIPTION:Scheduled lab hours. Submission of lab report required by end of session.
+ORGANIZER;CN=r.ramanathan:mailto:r.ramanathan@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN=meena.k:mailto:meena.k@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN=r.ramanathan:mailto:r.ramanathan@national.ac.in
+STATUS:CONFIRMED
+END:VEVENT
+BEGIN:VEVENT
+UID:inv-0-00005@national.ac.in
+DTSTAMP:20260130T220000Z
+DTSTART:20260130T220000Z
+DTEND:20260130T230000Z
+SUMMARY:CO302 Systems & Algorithms Practical Lab Session
+DESCRIPTION:Scheduled lab hours. Submission of lab report required by end of session.
+ORGANIZER;CN=a.swaminathan:mailto:a.swaminathan@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN=meena.k:mailto:meena.k@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN=a.swaminathan:mailto:a.swaminathan@national.ac.in
+STATUS:CONFIRMED
+END:VEVENT
+BEGIN:VEVENT
+UID:chain-block-0-00020@probation.sim
+DTSTAMP:20260131T042940Z
+DTSTART:20260203T205040Z
+DTEND:20260203T225040Z
+SUMMARY:Study Block: Project Milestone 2 Review: MA201 Linear Algebra & Probability
+DESCRIPTION:Dedicated prep time for deadline: Project Milestone 2 Review: MA201 Linear Algebra & Probability
+ORGANIZER;CN=meena.k:mailto:meena.k@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN=meena.k:mailto:meena.k@national.ac.in
+STATUS:CONFIRMED
+END:VEVENT
+BEGIN:VEVENT
+UID:chain-block-0-00021@probation.sim
+DTSTAMP:20260202T085559Z
+DTSTART:20260205T214259Z
+DTEND:20260205T234259Z
+SUMMARY:Study Block: [Action Required] Assignment 3 Submission for MA201 Linear Algebra & Probability
+DESCRIPTION:Dedicated prep time for deadline: [Action Required] Assignment 3 Submission for MA201 Linear Algebra & Probability
+ORGANIZER;CN=meena.k:mailto:meena.k@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN=meena.k:mailto:meena.k@national.ac.in
+STATUS:CONFIRMED
+END:VEVENT
+BEGIN:VEVENT
+UID:inv-0-00006@national.ac.in
+DTSTAMP:20260205T220000Z
+DTSTART:20260205T220000Z
+DTEND:20260205T230000Z
+SUMMARY:Placement Cell General Body Meeting
+DESCRIPTION:Discussion on upcoming college symposium and hackathon logistics.
+ORGANIZER;CN=hackathons:mailto:hackathons@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=TENTATIVE;CN=meena.k:mailto:meena.k@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=TENTATIVE;CN=hackathons:mailto:hackathons@national.ac.in
+STATUS:CONFIRMED
+END:VEVENT
+BEGIN:VEVENT
+UID:inv-0-00007@national.ac.in
+DTSTAMP:20260212T000000Z
+DTSTART:20260212T000000Z
+DTEND:20260212T010000Z
+SUMMARY:Study Group: CO301 Advanced Computer Science Exam Prep
+DESCRIPTION:Group revision and problem solving in Central Library Room B.
+ORGANIZER;CN=rahul.k:mailto:rahul.k@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=DECLINED;CN=meena.k:mailto:meena.k@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=DECLINED;CN=rahul.k:mailto:rahul.k@national.ac.in
+STATUS:CONFIRMED
+END:VEVENT
+BEGIN:VEVENT
+UID:chain-block-0-00027@probation.sim
+DTSTAMP:20260211T041808Z
+DTSTART:20260215T185608Z
+DTEND:20260215T205608Z
+SUMMARY:Study Block: Project Milestone 2 Review: CO301 Advanced Computer Science
+DESCRIPTION:Dedicated prep time for deadline: Project Milestone 2 Review: CO301 Advanced Computer Science
+ORGANIZER;CN=meena.k:mailto:meena.k@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN=meena.k:mailto:meena.k@national.ac.in
+STATUS:CONFIRMED
+END:VEVENT
+BEGIN:VEVENT
+UID:inv-0-00008@national.ac.in
+DTSTAMP:20260217T220000Z
+DTSTART:20260217T220000Z
+DTEND:20260217T230000Z
+SUMMARY:Placement Cell General Body Meeting
+DESCRIPTION:Discussion on upcoming college symposium and hackathon logistics.
+ORGANIZER;CN=hackathons:mailto:hackathons@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN=meena.k:mailto:meena.k@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN=hackathons:mailto:hackathons@national.ac.in
+STATUS:CONFIRMED
+END:VEVENT
+BEGIN:VEVENT
+UID:chain-block-0-00031@probation.sim
+DTSTAMP:20260216T221901Z
+DTSTART:20260223T151701Z
+DTEND:20260223T171701Z
+SUMMARY:Study Block: [Action Required] Assignment 3 Submission for CO302 Systems & Algorithms
+DESCRIPTION:Dedicated prep time for deadline: [Action Required] Assignment 3 Submission for CO302 Systems & Algorithms
+ORGANIZER;CN=meena.k:mailto:meena.k@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN=meena.k:mailto:meena.k@national.ac.in
+STATUS:CONFIRMED
+END:VEVENT
+BEGIN:VEVENT
+UID:inv-0-00009@national.ac.in
+DTSTAMP:20260223T160000Z
+DTSTART:20260223T160000Z
+DTEND:20260223T170000Z
+SUMMARY:CO301 Advanced Computer Science Practical Lab Session
+DESCRIPTION:Scheduled lab hours. Submission of lab report required by end of session.
+ORGANIZER;CN=r.ramanathan:mailto:r.ramanathan@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=DECLINED;CN=meena.k:mailto:meena.k@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=DECLINED;CN=r.ramanathan:mailto:r.ramanathan@national.ac.in
+STATUS:CONFIRMED
+END:VEVENT
+BEGIN:VEVENT
+UID:inv-0-00010@national.ac.in
+DTSTAMP:20260302T000000Z
+DTSTART:20260302T000000Z
+DTEND:20260302T010000Z
+SUMMARY:Office Hours: CO302 Systems & Algorithms - Prof. Anita Swaminathan
+DESCRIPTION:Weekly office hours for questions regarding lecture concepts and assignments. Room 204 or via Google Meet.
+ORGANIZER;CN=a.swaminathan:mailto:a.swaminathan@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN=meena.k:mailto:meena.k@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN=a.swaminathan:mailto:a.swaminathan@national.ac.in
+STATUS:CONFIRMED
+END:VEVENT
+BEGIN:VEVENT
+UID:chain-block-0-00040@probation.sim
+DTSTAMP:20260302T061246Z
+DTSTART:20260307T022046Z
+DTEND:20260307T042046Z
+SUMMARY:Study Block: [Action Required] Assignment 3 Submission for MA201 Linear Algebra & Probability
+DESCRIPTION:Dedicated prep time for deadline: [Action Required] Assignment 3 Submission for MA201 Linear Algebra & Probability
+ORGANIZER;CN=meena.k:mailto:meena.k@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN=meena.k:mailto:meena.k@national.ac.in
+STATUS:CONFIRMED
+END:VEVENT
+BEGIN:VEVENT
+UID:inv-0-00011@national.ac.in
+DTSTAMP:20260308T020000Z
+DTSTART:20260308T020000Z
+DTEND:20260308T030000Z
+SUMMARY:MA201 Linear Algebra & Probability Practical Lab Session
+DESCRIPTION:Scheduled lab hours. Submission of lab report required by end of session.
+ORGANIZER;CN=s.chakrabarti:mailto:s.chakrabarti@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN=meena.k:mailto:meena.k@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN=s.chakrabarti:mailto:s.chakrabarti@national.ac.in
+STATUS:CONFIRMED
+END:VEVENT
+BEGIN:VEVENT
+UID:chain-block-0-00042@probation.sim
+DTSTAMP:20260305T150928Z
+DTSTART:20260310T205328Z
+DTEND:20260310T225328Z
+SUMMARY:Study Block: Lab Viva Schedule and Report Submission
+DESCRIPTION:Dedicated prep time for deadline: Lab Viva Schedule and Report Submission
+ORGANIZER;CN=meena.k:mailto:meena.k@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN=meena.k:mailto:meena.k@national.ac.in
+STATUS:CONFIRMED
+END:VEVENT
+BEGIN:VEVENT
+UID:inv-0-00012@national.ac.in
+DTSTAMP:20260314T020000Z
+DTSTART:20260314T020000Z
+DTEND:20260314T030000Z
+SUMMARY:Office Hours: CO302 Systems & Algorithms - Prof. Anita Swaminathan
+DESCRIPTION:Weekly office hours for questions regarding lecture concepts and assignments. Room 204 or via Google Meet.
+ORGANIZER;CN=a.swaminathan:mailto:a.swaminathan@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN=meena.k:mailto:meena.k@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN=a.swaminathan:mailto:a.swaminathan@national.ac.in
+STATUS:CONFIRMED
+END:VEVENT
+BEGIN:VEVENT
+UID:chain-block-0-00047@probation.sim
+DTSTAMP:20260313T112937Z
+DTSTART:20260314T170437Z
+DTEND:20260314T190437Z
+SUMMARY:Study Block: Project Milestone 2 Review: MA201 Linear Algebra & Probability
+DESCRIPTION:Dedicated prep time for deadline: Project Milestone 2 Review: MA201 Linear Algebra & Probability
+ORGANIZER;CN=meena.k:mailto:meena.k@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN=meena.k:mailto:meena.k@national.ac.in
+STATUS:CONFIRMED
+END:VEVENT
+BEGIN:VEVENT
+UID:inv-0-00013@national.ac.in
+DTSTAMP:20260319T220000Z
+DTSTART:20260319T220000Z
+DTEND:20260319T230000Z
+SUMMARY:Placement Cell General Body Meeting
+DESCRIPTION:Discussion on upcoming college symposium and hackathon logistics.
+ORGANIZER;CN=hackathons:mailto:hackathons@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN=meena.k:mailto:meena.k@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN=hackathons:mailto:hackathons@national.ac.in
+STATUS:CONFIRMED
+END:VEVENT
+BEGIN:VEVENT
+UID:inv-0-00014@gmail.com
+DTSTAMP:20260326T000000Z
+DTSTART:20260326T000000Z
+DTEND:20260326T010000Z
+SUMMARY:Study Group: CO301 Advanced Computer Science Exam Prep
+DESCRIPTION:Group revision and problem solving in Central Library Room B.
+ORGANIZER;CN=akanksha.roy2026:mailto:akanksha.roy2026@gmail.com
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN=meena.k:mailto:meena.k@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN=akanksha.roy2026:mailto:akanksha.roy2026@gmail.com
+STATUS:CONFIRMED
+END:VEVENT
+BEGIN:VEVENT
+UID:chain-block-0-00052@probation.sim
+DTSTAMP:20260320T145613Z
+DTSTART:20260326T223513Z
+DTEND:20260327T003513Z
+SUMMARY:Study Block: Lab Viva Schedule and Report Submission
+DESCRIPTION:Dedicated prep time for deadline: Lab Viva Schedule and Report Submission
+ORGANIZER;CN=meena.k:mailto:meena.k@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN=meena.k:mailto:meena.k@national.ac.in
+STATUS:CONFIRMED
+END:VEVENT
+BEGIN:VEVENT
+UID:inv-0-00015@national.ac.in
+DTSTAMP:20260331T150000Z
+DTSTART:20260331T150000Z
+DTEND:20260331T160000Z
+SUMMARY:Placement Cell General Body Meeting
+DESCRIPTION:Discussion on upcoming college symposium and hackathon logistics.
+ORGANIZER;CN=hackathons:mailto:hackathons@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=DECLINED;CN=meena.k:mailto:meena.k@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=DECLINED;CN=hackathons:mailto:hackathons@national.ac.in
+STATUS:CONFIRMED
+END:VEVENT
+BEGIN:VEVENT
+UID:inv-0-00016@gmail.com
+DTSTAMP:20260407T020000Z
+DTSTART:20260407T020000Z
+DTEND:20260407T030000Z
+SUMMARY:Study Group: CO301 Advanced Computer Science Exam Prep
+DESCRIPTION:Group revision and problem solving in Central Library Room B.
+ORGANIZER;CN=akanksha.roy2026:mailto:akanksha.roy2026@gmail.com
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=TENTATIVE;CN=meena.k:mailto:meena.k@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=TENTATIVE;CN=akanksha.roy2026:mailto:akanksha.roy2026@gmail.com
+STATUS:CONFIRMED
+END:VEVENT
+BEGIN:VEVENT
+UID:chain-block-0-00065@probation.sim
+DTSTAMP:20260408T012025Z
+DTSTART:20260409T165925Z
+DTEND:20260409T185925Z
+SUMMARY:Study Block: [Action Required] Assignment 3 Submission for MA201 Linear Algebra & Probability
+DESCRIPTION:Dedicated prep time for deadline: [Action Required] Assignment 3 Submission for MA201 Linear Algebra & Probability
+ORGANIZER;CN=meena.k:mailto:meena.k@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN=meena.k:mailto:meena.k@national.ac.in
+STATUS:CONFIRMED
+END:VEVENT
+BEGIN:VEVENT
+UID:inv-0-00017@national.ac.in
+DTSTAMP:20260413T020000Z
+DTSTART:20260413T020000Z
+DTEND:20260413T030000Z
+SUMMARY:Office Hours: CO302 Systems & Algorithms - Prof. Anita Swaminathan
+DESCRIPTION:Weekly office hours for questions regarding lecture concepts and assignments. Room 204 or via Google Meet.
+ORGANIZER;CN=a.swaminathan:mailto:a.swaminathan@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN=meena.k:mailto:meena.k@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN=a.swaminathan:mailto:a.swaminathan@national.ac.in
+STATUS:CONFIRMED
+END:VEVENT
+BEGIN:VEVENT
+UID:inv-0-00018@national.ac.in
+DTSTAMP:20260418T180000Z
+DTSTART:20260418T180000Z
+DTEND:20260418T190000Z
+SUMMARY:Placement Cell General Body Meeting
+DESCRIPTION:Discussion on upcoming college symposium and hackathon logistics.
+ORGANIZER;CN=hackathons:mailto:hackathons@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN=meena.k:mailto:meena.k@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN=hackathons:mailto:hackathons@national.ac.in
+STATUS:CONFIRMED
+END:VEVENT
+BEGIN:VEVENT
+UID:inv-0-00019@national.ac.in
+DTSTAMP:20260424T180000Z
+DTSTART:20260424T180000Z
+DTEND:20260424T190000Z
+SUMMARY:Office Hours: CO302 Systems & Algorithms - Prof. Anita Swaminathan
+DESCRIPTION:Weekly office hours for questions regarding lecture concepts and assignments. Room 204 or via Google Meet.
+ORGANIZER;CN=a.swaminathan:mailto:a.swaminathan@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN=meena.k:mailto:meena.k@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN=a.swaminathan:mailto:a.swaminathan@national.ac.in
+STATUS:CONFIRMED
+END:VEVENT
+BEGIN:VEVENT
+UID:chain-block-0-00072@probation.sim
+DTSTAMP:20260419T222309Z
+DTSTART:20260425T014909Z
+DTEND:20260425T034909Z
+SUMMARY:Study Block: Lab Viva Schedule and Report Submission
+DESCRIPTION:Dedicated prep time for deadline: Lab Viva Schedule and Report Submission
+ORGANIZER;CN=meena.k:mailto:meena.k@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN=meena.k:mailto:meena.k@national.ac.in
+STATUS:CONFIRMED
+END:VEVENT
+BEGIN:VEVENT
+UID:inv-0-00020@national.ac.in
+DTSTAMP:20260501T020000Z
+DTSTART:20260501T020000Z
+DTEND:20260501T030000Z
+SUMMARY:Placement Cell General Body Meeting
+DESCRIPTION:Discussion on upcoming college symposium and hackathon logistics.
+ORGANIZER;CN=hackathons:mailto:hackathons@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN=meena.k:mailto:meena.k@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN=hackathons:mailto:hackathons@national.ac.in
+STATUS:CONFIRMED
+END:VEVENT
+BEGIN:VEVENT
+UID:chain-block-0-00079@probation.sim
+DTSTAMP:20260428T205213Z
+DTSTART:20260502T160213Z
+DTEND:20260502T180213Z
+SUMMARY:Study Block: [Action Required] Assignment 3 Submission for MA201 Linear Algebra & Probability
+DESCRIPTION:Dedicated prep time for deadline: [Action Required] Assignment 3 Submission for MA201 Linear Algebra & Probability
+ORGANIZER;CN=meena.k:mailto:meena.k@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN=meena.k:mailto:meena.k@national.ac.in
+STATUS:CONFIRMED
+END:VEVENT
+BEGIN:VEVENT
+UID:inv-0-00021@national.ac.in
+DTSTAMP:20260506T180000Z
+DTSTART:20260506T180000Z
+DTEND:20260506T190000Z
+SUMMARY:Placement Cell General Body Meeting
+DESCRIPTION:Discussion on upcoming college symposium and hackathon logistics.
+ORGANIZER;CN=hackathons:mailto:hackathons@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN=meena.k:mailto:meena.k@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN=hackathons:mailto:hackathons@national.ac.in
+STATUS:CONFIRMED
+END:VEVENT
+BEGIN:VEVENT
+UID:inv-0-00022@national.ac.in
+DTSTAMP:20260512T150000Z
+DTSTART:20260512T150000Z
+DTEND:20260512T160000Z
+SUMMARY:Student Activities General Body Meeting
+DESCRIPTION:Discussion on upcoming college symposium and hackathon logistics.
+ORGANIZER;CN=codingclub:mailto:codingclub@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=DECLINED;CN=meena.k:mailto:meena.k@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=DECLINED;CN=codingclub:mailto:codingclub@national.ac.in
+STATUS:CONFIRMED
+END:VEVENT
+BEGIN:VEVENT
+UID:chain-block-0-00086@probation.sim
+DTSTAMP:20260510T015336Z
+DTSTART:20260512T211136Z
+DTEND:20260512T231136Z
+SUMMARY:Study Block: Project Milestone 2 Review: MA201 Linear Algebra & Probability
+DESCRIPTION:Dedicated prep time for deadline: Project Milestone 2 Review: MA201 Linear Algebra & Probability
+ORGANIZER;CN=meena.k:mailto:meena.k@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN=meena.k:mailto:meena.k@national.ac.in
+STATUS:CONFIRMED
+END:VEVENT
+BEGIN:VEVENT
+UID:chain-block-0-00088@probation.sim
+DTSTAMP:20260513T013232Z
+DTSTART:20260517T192832Z
+DTEND:20260517T212832Z
+SUMMARY:Study Block: Project Milestone 2 Review: CO301 Advanced Computer Science
+DESCRIPTION:Dedicated prep time for deadline: Project Milestone 2 Review: CO301 Advanced Computer Science
+ORGANIZER;CN=meena.k:mailto:meena.k@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN=meena.k:mailto:meena.k@national.ac.in
+STATUS:CONFIRMED
+END:VEVENT
+BEGIN:VEVENT
+UID:inv-0-00023@national.ac.in
+DTSTAMP:20260518T220000Z
+DTSTART:20260518T220000Z
+DTEND:20260518T230000Z
+SUMMARY:Office Hours: CO301 Advanced Computer Science - Prof. R. Ramanathan
+DESCRIPTION:Weekly office hours for questions regarding lecture concepts and assignments. Room 204 or via Google Meet.
+ORGANIZER;CN=r.ramanathan:mailto:r.ramanathan@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN=meena.k:mailto:meena.k@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN=r.ramanathan:mailto:r.ramanathan@national.ac.in
+STATUS:CONFIRMED
+END:VEVENT
+BEGIN:VEVENT
+UID:inv-0-00024@national.ac.in
+DTSTAMP:20260525T020000Z
+DTSTART:20260525T020000Z
+DTEND:20260525T030000Z
+SUMMARY:Placement Cell General Body Meeting
+DESCRIPTION:Discussion on upcoming college symposium and hackathon logistics.
+ORGANIZER;CN=hackathons:mailto:hackathons@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN=meena.k:mailto:meena.k@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN=hackathons:mailto:hackathons@national.ac.in
+STATUS:CONFIRMED
+END:VEVENT
+BEGIN:VEVENT
+UID:inv-0-00025@national.ac.in
+DTSTAMP:20260530T150000Z
+DTSTART:20260530T150000Z
+DTEND:20260530T160000Z
+SUMMARY:Student Activities General Body Meeting
+DESCRIPTION:Discussion on upcoming college symposium and hackathon logistics.
+ORGANIZER;CN=codingclub:mailto:codingclub@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN=meena.k:mailto:meena.k@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN=codingclub:mailto:codingclub@national.ac.in
+STATUS:CONFIRMED
+END:VEVENT
+BEGIN:VEVENT
+UID:chain-block-0-00098@probation.sim
+DTSTAMP:20260527T213722Z
+DTSTART:20260602T153322Z
+DTEND:20260602T173322Z
+SUMMARY:Study Block: [Action Required] Assignment 3 Submission for MA201 Linear Algebra & Probability
+DESCRIPTION:Dedicated prep time for deadline: [Action Required] Assignment 3 Submission for MA201 Linear Algebra & Probability
+ORGANIZER;CN=meena.k:mailto:meena.k@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN=meena.k:mailto:meena.k@national.ac.in
+STATUS:CONFIRMED
+END:VEVENT
+BEGIN:VEVENT
+UID:inv-0-00026@national.ac.in
+DTSTAMP:20260605T160000Z
+DTSTART:20260605T160000Z
+DTEND:20260605T170000Z
+SUMMARY:Office Hours: MA201 Linear Algebra & Probability - Prof. S. Chakrabarti
+DESCRIPTION:Weekly office hours for questions regarding lecture concepts and assignments. Room 204 or via Google Meet.
+ORGANIZER;CN=s.chakrabarti:mailto:s.chakrabarti@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=DECLINED;CN=meena.k:mailto:meena.k@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=DECLINED;CN=s.chakrabarti:mailto:s.chakrabarti@national.ac.in
+STATUS:CONFIRMED
+END:VEVENT
+BEGIN:VEVENT
+UID:chain-block-0-00105@probation.sim
+DTSTAMP:20260606T210447Z
+DTSTART:20260610T171047Z
+DTEND:20260610T191047Z
+SUMMARY:Study Block: [Action Required] Assignment 3 Submission for CO302 Systems & Algorithms
+DESCRIPTION:Dedicated prep time for deadline: [Action Required] Assignment 3 Submission for CO302 Systems & Algorithms
+ORGANIZER;CN=meena.k:mailto:meena.k@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN=meena.k:mailto:meena.k@national.ac.in
+STATUS:CONFIRMED
+END:VEVENT
+BEGIN:VEVENT
+UID:inv-0-00027@national.ac.in
+DTSTAMP:20260611T160000Z
+DTSTART:20260611T160000Z
+DTEND:20260611T170000Z
+SUMMARY:Office Hours: MA201 Linear Algebra & Probability - Prof. S. Chakrabarti
+DESCRIPTION:Weekly office hours for questions regarding lecture concepts and assignments. Room 204 or via Google Meet.
+ORGANIZER;CN=s.chakrabarti:mailto:s.chakrabarti@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN=meena.k:mailto:meena.k@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN=s.chakrabarti:mailto:s.chakrabarti@national.ac.in
+STATUS:CONFIRMED
+END:VEVENT
+BEGIN:VEVENT
+UID:inv-0-00028@national.ac.in
+DTSTAMP:20260618T020000Z
+DTSTART:20260618T020000Z
+DTEND:20260618T030000Z
+SUMMARY:Office Hours: MA201 Linear Algebra & Probability - Prof. S. Chakrabarti
+DESCRIPTION:Weekly office hours for questions regarding lecture concepts and assignments. Room 204 or via Google Meet.
+ORGANIZER;CN=s.chakrabarti:mailto:s.chakrabarti@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS_ACTION;CN=meena.k:mailto:meena.k@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS_ACTION;CN=s.chakrabarti:mailto:s.chakrabarti@national.ac.in
+STATUS:CONFIRMED
+END:VEVENT
+BEGIN:VEVENT
+UID:inv-0-00029@national.ac.in
+DTSTAMP:20260624T020000Z
+DTSTART:20260624T020000Z
+DTEND:20260624T030000Z
+SUMMARY:Office Hours: MA201 Linear Algebra & Probability - Prof. S. Chakrabarti
+DESCRIPTION:Weekly office hours for questions regarding lecture concepts and assignments. Room 204 or via Google Meet.
+ORGANIZER;CN=s.chakrabarti:mailto:s.chakrabarti@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS_ACTION;CN=meena.k:mailto:meena.k@national.ac.in
+ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS_ACTION;CN=s.chakrabarti:mailto:s.chakrabarti@national.ac.in
+STATUS:CONFIRMED
+END:VEVENT
+END:VCALENDAR

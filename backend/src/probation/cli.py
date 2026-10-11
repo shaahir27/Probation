@@ -10,18 +10,27 @@ from rich.table import Table
 from probation.config import settings
 from probation.db.connection import get_connection, init_db
 from probation.db.ledger import verify_ledger
+from probation.synth.generator import generate_synthetic_world
+from probation.synth.importers import (
+    import_calendar,
+    import_files,
+    import_links,
+    import_mail,
+)
 
 app = typer.Typer(help="Probation: Earned autonomy personal AI engine.")
 db_app = typer.Typer(help="Database operations.")
 ledger_app = typer.Typer(help="Ledger operations.")
 budget_app = typer.Typer(help="Budget inspection.")
 synth_app = typer.Typer(help="Synthetic world generation.")
+import_app = typer.Typer(help="Source data importers.")
 exam_app = typer.Typer(help="Examination board.")
 
 app.add_typer(db_app, name="db")
 app.add_typer(ledger_app, name="ledger")
 app.add_typer(budget_app, name="budget")
 app.add_typer(synth_app, name="synth")
+app.add_typer(import_app, name="import")
 app.add_typer(exam_app, name="exam")
 
 console = Console()
@@ -112,11 +121,107 @@ def budget_show() -> None:
 
 @synth_app.command("generate")
 def synth_generate(
-    persona: int = typer.Option(1, "--persona", "-p", help="Persona ID to generate"),
-    seed: int = typer.Option(1, "--seed", "-s", help="Random seed"),
+    persona_id: int = typer.Option(
+        0, "--persona-id", "--persona", "-p", help="Persona ID to generate (0..19)"
+    ),
+    seed: int = typer.Option(7, "--seed", "-s", help="Random seed"),
+    size: str = typer.Option(
+        "tiny", "--size", help="Dataset size ('tiny' ~200 items, 'full' ~3000 items)"
+    ),
+    out: str = typer.Option("", "--out", "-o", help="Output directory path"),
 ) -> None:
-    """Generate synthetic persona history and world database."""
-    console.print(f"[green]Generating persona {persona} with seed {seed} (Phase 2).[/green]")
+    """Generate synthetic persona history, world database, and hidden truth."""
+    if not out:
+        out_dir = f"data/synth/{persona_id}" if size == "full" else "tests/fixtures/tiny_synth"
+    else:
+        out_dir = out
+
+    console.print(
+        f"[bold cyan]Generating synthetic world for persona {persona_id} (seed={seed}, size={size})...[/]"
+    )
+    summary = generate_synthetic_world(persona_id=persona_id, seed=seed, size=size, out_dir=out_dir)
+
+    table = Table(title="Synthetic Generation Summary")
+    table.add_column("Property", style="cyan")
+    table.add_column("Value", style="green")
+    table.add_row("Persona ID", str(summary["persona_id"]))
+    table.add_row("Seed", str(summary["seed"]))
+    table.add_row("Size", str(summary["size"]))
+    table.add_row("Total Situations", str(summary["situations_total"]))
+    table.add_row("Total Messages", str(summary["messages_total"]))
+    table.add_row("Total Events", str(summary["events_total"]))
+    table.add_row("Total Files", str(summary["files_total"]))
+    table.add_row("Output Directory", str(summary["out_dir"]))
+    console.print(table)
+    console.print(f"[bold green]Successfully generated synthetic world at:[/] {summary['out_dir']}")
+
+
+@import_app.command("mail")
+def import_mail_cmd(
+    path: str = typer.Argument(..., help="Path to .mbox file"),
+) -> None:
+    """Import RFC-822 .mbox archive into raw_items."""
+    console.print(f"[bold cyan]Importing mail from:[/] {path}")
+    conn = get_connection(settings.db_path)
+    try:
+        res = import_mail(path, conn)
+        console.print(
+            f"[bold green]Mail imported successfully.[/] "
+            f"Imported: {res.items_imported}, Skipped (idempotent): {res.items_skipped}"
+        )
+    finally:
+        conn.close()
+
+
+@import_app.command("calendar")
+def import_calendar_cmd(
+    path: str = typer.Argument(..., help="Path to .ics file"),
+) -> None:
+    """Import RFC-5545 .ics file into raw_items."""
+    console.print(f"[bold cyan]Importing calendar from:[/] {path}")
+    conn = get_connection(settings.db_path)
+    try:
+        res = import_calendar(path, conn)
+        console.print(
+            f"[bold green]Calendar imported successfully.[/] "
+            f"Imported: {res.items_imported}, Skipped (idempotent): {res.items_skipped}"
+        )
+    finally:
+        conn.close()
+
+
+@import_app.command("files")
+def import_files_cmd(
+    path: str = typer.Argument(..., help="Path to folder manifest JSON file"),
+) -> None:
+    """Import folder snapshot manifest into raw_items."""
+    console.print(f"[bold cyan]Importing files manifest from:[/] {path}")
+    conn = get_connection(settings.db_path)
+    try:
+        res = import_files(path, conn)
+        console.print(
+            f"[bold green]Files imported successfully.[/] "
+            f"Imported: {res.items_imported}, Skipped (idempotent): {res.items_skipped}"
+        )
+    finally:
+        conn.close()
+
+
+@import_app.command("links")
+def import_links_cmd(
+    path: str = typer.Argument(..., help="Path to links file"),
+) -> None:
+    """Import saved links into raw_items."""
+    console.print(f"[bold cyan]Importing links from:[/] {path}")
+    conn = get_connection(settings.db_path)
+    try:
+        res = import_links(path, conn)
+        console.print(
+            f"[bold green]Links imported successfully.[/] "
+            f"Imported: {res.items_imported}, Skipped (idempotent): {res.items_skipped}"
+        )
+    finally:
+        conn.close()
 
 
 @exam_app.command("run")

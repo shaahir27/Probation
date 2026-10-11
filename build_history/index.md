@@ -13,6 +13,8 @@ Governed by [`docs/BUILD_LOGGING_PROTOCOL.md`](file:///d:/Desktop/project/Probat
 | Day-1 Spike Scripts and Budget Verification | Phase 0 | [feature_002_spike_scripts.md](phase_00_foundations_spikes/feature_002_spike_scripts.md) | Built | 2026-10-07 |
 | Core Types and Hash-Chained Ledger | Phase 1 | [feature_core_types_ledger.md](phase_01_core_ledger_llm/feature_core_types_ledger.md) | Built | 2026-10-10 |
 | PII Redaction Pipeline and Resilient LLM Client | Phase 1 | [feature_redaction_llm_client.md](phase_01_core_ledger_llm/feature_redaction_llm_client.md) | Built | 2026-10-10 |
+| Synthetic World Generator and Habits DSL | Phase 2 | [feature_synthetic_world_generator.md](phase_02_synth_world_importers/feature_synthetic_world_generator.md) | Built | 2026-10-11 |
+| Data Importers and SimWorld Renderers | Phase 2 | [feature_importers_and_simworld.md](phase_02_synth_world_importers/feature_importers_and_simworld.md) | Built | 2026-10-11 |
 
 
 ---

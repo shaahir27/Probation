@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "probation"
 version = "0.1.0"
 description = "A personal AI that earns permission to act by proving on the user's history that it would have done what they did."
-readme = "../README.md"
+readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
 authors = [
@@ -52,6 +52,10 @@ packages = ["src/probation"]
 [tool.ruff]
 target-version = "py311"
 line-length = 100
+exclude = [
+    "tests/fixtures",
+    "data",
+]
 
 [tool.ruff.lint]
 select = [
