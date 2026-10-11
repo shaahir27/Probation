@@ -1,0 +1,3962 @@
+{
+  "0006c444600122d56b46b15236162f35": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "newsletter",
+      "is_automated": true,
+      "money_involved": false,
+      "sender_role": "service",
+      "urgency": "normal"
+    },
+    "candidate_action": "ARCHIVE",
+    "day_idx": 170,
+    "family": "email_action",
+    "is_censored": true,
+    "is_drifted": true,
+    "noise_applied": false,
+    "occurred_at": "2026-06-20T21:06:25Z",
+    "pack": "mail",
+    "rule_id": "R2",
+    "situation_id": "0006c444600122d56b46b15236162f35",
+    "true_action": "ARCHIVE"
+  },
+  "00b08dd87f984b64b19025c54dd7b6a4": {
+    "attributes": {
+      "organizer_role": "club",
+      "purpose": "club_meeting",
+      "start_hour_bucket": "early"
+    },
+    "candidate_action": "DECLINE",
+    "day_idx": 0,
+    "family": "invite_rsvp",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-01-01T16:00:00Z",
+    "pack": "calendar",
+    "rule_id": "R8",
+    "situation_id": "00b08dd87f984b64b19025c54dd7b6a4",
+    "true_action": "DECLINE"
+  },
+  "01a20acaf20963fb27e043f81dd821cc": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "chat",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "friend",
+      "urgency": "normal"
+    },
+    "candidate_action": "REPLY",
+    "day_idx": 102,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-04-13T17:51:58Z",
+    "pack": "mail",
+    "rule_id": "R4",
+    "situation_id": "01a20acaf20963fb27e043f81dd821cc",
+    "true_action": "REPLY"
+  },
+  "087a847ca80389cfe681f6d5d55ba48c": {
+    "attributes": {
+      "has_deadline": true,
+      "intent": "notification",
+      "is_automated": true,
+      "money_involved": false,
+      "sender_role": "service",
+      "urgency": "normal"
+    },
+    "candidate_action": "ARCHIVE",
+    "day_idx": 44,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": true,
+    "occurred_at": "2026-02-14T22:54:58Z",
+    "pack": "mail",
+    "rule_id": "R3",
+    "situation_id": "087a847ca80389cfe681f6d5d55ba48c",
+    "true_action": "FORWARD"
+  },
+  "0d5e7c96089b96b67996700b6199045b": {
+    "attributes": {
+      "ext": "pdf",
+      "filename": "CO301_Lab39_Report.pdf",
+      "origin_site": "arxiv.org"
+    },
+    "candidate_action": "MOVE_TO_FOLDER:College/CO302",
+    "day_idx": 136,
+    "family": "file_destination",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-05-17T20:59:00Z",
+    "pack": "files",
+    "rule_id": "R13",
+    "situation_id": "0d5e7c96089b96b67996700b6199045b",
+    "true_action": "MOVE_TO_FOLDER:College/CO302"
+  },
+  "0da825ef9547acdd36756b897292ac47": {
+    "attributes": {
+      "has_deadline": true,
+      "intent": "request",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "professor",
+      "urgency": "normal"
+    },
+    "candidate_action": "LEAVE",
+    "day_idx": 165,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": true,
+    "occurred_at": "2026-06-15T17:36:52Z",
+    "pack": "mail",
+    "rule_id": "R1",
+    "situation_id": "0da825ef9547acdd36756b897292ac47",
+    "true_action": "TRASH"
+  },
+  "0f77d11db3b978af91bde53ef6a987b0": {
+    "attributes": {
+      "ext": "docx",
+      "filename": "CO301_Lab23_Report.docx",
+      "origin_site": "overleaf.com"
+    },
+    "candidate_action": "MOVE_TO_FOLDER:Downloads/Misc",
+    "day_idx": 78,
+    "family": "file_destination",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-03-21T00:46:00Z",
+    "pack": "files",
+    "rule_id": "DEFAULT",
+    "situation_id": "0f77d11db3b978af91bde53ef6a987b0",
+    "true_action": "MOVE_TO_FOLDER:Downloads/Misc"
+  },
+  "10f6279090229f4081ae0f790ff9cee2": {
+    "attributes": {
+      "ext": "zip",
+      "filename": "CO301_Lab36_Report.zip",
+      "origin_site": "arxiv.org"
+    },
+    "candidate_action": "MOVE_TO_FOLDER:College/CO302",
+    "day_idx": 125,
+    "family": "file_destination",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-05-07T02:09:00Z",
+    "pack": "files",
+    "rule_id": "R13",
+    "situation_id": "10f6279090229f4081ae0f790ff9cee2",
+    "true_action": "MOVE_TO_FOLDER:College/CO302"
+  },
+  "11a5913364a6ed094cb851c1a2212131": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "notification",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "professor",
+      "urgency": "normal"
+    },
+    "candidate_action": "ARCHIVE",
+    "day_idx": 76,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-03-18T20:27:32Z",
+    "pack": "mail",
+    "rule_id": "DEFAULT",
+    "situation_id": "11a5913364a6ed094cb851c1a2212131",
+    "true_action": "ARCHIVE"
+  },
+  "11e99d2bcba1a5e66620ec8e72d0924c": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "newsletter",
+      "is_automated": true,
+      "money_involved": false,
+      "sender_role": "service",
+      "urgency": "normal"
+    },
+    "candidate_action": "ARCHIVE",
+    "day_idx": 25,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": true,
+    "occurred_at": "2026-01-26T19:51:15Z",
+    "pack": "mail",
+    "rule_id": "R2",
+    "situation_id": "11e99d2bcba1a5e66620ec8e72d0924c",
+    "true_action": "TRASH"
+  },
+  "152bc6f2901d0fdc2c6e53a85585a9b4": {
+    "attributes": {
+      "ext": "pdf",
+      "filename": "CO301_Lab38_Report.pdf",
+      "origin_site": "drive.google.com"
+    },
+    "candidate_action": "MOVE_TO_FOLDER:Downloads/Misc",
+    "day_idx": 132,
+    "family": "file_destination",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-05-13T20:19:00Z",
+    "pack": "files",
+    "rule_id": "DEFAULT",
+    "situation_id": "152bc6f2901d0fdc2c6e53a85585a9b4",
+    "true_action": "MOVE_TO_FOLDER:Downloads/Misc"
+  },
+  "159195d2d757398a9d164f03919ab5ef": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "newsletter",
+      "is_automated": true,
+      "money_involved": false,
+      "sender_role": "service",
+      "urgency": "normal"
+    },
+    "candidate_action": "ARCHIVE",
+    "day_idx": 10,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-01-11T23:18:45Z",
+    "pack": "mail",
+    "rule_id": "R2",
+    "situation_id": "159195d2d757398a9d164f03919ab5ef",
+    "true_action": "ARCHIVE"
+  },
+  "159e8508b9e66b36b2b4d77e31cb2da0": {
+    "attributes": {
+      "ext": "pdf",
+      "filename": "CO301_Lab35_Report.pdf",
+      "origin_site": "moodle.national.ac.in"
+    },
+    "candidate_action": "LEAVE",
+    "day_idx": 121,
+    "family": "file_destination",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-05-02T21:27:00Z",
+    "pack": "files",
+    "rule_id": "DEFAULT",
+    "situation_id": "159e8508b9e66b36b2b4d77e31cb2da0",
+    "true_action": "LEAVE"
+  },
+  "17c0f320775973c749148a2d78e49d7d": {
+    "attributes": {
+      "ext": "docx",
+      "filename": "CO301_Lab13_Report.docx",
+      "origin_site": "kaggle.com"
+    },
+    "candidate_action": "LEAVE",
+    "day_idx": 42,
+    "family": "file_destination",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-02-13T00:40:00Z",
+    "pack": "files",
+    "rule_id": "DEFAULT",
+    "situation_id": "17c0f320775973c749148a2d78e49d7d",
+    "true_action": "LEAVE"
+  },
+  "195b041ef2e3b1e9ab12f819d58ef99f": {
+    "attributes": {
+      "ext": "pdf",
+      "filename": "CO301_Lab21_Report.pdf",
+      "origin_site": "moodle.national.ac.in"
+    },
+    "candidate_action": "LEAVE",
+    "day_idx": 71,
+    "family": "file_destination",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": true,
+    "occurred_at": "2026-03-14T00:13:00Z",
+    "pack": "files",
+    "rule_id": "DEFAULT",
+    "situation_id": "195b041ef2e3b1e9ab12f819d58ef99f",
+    "true_action": "MOVE_TO_FOLDER"
+  },
+  "1adfacbd82be263b63df800d329e77de": {
+    "attributes": {
+      "organizer_role": "club",
+      "purpose": "club_meeting",
+      "start_hour_bucket": "normal"
+    },
+    "candidate_action": "ACCEPT",
+    "day_idx": 143,
+    "family": "invite_rsvp",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-05-25T02:00:00Z",
+    "pack": "calendar",
+    "rule_id": "R10",
+    "situation_id": "1adfacbd82be263b63df800d329e77de",
+    "true_action": "ACCEPT"
+  },
+  "1cc50287c6e1bddfd10605d80f90d6e8": {
+    "attributes": {
+      "ext": "py",
+      "filename": "CO301_Lab28_Report.py",
+      "origin_site": "arxiv.org"
+    },
+    "candidate_action": "MOVE_TO_FOLDER:College/CO302",
+    "day_idx": 96,
+    "family": "file_destination",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-04-08T02:03:00Z",
+    "pack": "files",
+    "rule_id": "R13",
+    "situation_id": "1cc50287c6e1bddfd10605d80f90d6e8",
+    "true_action": "MOVE_TO_FOLDER:College/CO302"
+  },
+  "20c21dbd5b3c14d8701ee20834c1488a": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "chat",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "friend",
+      "urgency": "normal"
+    },
+    "candidate_action": "REPLY",
+    "day_idx": 143,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": true,
+    "occurred_at": "2026-05-24T20:52:33Z",
+    "pack": "mail",
+    "rule_id": "R4",
+    "situation_id": "20c21dbd5b3c14d8701ee20834c1488a",
+    "true_action": "ARCHIVE"
+  },
+  "21a2e2c7ee4da7c46db588e75d837bd7": {
+    "attributes": {
+      "ext": "zip",
+      "filename": "CO301_Lab20_Report.zip",
+      "origin_site": "github.com"
+    },
+    "candidate_action": "LEAVE",
+    "day_idx": 68,
+    "family": "file_destination",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-03-11T03:09:00Z",
+    "pack": "files",
+    "rule_id": "DEFAULT",
+    "situation_id": "21a2e2c7ee4da7c46db588e75d837bd7",
+    "true_action": "LEAVE"
+  },
+  "22c5f07a4afc6b390d75e7de5ec80ac0": {
+    "attributes": {
+      "ext": "zip",
+      "filename": "CO301_Lab19_Report.zip",
+      "origin_site": "portal.national.ac.in"
+    },
+    "candidate_action": "MOVE_TO_FOLDER:College/CO301",
+    "day_idx": 64,
+    "family": "file_destination",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-03-07T00:04:00Z",
+    "pack": "files",
+    "rule_id": "R12",
+    "situation_id": "22c5f07a4afc6b390d75e7de5ec80ac0",
+    "true_action": "MOVE_TO_FOLDER:College/CO301"
+  },
+  "236ccb40728268b6bb298893382c01f8": {
+    "attributes": {
+      "ext": "docx",
+      "filename": "CO301_Lab29_Report.docx",
+      "origin_site": "moodle.national.ac.in"
+    },
+    "candidate_action": "MOVE_TO_FOLDER:Downloads/Misc",
+    "day_idx": 100,
+    "family": "file_destination",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-04-12T00:43:00Z",
+    "pack": "files",
+    "rule_id": "DEFAULT",
+    "situation_id": "236ccb40728268b6bb298893382c01f8",
+    "true_action": "MOVE_TO_FOLDER:Downloads/Misc"
+  },
+  "2449aa514d5eaf469934b814aba79287": {
+    "attributes": {
+      "has_deadline": true,
+      "intent": "request",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "professor",
+      "urgency": "high"
+    },
+    "candidate_action": "REPLY",
+    "day_idx": 117,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-04-28T18:02:13Z",
+    "pack": "mail",
+    "rule_id": "R1",
+    "situation_id": "2449aa514d5eaf469934b814aba79287",
+    "true_action": "REPLY"
+  },
+  "270bb8f4fb69569b45c9e2fe1ddaa82b": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "notification",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "club",
+      "urgency": "normal"
+    },
+    "candidate_action": "ARCHIVE",
+    "day_idx": 58,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-02-28T22:01:19Z",
+    "pack": "mail",
+    "rule_id": "DEFAULT",
+    "situation_id": "270bb8f4fb69569b45c9e2fe1ddaa82b",
+    "true_action": "ARCHIVE"
+  },
+  "27a7c4140018ac4eef4e95c762702f2c": {
+    "attributes": {
+      "organizer_role": "club",
+      "purpose": "club_meeting",
+      "start_hour_bucket": "normal"
+    },
+    "candidate_action": "ACCEPT",
+    "day_idx": 125,
+    "family": "invite_rsvp",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-05-06T18:00:00Z",
+    "pack": "calendar",
+    "rule_id": "R10",
+    "situation_id": "27a7c4140018ac4eef4e95c762702f2c",
+    "true_action": "ACCEPT"
+  },
+  "28fbf8682361836f316c7b1550427443": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "sales",
+      "is_automated": true,
+      "money_involved": false,
+      "sender_role": "service",
+      "urgency": "normal"
+    },
+    "candidate_action": "TRASH",
+    "day_idx": 161,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": true,
+    "occurred_at": "2026-06-12T00:57:42Z",
+    "pack": "mail",
+    "rule_id": "R7",
+    "situation_id": "28fbf8682361836f316c7b1550427443",
+    "true_action": "REPLY"
+  },
+  "29a01bc6e3b521a4f62828f1af88bd7e": {
+    "attributes": {
+      "ext": "docx",
+      "filename": "CO301_Lab48_Report.docx",
+      "origin_site": "github.com"
+    },
+    "candidate_action": "LEAVE",
+    "day_idx": 168,
+    "family": "file_destination",
+    "is_censored": true,
+    "is_drifted": false,
+    "noise_applied": true,
+    "occurred_at": "2026-06-18T23:06:00Z",
+    "pack": "files",
+    "rule_id": "DEFAULT",
+    "situation_id": "29a01bc6e3b521a4f62828f1af88bd7e",
+    "true_action": "MOVE_TO_FOLDER"
+  },
+  "29cfbfa24f3cc3bbaf43d10b5d1dfd0d": {
+    "attributes": {
+      "ext": "py",
+      "filename": "CO301_Lab31_Report.py",
+      "origin_site": "kaggle.com"
+    },
+    "candidate_action": "LEAVE",
+    "day_idx": 107,
+    "family": "file_destination",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": true,
+    "occurred_at": "2026-04-19T00:17:00Z",
+    "pack": "files",
+    "rule_id": "DEFAULT",
+    "situation_id": "29cfbfa24f3cc3bbaf43d10b5d1dfd0d",
+    "true_action": "MOVE_TO_FOLDER"
+  },
+  "2e6d3ccb916edca6d95deb781c7251be": {
+    "attributes": {
+      "ext": "zip",
+      "filename": "CO301_Lab18_Report.zip",
+      "origin_site": "kaggle.com"
+    },
+    "candidate_action": "LEAVE",
+    "day_idx": 60,
+    "family": "file_destination",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-03-02T18:49:00Z",
+    "pack": "files",
+    "rule_id": "DEFAULT",
+    "situation_id": "2e6d3ccb916edca6d95deb781c7251be",
+    "true_action": "LEAVE"
+  },
+  "2ef397f45c894f3c85f07330fa18743f": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "notification",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "professor",
+      "urgency": "normal"
+    },
+    "candidate_action": "ARCHIVE",
+    "day_idx": 141,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-05-22T20:24:23Z",
+    "pack": "mail",
+    "rule_id": "DEFAULT",
+    "situation_id": "2ef397f45c894f3c85f07330fa18743f",
+    "true_action": "ARCHIVE"
+  },
+  "2f7ddbb545aedfd5ed3a42b0074553e9": {
+    "attributes": {
+      "has_deadline": true,
+      "intent": "request",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "professor",
+      "urgency": "high"
+    },
+    "candidate_action": "REPLY",
+    "day_idx": 31,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-02-01T23:42:59Z",
+    "pack": "mail",
+    "rule_id": "R1",
+    "situation_id": "2f7ddbb545aedfd5ed3a42b0074553e9",
+    "true_action": "REPLY"
+  },
+  "32f68674d0a903bf6c58f117ec91c74d": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "notification",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "club",
+      "urgency": "normal"
+    },
+    "candidate_action": "LEAVE",
+    "day_idx": 113,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-04-24T19:32:33Z",
+    "pack": "mail",
+    "rule_id": "DEFAULT",
+    "situation_id": "32f68674d0a903bf6c58f117ec91c74d",
+    "true_action": "LEAVE"
+  },
+  "33873834c6ae8a0ec2b945a30336c4f0": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "newsletter",
+      "is_automated": true,
+      "money_involved": false,
+      "sender_role": "service",
+      "urgency": "normal"
+    },
+    "candidate_action": "ARCHIVE",
+    "day_idx": 82,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": true,
+    "occurred_at": "2026-03-25T04:36:12Z",
+    "pack": "mail",
+    "rule_id": "R2",
+    "situation_id": "33873834c6ae8a0ec2b945a30336c4f0",
+    "true_action": "TRASH"
+  },
+  "365cabc93bff95ae836888ecc2c470f7": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "newsletter",
+      "is_automated": true,
+      "money_involved": false,
+      "sender_role": "service",
+      "urgency": "normal"
+    },
+    "candidate_action": "ARCHIVE",
+    "day_idx": 105,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-04-16T23:49:24Z",
+    "pack": "mail",
+    "rule_id": "R2",
+    "situation_id": "365cabc93bff95ae836888ecc2c470f7",
+    "true_action": "ARCHIVE"
+  },
+  "367087b6828d7c8d36cd8a691f16f25b": {
+    "attributes": {
+      "organizer_role": "professor",
+      "purpose": "lab_session",
+      "start_hour_bucket": "weekend"
+    },
+    "candidate_action": "ACCEPT",
+    "day_idx": 23,
+    "family": "invite_rsvp",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-01-25T02:00:00Z",
+    "pack": "calendar",
+    "rule_id": "R9",
+    "situation_id": "367087b6828d7c8d36cd8a691f16f25b",
+    "true_action": "ACCEPT"
+  },
+  "371653acadc7da0672583da932b7d0e6": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "notification",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "professor",
+      "urgency": "normal"
+    },
+    "candidate_action": "ARCHIVE",
+    "day_idx": 19,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-01-20T16:06:00Z",
+    "pack": "mail",
+    "rule_id": "DEFAULT",
+    "situation_id": "371653acadc7da0672583da932b7d0e6",
+    "true_action": "ARCHIVE"
+  },
+  "37547d61f4a0d4b38fde1b0b89aa816c": {
+    "attributes": {
+      "has_deadline": true,
+      "intent": "notification",
+      "is_automated": true,
+      "money_involved": false,
+      "sender_role": "service",
+      "urgency": "normal"
+    },
+    "candidate_action": "ARCHIVE",
+    "day_idx": 119,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-04-30T23:04:26Z",
+    "pack": "mail",
+    "rule_id": "R3",
+    "situation_id": "37547d61f4a0d4b38fde1b0b89aa816c",
+    "true_action": "ARCHIVE"
+  },
+  "37d44b68571bbfe3d17b38f775fbe686": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "chat",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "friend",
+      "urgency": "normal"
+    },
+    "candidate_action": "REPLY",
+    "day_idx": 101,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-04-13T00:58:28Z",
+    "pack": "mail",
+    "rule_id": "R4",
+    "situation_id": "37d44b68571bbfe3d17b38f775fbe686",
+    "true_action": "REPLY"
+  },
+  "3a52191e18a52d174c21a9ff0d929d2e": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "chat",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "friend",
+      "urgency": "normal"
+    },
+    "candidate_action": "REPLY",
+    "day_idx": 144,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-05-25T20:39:40Z",
+    "pack": "mail",
+    "rule_id": "R4",
+    "situation_id": "3a52191e18a52d174c21a9ff0d929d2e",
+    "true_action": "REPLY"
+  },
+  "3cd8e5dca765f26730e65f2fa6855344": {
+    "attributes": {
+      "has_deadline": true,
+      "intent": "notification",
+      "is_automated": true,
+      "money_involved": false,
+      "sender_role": "service",
+      "urgency": "normal"
+    },
+    "candidate_action": "ARCHIVE",
+    "day_idx": 8,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-01-10T04:29:04Z",
+    "pack": "mail",
+    "rule_id": "R3",
+    "situation_id": "3cd8e5dca765f26730e65f2fa6855344",
+    "true_action": "ARCHIVE"
+  },
+  "3d3936190b8b5e250941a800e7848070": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "newsletter",
+      "is_automated": true,
+      "money_involved": false,
+      "sender_role": "service",
+      "urgency": "normal"
+    },
+    "candidate_action": "ARCHIVE",
+    "day_idx": 11,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-01-12T19:49:18Z",
+    "pack": "mail",
+    "rule_id": "R2",
+    "situation_id": "3d3936190b8b5e250941a800e7848070",
+    "true_action": "ARCHIVE"
+  },
+  "3f29262a1bad09a92c0bec7994a36662": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "chat",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "friend",
+      "urgency": "normal"
+    },
+    "candidate_action": "REPLY",
+    "day_idx": 71,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-03-13T16:31:43Z",
+    "pack": "mail",
+    "rule_id": "R4",
+    "situation_id": "3f29262a1bad09a92c0bec7994a36662",
+    "true_action": "REPLY"
+  },
+  "3fc5d67aa52a29d3b7b88a3c7daa8410": {
+    "attributes": {
+      "ext": "zip",
+      "filename": "CO301_Lab03_Report.zip",
+      "origin_site": "arxiv.org"
+    },
+    "candidate_action": "MOVE_TO_FOLDER:College/CO302",
+    "day_idx": 7,
+    "family": "file_destination",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-01-09T03:23:00Z",
+    "pack": "files",
+    "rule_id": "R13",
+    "situation_id": "3fc5d67aa52a29d3b7b88a3c7daa8410",
+    "true_action": "MOVE_TO_FOLDER:College/CO302"
+  },
+  "4152a0cdda2ebd8b00d35afd06df82d0": {
+    "attributes": {
+      "organizer_role": "professor",
+      "purpose": "office_hours",
+      "start_hour_bucket": "normal"
+    },
+    "candidate_action": "ACCEPT",
+    "day_idx": 113,
+    "family": "invite_rsvp",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-04-24T18:00:00Z",
+    "pack": "calendar",
+    "rule_id": "R9",
+    "situation_id": "4152a0cdda2ebd8b00d35afd06df82d0",
+    "true_action": "ACCEPT"
+  },
+  "4435ce168c65801f5d47e34c44ac3ff8": {
+    "attributes": {
+      "organizer_role": "club",
+      "purpose": "club_meeting",
+      "start_hour_bucket": "early"
+    },
+    "candidate_action": "DECLINE",
+    "day_idx": 131,
+    "family": "invite_rsvp",
+    "is_censored": false,
+    "is_drifted": true,
+    "noise_applied": false,
+    "occurred_at": "2026-05-12T15:00:00Z",
+    "pack": "calendar",
+    "rule_id": "R8",
+    "situation_id": "4435ce168c65801f5d47e34c44ac3ff8",
+    "true_action": "DECLINE"
+  },
+  "451390aa56e20df543dbe963e429fc7d": {
+    "attributes": {
+      "has_deadline": true,
+      "intent": "notification",
+      "is_automated": true,
+      "money_involved": false,
+      "sender_role": "service",
+      "urgency": "normal"
+    },
+    "candidate_action": "ARCHIVE",
+    "day_idx": 53,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": true,
+    "occurred_at": "2026-02-23T18:03:05Z",
+    "pack": "mail",
+    "rule_id": "R3",
+    "situation_id": "451390aa56e20df543dbe963e429fc7d",
+    "true_action": "FORWARD"
+  },
+  "45d53d109957951997cd389218163d3c": {
+    "attributes": {
+      "ext": "pdf",
+      "filename": "CO301_Lab49_Report.pdf",
+      "origin_site": "portal.national.ac.in"
+    },
+    "candidate_action": "MOVE_TO_FOLDER:College/CO301",
+    "day_idx": 171,
+    "family": "file_destination",
+    "is_censored": true,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-06-21T19:24:00Z",
+    "pack": "files",
+    "rule_id": "R12",
+    "situation_id": "45d53d109957951997cd389218163d3c",
+    "true_action": "MOVE_TO_FOLDER:College/CO301"
+  },
+  "479627b838d7bd581f70435450446ab5": {
+    "attributes": {
+      "organizer_role": "professor",
+      "purpose": "lab_session",
+      "start_hour_bucket": "weekend"
+    },
+    "candidate_action": "ACCEPT",
+    "day_idx": 65,
+    "family": "invite_rsvp",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-03-08T02:00:00Z",
+    "pack": "calendar",
+    "rule_id": "R9",
+    "situation_id": "479627b838d7bd581f70435450446ab5",
+    "true_action": "ACCEPT"
+  },
+  "4890ab76a3f8f5bd912fc919fac16b97": {
+    "attributes": {
+      "ext": "py",
+      "filename": "CO301_Lab04_Report.py",
+      "origin_site": "github.com"
+    },
+    "candidate_action": "LEAVE",
+    "day_idx": 10,
+    "family": "file_destination",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-01-11T20:18:00Z",
+    "pack": "files",
+    "rule_id": "DEFAULT",
+    "situation_id": "4890ab76a3f8f5bd912fc919fac16b97",
+    "true_action": "LEAVE"
+  },
+  "497cc99b0dd15ae2e7deba33cf3c4983": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "notification",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "club",
+      "urgency": "normal"
+    },
+    "candidate_action": "LEAVE",
+    "day_idx": 123,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-05-05T04:58:25Z",
+    "pack": "mail",
+    "rule_id": "DEFAULT",
+    "situation_id": "497cc99b0dd15ae2e7deba33cf3c4983",
+    "true_action": "LEAVE"
+  },
+  "4a405837733f59b97d062292dbbaeb5f": {
+    "attributes": {
+      "organizer_role": "professor",
+      "purpose": "office_hours",
+      "start_hour_bucket": "normal"
+    },
+    "candidate_action": "ACCEPT",
+    "day_idx": 11,
+    "family": "invite_rsvp",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-01-13T02:00:00Z",
+    "pack": "calendar",
+    "rule_id": "R9",
+    "situation_id": "4a405837733f59b97d062292dbbaeb5f",
+    "true_action": "ACCEPT"
+  },
+  "4a7f44b1beaab8fa71f06bc08f94da30": {
+    "attributes": {
+      "ext": "zip",
+      "filename": "CO301_Lab10_Report.zip",
+      "origin_site": "kaggle.com"
+    },
+    "candidate_action": "MOVE_TO_FOLDER:Downloads/Misc",
+    "day_idx": 32,
+    "family": "file_destination",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-02-02T17:12:00Z",
+    "pack": "files",
+    "rule_id": "DEFAULT",
+    "situation_id": "4a7f44b1beaab8fa71f06bc08f94da30",
+    "true_action": "MOVE_TO_FOLDER:Downloads/Misc"
+  },
+  "4b309dd14526ce8768a26aa0dfe87c37": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "newsletter",
+      "is_automated": true,
+      "money_involved": false,
+      "sender_role": "service",
+      "urgency": "normal"
+    },
+    "candidate_action": "ARCHIVE",
+    "day_idx": 34,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-02-05T00:32:01Z",
+    "pack": "mail",
+    "rule_id": "R2",
+    "situation_id": "4b309dd14526ce8768a26aa0dfe87c37",
+    "true_action": "ARCHIVE"
+  },
+  "4d6715696b3b963394f0a41a7f691822": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "newsletter",
+      "is_automated": true,
+      "money_involved": false,
+      "sender_role": "service",
+      "urgency": "normal"
+    },
+    "candidate_action": "ARCHIVE",
+    "day_idx": 85,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-03-28T03:48:57Z",
+    "pack": "mail",
+    "rule_id": "R2",
+    "situation_id": "4d6715696b3b963394f0a41a7f691822",
+    "true_action": "ARCHIVE"
+  },
+  "55717784f299fdff53fb73c6f6099822": {
+    "attributes": {
+      "has_deadline": true,
+      "intent": "opportunity",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "recruiter",
+      "urgency": "normal"
+    },
+    "candidate_action": "REPLY",
+    "day_idx": 37,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-02-07T21:39:32Z",
+    "pack": "mail",
+    "rule_id": "R5",
+    "situation_id": "55717784f299fdff53fb73c6f6099822",
+    "true_action": "REPLY"
+  },
+  "5589c1cae01d62035177ac7b42bd34be": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "notification",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "club",
+      "urgency": "normal"
+    },
+    "candidate_action": "ARCHIVE",
+    "day_idx": 126,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-05-07T22:05:57Z",
+    "pack": "mail",
+    "rule_id": "DEFAULT",
+    "situation_id": "5589c1cae01d62035177ac7b42bd34be",
+    "true_action": "ARCHIVE"
+  },
+  "55cd9befc0a6ed1022a32ead214424a8": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "notification",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "club",
+      "urgency": "normal"
+    },
+    "candidate_action": "ARCHIVE",
+    "day_idx": 159,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-06-09T16:08:44Z",
+    "pack": "mail",
+    "rule_id": "DEFAULT",
+    "situation_id": "55cd9befc0a6ed1022a32ead214424a8",
+    "true_action": "ARCHIVE"
+  },
+  "5655c46a76362dfe9996df7502b7c6d1": {
+    "attributes": {
+      "organizer_role": "professor",
+      "purpose": "lab_session",
+      "start_hour_bucket": "normal"
+    },
+    "candidate_action": "ACCEPT",
+    "day_idx": 29,
+    "family": "invite_rsvp",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-01-30T22:00:00Z",
+    "pack": "calendar",
+    "rule_id": "R9",
+    "situation_id": "5655c46a76362dfe9996df7502b7c6d1",
+    "true_action": "ACCEPT"
+  },
+  "58dcce3cf431d90d0a258f4197e81792": {
+    "attributes": {
+      "has_deadline": true,
+      "intent": "request",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "professor",
+      "urgency": "normal"
+    },
+    "candidate_action": "REPLY",
+    "day_idx": 149,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-05-31T00:46:31Z",
+    "pack": "mail",
+    "rule_id": "R1",
+    "situation_id": "58dcce3cf431d90d0a258f4197e81792",
+    "true_action": "REPLY"
+  },
+  "592a5c1088fe81f816af19bc2b68a38e": {
+    "attributes": {
+      "has_deadline": true,
+      "intent": "opportunity",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "recruiter",
+      "urgency": "normal"
+    },
+    "candidate_action": "REPLY",
+    "day_idx": 90,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": true,
+    "occurred_at": "2026-04-01T19:30:33Z",
+    "pack": "mail",
+    "rule_id": "R5",
+    "situation_id": "592a5c1088fe81f816af19bc2b68a38e",
+    "true_action": "LEAVE"
+  },
+  "59f9cca93fffcac00a4cedd2bfe6c3c2": {
+    "attributes": {
+      "ext": "zip",
+      "filename": "CO301_Lab01_Report.zip",
+      "origin_site": "drive.google.com"
+    },
+    "candidate_action": "LEAVE",
+    "day_idx": 0,
+    "family": "file_destination",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-01-02T05:06:00Z",
+    "pack": "files",
+    "rule_id": "DEFAULT",
+    "situation_id": "59f9cca93fffcac00a4cedd2bfe6c3c2",
+    "true_action": "LEAVE"
+  },
+  "5a955b95f75cfbdb3422d60bfa73f090": {
+    "attributes": {
+      "has_deadline": true,
+      "intent": "opportunity",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "recruiter",
+      "urgency": "normal"
+    },
+    "candidate_action": "REPLY",
+    "day_idx": 67,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-03-10T01:36:08Z",
+    "pack": "mail",
+    "rule_id": "R5",
+    "situation_id": "5a955b95f75cfbdb3422d60bfa73f090",
+    "true_action": "REPLY"
+  },
+  "5af57c15cb0853d69df28597f92b17f4": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "chat",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "friend",
+      "urgency": "normal"
+    },
+    "candidate_action": "REPLY",
+    "day_idx": 79,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-03-21T20:47:47Z",
+    "pack": "mail",
+    "rule_id": "R4",
+    "situation_id": "5af57c15cb0853d69df28597f92b17f4",
+    "true_action": "REPLY"
+  },
+  "5bd1fc011452235d3050c39c61a5a4bc": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "chat",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "friend",
+      "urgency": "normal"
+    },
+    "candidate_action": "REPLY",
+    "day_idx": 162,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-06-13T04:48:41Z",
+    "pack": "mail",
+    "rule_id": "R4",
+    "situation_id": "5bd1fc011452235d3050c39c61a5a4bc",
+    "true_action": "REPLY"
+  },
+  "5c5f5fc0f75b76f94af98f01c2a3b515": {
+    "attributes": {
+      "has_deadline": true,
+      "intent": "request",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "professor",
+      "urgency": "high"
+    },
+    "candidate_action": "REPLY",
+    "day_idx": 59,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-03-02T04:20:46Z",
+    "pack": "mail",
+    "rule_id": "R1",
+    "situation_id": "5c5f5fc0f75b76f94af98f01c2a3b515",
+    "true_action": "REPLY"
+  },
+  "5e5cf680e09b11b417a5751a469004bd": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "notification",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "professor",
+      "urgency": "normal"
+    },
+    "candidate_action": "LEAVE",
+    "day_idx": 47,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-02-17T19:07:10Z",
+    "pack": "mail",
+    "rule_id": "DEFAULT",
+    "situation_id": "5e5cf680e09b11b417a5751a469004bd",
+    "true_action": "LEAVE"
+  },
+  "5eb8225f9086409b8d6784482758afc3": {
+    "attributes": {
+      "organizer_role": "professor",
+      "purpose": "office_hours",
+      "start_hour_bucket": "normal"
+    },
+    "candidate_action": "ACCEPT",
+    "day_idx": 137,
+    "family": "invite_rsvp",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-05-18T22:00:00Z",
+    "pack": "calendar",
+    "rule_id": "R9",
+    "situation_id": "5eb8225f9086409b8d6784482758afc3",
+    "true_action": "ACCEPT"
+  },
+  "5f2e9a5d20fdc6490966a23756ead75e": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "receipt",
+      "is_automated": true,
+      "money_involved": true,
+      "sender_role": "service",
+      "urgency": "normal"
+    },
+    "candidate_action": "LEAVE",
+    "day_idx": 16,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-01-17T21:39:36Z",
+    "pack": "mail",
+    "rule_id": "R6",
+    "situation_id": "5f2e9a5d20fdc6490966a23756ead75e",
+    "true_action": "LEAVE"
+  },
+  "5f3d70240568f9a0a325bcac40a8e30c": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "notification",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "professor",
+      "urgency": "normal"
+    },
+    "candidate_action": "LEAVE",
+    "day_idx": 14,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-01-15T18:09:14Z",
+    "pack": "mail",
+    "rule_id": "DEFAULT",
+    "situation_id": "5f3d70240568f9a0a325bcac40a8e30c",
+    "true_action": "LEAVE"
+  },
+  "5f8a6bb438ab2f118f024317f8a4739e": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "notification",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "club",
+      "urgency": "normal"
+    },
+    "candidate_action": "TRASH",
+    "day_idx": 26,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-01-27T23:16:12Z",
+    "pack": "mail",
+    "rule_id": "DEFAULT",
+    "situation_id": "5f8a6bb438ab2f118f024317f8a4739e",
+    "true_action": "TRASH"
+  },
+  "6154844f27a81ea39425581b455e62c4": {
+    "attributes": {
+      "has_deadline": true,
+      "intent": "request",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "professor",
+      "urgency": "normal"
+    },
+    "candidate_action": "REPLY",
+    "day_idx": 128,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-05-09T23:11:36Z",
+    "pack": "mail",
+    "rule_id": "R1",
+    "situation_id": "6154844f27a81ea39425581b455e62c4",
+    "true_action": "REPLY"
+  },
+  "63b3a95d81d2d32ba04ea581dcb17707": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "notification",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "club",
+      "urgency": "normal"
+    },
+    "candidate_action": "LEAVE",
+    "day_idx": 1,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-01-02T17:14:40Z",
+    "pack": "mail",
+    "rule_id": "DEFAULT",
+    "situation_id": "63b3a95d81d2d32ba04ea581dcb17707",
+    "true_action": "LEAVE"
+  },
+  "63e000c91ad90c7e9c93fcff5167f90a": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "notification",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "club",
+      "urgency": "normal"
+    },
+    "candidate_action": "LEAVE",
+    "day_idx": 129,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-05-10T17:24:38Z",
+    "pack": "mail",
+    "rule_id": "DEFAULT",
+    "situation_id": "63e000c91ad90c7e9c93fcff5167f90a",
+    "true_action": "LEAVE"
+  },
+  "6532bec9e9e9c48378bdffdb4a885fba": {
+    "attributes": {
+      "has_deadline": true,
+      "intent": "request",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "professor",
+      "urgency": "high"
+    },
+    "candidate_action": "REPLY",
+    "day_idx": 46,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-02-16T17:17:01Z",
+    "pack": "mail",
+    "rule_id": "R1",
+    "situation_id": "6532bec9e9e9c48378bdffdb4a885fba",
+    "true_action": "REPLY"
+  },
+  "6651ef8aa4fa3a6e89096975827c4d36": {
+    "attributes": {
+      "ext": "docx",
+      "filename": "CO301_Lab16_Report.docx",
+      "origin_site": "arxiv.org"
+    },
+    "candidate_action": "MOVE_TO_FOLDER:College/CO302",
+    "day_idx": 53,
+    "family": "file_destination",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-02-23T21:55:00Z",
+    "pack": "files",
+    "rule_id": "R13",
+    "situation_id": "6651ef8aa4fa3a6e89096975827c4d36",
+    "true_action": "MOVE_TO_FOLDER:College/CO302"
+  },
+  "67808121c4fdaf3747ecdb179e3f6638": {
+    "attributes": {
+      "organizer_role": "club",
+      "purpose": "club_meeting",
+      "start_hour_bucket": "normal"
+    },
+    "candidate_action": "ACCEPT",
+    "day_idx": 35,
+    "family": "invite_rsvp",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": true,
+    "occurred_at": "2026-02-05T22:00:00Z",
+    "pack": "calendar",
+    "rule_id": "R10",
+    "situation_id": "67808121c4fdaf3747ecdb179e3f6638",
+    "true_action": "TENTATIVE"
+  },
+  "683a046a3f555d4f77d91f56d8f532ce": {
+    "attributes": {
+      "organizer_role": "club",
+      "purpose": "club_meeting",
+      "start_hour_bucket": "early"
+    },
+    "candidate_action": "DECLINE",
+    "day_idx": 89,
+    "family": "invite_rsvp",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-03-31T15:00:00Z",
+    "pack": "calendar",
+    "rule_id": "R8",
+    "situation_id": "683a046a3f555d4f77d91f56d8f532ce",
+    "true_action": "DECLINE"
+  },
+  "684e332888cfc9a941fc04a24a1c7aa8": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "chat",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "friend",
+      "urgency": "normal"
+    },
+    "candidate_action": "REPLY",
+    "day_idx": 17,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-01-19T00:25:25Z",
+    "pack": "mail",
+    "rule_id": "R4",
+    "situation_id": "684e332888cfc9a941fc04a24a1c7aa8",
+    "true_action": "REPLY"
+  },
+  "69571524f4ccad7460abbc9b2cd860d3": {
+    "attributes": {
+      "ext": "py",
+      "filename": "CO301_Lab43_Report.py",
+      "origin_site": "drive.google.com"
+    },
+    "candidate_action": "LEAVE",
+    "day_idx": 150,
+    "family": "file_destination",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-05-31T22:36:00Z",
+    "pack": "files",
+    "rule_id": "DEFAULT",
+    "situation_id": "69571524f4ccad7460abbc9b2cd860d3",
+    "true_action": "LEAVE"
+  },
+  "6c4d5504101f8e1dd6f4fd72ff73015b": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "notification",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "club",
+      "urgency": "normal"
+    },
+    "candidate_action": "ARCHIVE",
+    "day_idx": 138,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-05-19T19:11:25Z",
+    "pack": "mail",
+    "rule_id": "DEFAULT",
+    "situation_id": "6c4d5504101f8e1dd6f4fd72ff73015b",
+    "true_action": "ARCHIVE"
+  },
+  "6c87e8b323b92aff1615d9a5d74169b5": {
+    "attributes": {
+      "has_deadline": true,
+      "intent": "opportunity",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "recruiter",
+      "urgency": "normal"
+    },
+    "candidate_action": "REPLY",
+    "day_idx": 80,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-03-23T04:31:35Z",
+    "pack": "mail",
+    "rule_id": "R5",
+    "situation_id": "6c87e8b323b92aff1615d9a5d74169b5",
+    "true_action": "REPLY"
+  },
+  "6ce16981b86ded136265d6d64a44c443": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "newsletter",
+      "is_automated": true,
+      "money_involved": false,
+      "sender_role": "service",
+      "urgency": "normal"
+    },
+    "candidate_action": "ARCHIVE",
+    "day_idx": 74,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-03-16T17:23:59Z",
+    "pack": "mail",
+    "rule_id": "R2",
+    "situation_id": "6ce16981b86ded136265d6d64a44c443",
+    "true_action": "ARCHIVE"
+  },
+  "6e776dcacaf2129fa0bc871c17baa478": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "chat",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "friend",
+      "urgency": "normal"
+    },
+    "candidate_action": "REPLY",
+    "day_idx": 177,
+    "family": "email_action",
+    "is_censored": true,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-06-27T18:15:20Z",
+    "pack": "mail",
+    "rule_id": "R4",
+    "situation_id": "6e776dcacaf2129fa0bc871c17baa478",
+    "true_action": "REPLY"
+  },
+  "6f996a83632fed96dc78624ada72e7d6": {
+    "attributes": {
+      "ext": "docx",
+      "filename": "CO301_Lab47_Report.docx",
+      "origin_site": "drive.google.com"
+    },
+    "candidate_action": "LEAVE",
+    "day_idx": 164,
+    "family": "file_destination",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-06-15T02:31:00Z",
+    "pack": "files",
+    "rule_id": "DEFAULT",
+    "situation_id": "6f996a83632fed96dc78624ada72e7d6",
+    "true_action": "LEAVE"
+  },
+  "7284fc542c5efb1c018ce874c510bc07": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "newsletter",
+      "is_automated": true,
+      "money_involved": false,
+      "sender_role": "service",
+      "urgency": "normal"
+    },
+    "candidate_action": "ARCHIVE",
+    "day_idx": 137,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": true,
+    "noise_applied": false,
+    "occurred_at": "2026-05-18T23:09:16Z",
+    "pack": "mail",
+    "rule_id": "R2",
+    "situation_id": "7284fc542c5efb1c018ce874c510bc07",
+    "true_action": "ARCHIVE"
+  },
+  "72ee9f16d81e3227d63adaf6207136e0": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "notification",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "club",
+      "urgency": "normal"
+    },
+    "candidate_action": "LEAVE",
+    "day_idx": 150,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-05-31T18:26:12Z",
+    "pack": "mail",
+    "rule_id": "DEFAULT",
+    "situation_id": "72ee9f16d81e3227d63adaf6207136e0",
+    "true_action": "LEAVE"
+  },
+  "7367e961378d60b062682d9b63cfc776": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "chat",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "friend",
+      "urgency": "normal"
+    },
+    "candidate_action": "REPLY",
+    "day_idx": 120,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-05-02T02:19:26Z",
+    "pack": "mail",
+    "rule_id": "R4",
+    "situation_id": "7367e961378d60b062682d9b63cfc776",
+    "true_action": "REPLY"
+  },
+  "7b66458ae0012a2c4fdacf7eac3d4c1b": {
+    "attributes": {
+      "has_deadline": true,
+      "intent": "request",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "professor",
+      "urgency": "normal"
+    },
+    "candidate_action": "REPLY",
+    "day_idx": 2,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-01-03T20:26:09Z",
+    "pack": "mail",
+    "rule_id": "R1",
+    "situation_id": "7b66458ae0012a2c4fdacf7eac3d4c1b",
+    "true_action": "REPLY"
+  },
+  "7e2fb91414e40ff55ca93b055c40c2c0": {
+    "attributes": {
+      "has_deadline": true,
+      "intent": "opportunity",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "recruiter",
+      "urgency": "normal"
+    },
+    "candidate_action": "REPLY",
+    "day_idx": 152,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-06-03T03:50:30Z",
+    "pack": "mail",
+    "rule_id": "R5",
+    "situation_id": "7e2fb91414e40ff55ca93b055c40c2c0",
+    "true_action": "REPLY"
+  },
+  "7ef592c87d9e70204906c8658f7f6af4": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "newsletter",
+      "is_automated": true,
+      "money_involved": false,
+      "sender_role": "service",
+      "urgency": "normal"
+    },
+    "candidate_action": "ARCHIVE",
+    "day_idx": 176,
+    "family": "email_action",
+    "is_censored": true,
+    "is_drifted": true,
+    "noise_applied": false,
+    "occurred_at": "2026-06-26T19:17:19Z",
+    "pack": "mail",
+    "rule_id": "R2",
+    "situation_id": "7ef592c87d9e70204906c8658f7f6af4",
+    "true_action": "ARCHIVE"
+  },
+  "7fc14ebc033c0cea69f694be01dad168": {
+    "attributes": {
+      "ext": "docx",
+      "filename": "CO301_Lab32_Report.docx",
+      "origin_site": "portal.national.ac.in"
+    },
+    "candidate_action": "MOVE_TO_FOLDER:College/CO301",
+    "day_idx": 110,
+    "family": "file_destination",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-04-22T02:46:00Z",
+    "pack": "files",
+    "rule_id": "R12",
+    "situation_id": "7fc14ebc033c0cea69f694be01dad168",
+    "true_action": "MOVE_TO_FOLDER:College/CO301"
+  },
+  "83ba87d0ba6b3ee6cd18f211446ccc46": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "newsletter",
+      "is_automated": true,
+      "money_involved": false,
+      "sender_role": "service",
+      "urgency": "normal"
+    },
+    "candidate_action": "ARCHIVE",
+    "day_idx": 49,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-02-20T02:11:17Z",
+    "pack": "mail",
+    "rule_id": "R2",
+    "situation_id": "83ba87d0ba6b3ee6cd18f211446ccc46",
+    "true_action": "ARCHIVE"
+  },
+  "840847622f2808e607ef3d722acee076": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "notification",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "professor",
+      "urgency": "normal"
+    },
+    "candidate_action": "TRASH",
+    "day_idx": 93,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-04-04T21:43:25Z",
+    "pack": "mail",
+    "rule_id": "DEFAULT",
+    "situation_id": "840847622f2808e607ef3d722acee076",
+    "true_action": "TRASH"
+  },
+  "861d2f1fd8fc35e63038be2a1cd99c86": {
+    "attributes": {
+      "has_deadline": true,
+      "intent": "request",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "professor",
+      "urgency": "high"
+    },
+    "candidate_action": "REPLY",
+    "day_idx": 146,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-05-27T17:33:22Z",
+    "pack": "mail",
+    "rule_id": "R1",
+    "situation_id": "861d2f1fd8fc35e63038be2a1cd99c86",
+    "true_action": "REPLY"
+  },
+  "86bccfaffcf53079292f520167aff7fd": {
+    "attributes": {
+      "has_deadline": true,
+      "intent": "request",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "professor",
+      "urgency": "normal"
+    },
+    "candidate_action": "REPLY",
+    "day_idx": 131,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-05-12T21:28:32Z",
+    "pack": "mail",
+    "rule_id": "R1",
+    "situation_id": "86bccfaffcf53079292f520167aff7fd",
+    "true_action": "REPLY"
+  },
+  "87feda52c1f17e7e9851b1b3a25bfe33": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "newsletter",
+      "is_automated": true,
+      "money_involved": false,
+      "sender_role": "service",
+      "urgency": "normal"
+    },
+    "candidate_action": "ARCHIVE",
+    "day_idx": 43,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-02-13T17:07:58Z",
+    "pack": "mail",
+    "rule_id": "R2",
+    "situation_id": "87feda52c1f17e7e9851b1b3a25bfe33",
+    "true_action": "ARCHIVE"
+  },
+  "89204c81c4a13b7083c04f3f89e79461": {
+    "attributes": {
+      "ext": "pdf",
+      "filename": "CO301_Lab26_Report.pdf",
+      "origin_site": "portal.national.ac.in"
+    },
+    "candidate_action": "MOVE_TO_FOLDER:College/CO301",
+    "day_idx": 89,
+    "family": "file_destination",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": true,
+    "occurred_at": "2026-03-31T21:58:00Z",
+    "pack": "files",
+    "rule_id": "R12",
+    "situation_id": "89204c81c4a13b7083c04f3f89e79461",
+    "true_action": "MOVE_TO_FOLDER"
+  },
+  "895d3424460d2fc210f930cfe81de7a6": {
+    "attributes": {
+      "has_deadline": true,
+      "intent": "request",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "professor",
+      "urgency": "high"
+    },
+    "candidate_action": "LEAVE",
+    "day_idx": 114,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-04-25T19:53:28Z",
+    "pack": "mail",
+    "rule_id": "R1",
+    "situation_id": "895d3424460d2fc210f930cfe81de7a6",
+    "true_action": "LEAVE"
+  },
+  "89f3661108c81465063bbd3c1299c009": {
+    "attributes": {
+      "ext": "pdf",
+      "filename": "CO301_Lab09_Report.pdf",
+      "origin_site": "drive.google.com"
+    },
+    "candidate_action": "LEAVE",
+    "day_idx": 28,
+    "family": "file_destination",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-01-29T23:34:00Z",
+    "pack": "files",
+    "rule_id": "DEFAULT",
+    "situation_id": "89f3661108c81465063bbd3c1299c009",
+    "true_action": "LEAVE"
+  },
+  "8d016105faf91e112fb049b0ae2637d8": {
+    "attributes": {
+      "organizer_role": "professor",
+      "purpose": "office_hours",
+      "start_hour_bucket": "normal"
+    },
+    "candidate_action": "ACCEPT",
+    "day_idx": 101,
+    "family": "invite_rsvp",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-04-13T02:00:00Z",
+    "pack": "calendar",
+    "rule_id": "R9",
+    "situation_id": "8d016105faf91e112fb049b0ae2637d8",
+    "true_action": "ACCEPT"
+  },
+  "8eb0bb882666a8af22e550cf587e0519": {
+    "attributes": {
+      "has_deadline": true,
+      "intent": "notification",
+      "is_automated": true,
+      "money_involved": false,
+      "sender_role": "service",
+      "urgency": "normal"
+    },
+    "candidate_action": "ARCHIVE",
+    "day_idx": 23,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-01-24T21:58:10Z",
+    "pack": "mail",
+    "rule_id": "R3",
+    "situation_id": "8eb0bb882666a8af22e550cf587e0519",
+    "true_action": "ARCHIVE"
+  },
+  "9281cff0721473204cd0f4ae51676d73": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "notification",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "professor",
+      "urgency": "normal"
+    },
+    "candidate_action": "ARCHIVE",
+    "day_idx": 22,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-01-23T16:13:33Z",
+    "pack": "mail",
+    "rule_id": "DEFAULT",
+    "situation_id": "9281cff0721473204cd0f4ae51676d73",
+    "true_action": "ARCHIVE"
+  },
+  "933da86f96fe163306f2372dc8905dc4": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "notification",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "professor",
+      "urgency": "normal"
+    },
+    "candidate_action": "ARCHIVE",
+    "day_idx": 168,
+    "family": "email_action",
+    "is_censored": true,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-06-19T03:14:31Z",
+    "pack": "mail",
+    "rule_id": "DEFAULT",
+    "situation_id": "933da86f96fe163306f2372dc8905dc4",
+    "true_action": "ARCHIVE"
+  },
+  "93e4e972f44364a23b11032b9212c022": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "newsletter",
+      "is_automated": true,
+      "money_involved": false,
+      "sender_role": "service",
+      "urgency": "normal"
+    },
+    "candidate_action": "LEAVE",
+    "day_idx": 147,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": true,
+    "noise_applied": false,
+    "occurred_at": "2026-05-29T02:50:17Z",
+    "pack": "mail",
+    "rule_id": "R2",
+    "situation_id": "93e4e972f44364a23b11032b9212c022",
+    "true_action": "LEAVE"
+  },
+  "94ab1339eb24eb5f79cc06eeb4e6b597": {
+    "attributes": {
+      "ext": "pdf",
+      "filename": "CO301_Lab14_Report.pdf",
+      "origin_site": "kaggle.com"
+    },
+    "candidate_action": "MOVE_TO_FOLDER:Downloads/Misc",
+    "day_idx": 46,
+    "family": "file_destination",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-02-16T17:26:00Z",
+    "pack": "files",
+    "rule_id": "DEFAULT",
+    "situation_id": "94ab1339eb24eb5f79cc06eeb4e6b597",
+    "true_action": "MOVE_TO_FOLDER:Downloads/Misc"
+  },
+  "96641f994c4445cd1c1fec5b7918e9db": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "notification",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "club",
+      "urgency": "normal"
+    },
+    "candidate_action": "LEAVE",
+    "day_idx": 88,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-03-31T02:45:19Z",
+    "pack": "mail",
+    "rule_id": "DEFAULT",
+    "situation_id": "96641f994c4445cd1c1fec5b7918e9db",
+    "true_action": "LEAVE"
+  },
+  "986abfdd935676c8203cb79a49e0a18a": {
+    "attributes": {
+      "has_deadline": true,
+      "intent": "request",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "professor",
+      "urgency": "normal"
+    },
+    "candidate_action": "REPLY",
+    "day_idx": 107,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-04-19T03:49:09Z",
+    "pack": "mail",
+    "rule_id": "R1",
+    "situation_id": "986abfdd935676c8203cb79a49e0a18a",
+    "true_action": "REPLY"
+  },
+  "98ce12279b5f9508b0e3fa03d27f0257": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "newsletter",
+      "is_automated": true,
+      "money_involved": false,
+      "sender_role": "service",
+      "urgency": "normal"
+    },
+    "candidate_action": "ARCHIVE",
+    "day_idx": 73,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-03-15T22:07:59Z",
+    "pack": "mail",
+    "rule_id": "R2",
+    "situation_id": "98ce12279b5f9508b0e3fa03d27f0257",
+    "true_action": "ARCHIVE"
+  },
+  "99025f166d7e95bf07c744131977549e": {
+    "attributes": {
+      "organizer_role": "friend",
+      "purpose": "group_study",
+      "start_hour_bucket": "normal"
+    },
+    "candidate_action": "ACCEPT",
+    "day_idx": 83,
+    "family": "invite_rsvp",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-03-26T00:00:00Z",
+    "pack": "calendar",
+    "rule_id": "DEFAULT",
+    "situation_id": "99025f166d7e95bf07c744131977549e",
+    "true_action": "ACCEPT"
+  },
+  "9bd1fc3e0aa726dc3a6342528fb9928c": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "notification",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "club",
+      "urgency": "normal"
+    },
+    "candidate_action": "ARCHIVE",
+    "day_idx": 41,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-02-12T03:23:01Z",
+    "pack": "mail",
+    "rule_id": "DEFAULT",
+    "situation_id": "9bd1fc3e0aa726dc3a6342528fb9928c",
+    "true_action": "ARCHIVE"
+  },
+  "9e00e247023567f8a8ab0d5ada09d97c": {
+    "attributes": {
+      "organizer_role": "club",
+      "purpose": "club_meeting",
+      "start_hour_bucket": "early"
+    },
+    "candidate_action": "ACCEPT",
+    "day_idx": 149,
+    "family": "invite_rsvp",
+    "is_censored": false,
+    "is_drifted": true,
+    "noise_applied": false,
+    "occurred_at": "2026-05-30T15:00:00Z",
+    "pack": "calendar",
+    "rule_id": "R8",
+    "situation_id": "9e00e247023567f8a8ab0d5ada09d97c",
+    "true_action": "ACCEPT"
+  },
+  "9fc4e4ea85a8cbea6eb886ac252189be": {
+    "attributes": {
+      "has_deadline": true,
+      "intent": "notification",
+      "is_automated": true,
+      "money_involved": false,
+      "sender_role": "service",
+      "urgency": "normal"
+    },
+    "candidate_action": "ARCHIVE",
+    "day_idx": 164,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-06-14T20:39:47Z",
+    "pack": "mail",
+    "rule_id": "R3",
+    "situation_id": "9fc4e4ea85a8cbea6eb886ac252189be",
+    "true_action": "ARCHIVE"
+  },
+  "a30cdbaf862e5b727f0a690b61b1b0f5": {
+    "attributes": {
+      "ext": "pdf",
+      "filename": "CO301_Lab12_Report.pdf",
+      "origin_site": "drive.google.com"
+    },
+    "candidate_action": "LEAVE",
+    "day_idx": 39,
+    "family": "file_destination",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-02-10T04:44:00Z",
+    "pack": "files",
+    "rule_id": "DEFAULT",
+    "situation_id": "a30cdbaf862e5b727f0a690b61b1b0f5",
+    "true_action": "LEAVE"
+  },
+  "a332ddcfca4e1012e200c3623360b062": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "chat",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "friend",
+      "urgency": "normal"
+    },
+    "candidate_action": "REPLY",
+    "day_idx": 38,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-02-08T22:07:25Z",
+    "pack": "mail",
+    "rule_id": "R4",
+    "situation_id": "a332ddcfca4e1012e200c3623360b062",
+    "true_action": "REPLY"
+  },
+  "a4a54ef51b3b36a811bb667625390df8": {
+    "attributes": {
+      "ext": "docx",
+      "filename": "CO301_Lab27_Report.docx",
+      "origin_site": "arxiv.org"
+    },
+    "candidate_action": "LEAVE",
+    "day_idx": 93,
+    "family": "file_destination",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-04-04T23:19:00Z",
+    "pack": "files",
+    "rule_id": "R13",
+    "situation_id": "a4a54ef51b3b36a811bb667625390df8",
+    "true_action": "LEAVE"
+  },
+  "a543b761e56c078a6f644dc5475a2cc3": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "notification",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "club",
+      "urgency": "normal"
+    },
+    "candidate_action": "ARCHIVE",
+    "day_idx": 173,
+    "family": "email_action",
+    "is_censored": true,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-06-24T01:41:02Z",
+    "pack": "mail",
+    "rule_id": "DEFAULT",
+    "situation_id": "a543b761e56c078a6f644dc5475a2cc3",
+    "true_action": "ARCHIVE"
+  },
+  "a5670a12573a255e8888db7a06224ca9": {
+    "attributes": {
+      "ext": "pdf",
+      "filename": "CO301_Lab45_Report.pdf",
+      "origin_site": "kaggle.com"
+    },
+    "candidate_action": "LEAVE",
+    "day_idx": 157,
+    "family": "file_destination",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-06-08T03:29:00Z",
+    "pack": "files",
+    "rule_id": "DEFAULT",
+    "situation_id": "a5670a12573a255e8888db7a06224ca9",
+    "true_action": "LEAVE"
+  },
+  "a5b937da6789f9b7547af3f7fc3c5d57": {
+    "attributes": {
+      "has_deadline": true,
+      "intent": "request",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "professor",
+      "urgency": "normal"
+    },
+    "candidate_action": "REPLY",
+    "day_idx": 50,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-02-20T23:15:59Z",
+    "pack": "mail",
+    "rule_id": "R1",
+    "situation_id": "a5b937da6789f9b7547af3f7fc3c5d57",
+    "true_action": "REPLY"
+  },
+  "a99efbfc1fbf3f5a1a9d50621b8cd94c": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "chat",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "friend",
+      "urgency": "normal"
+    },
+    "candidate_action": "REPLY",
+    "day_idx": 32,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-02-02T19:48:37Z",
+    "pack": "mail",
+    "rule_id": "R4",
+    "situation_id": "a99efbfc1fbf3f5a1a9d50621b8cd94c",
+    "true_action": "REPLY"
+  },
+  "ac8d204ac202b9b6d767847c647bf87d": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "receipt",
+      "is_automated": true,
+      "money_involved": true,
+      "sender_role": "service",
+      "urgency": "normal"
+    },
+    "candidate_action": "ARCHIVE",
+    "day_idx": 99,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-04-11T04:13:24Z",
+    "pack": "mail",
+    "rule_id": "R6",
+    "situation_id": "ac8d204ac202b9b6d767847c647bf87d",
+    "true_action": "ARCHIVE"
+  },
+  "acc42ec1c94244f00bdb473814632ab0": {
+    "attributes": {
+      "ext": "pdf",
+      "filename": "CO301_Lab17_Report.pdf",
+      "origin_site": "overleaf.com"
+    },
+    "candidate_action": "LEAVE",
+    "day_idx": 57,
+    "family": "file_destination",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-02-27T23:36:00Z",
+    "pack": "files",
+    "rule_id": "DEFAULT",
+    "situation_id": "acc42ec1c94244f00bdb473814632ab0",
+    "true_action": "LEAVE"
+  },
+  "acd29f3358673f65f2b9e582dcc9223a": {
+    "attributes": {
+      "ext": "zip",
+      "filename": "CO301_Lab25_Report.zip",
+      "origin_site": "overleaf.com"
+    },
+    "candidate_action": "LEAVE",
+    "day_idx": 85,
+    "family": "file_destination",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-03-28T03:35:00Z",
+    "pack": "files",
+    "rule_id": "DEFAULT",
+    "situation_id": "acd29f3358673f65f2b9e582dcc9223a",
+    "true_action": "LEAVE"
+  },
+  "ad105590bc2852158b5e77b45f432990": {
+    "attributes": {
+      "has_deadline": true,
+      "intent": "opportunity",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "recruiter",
+      "urgency": "normal"
+    },
+    "candidate_action": "REPLY",
+    "day_idx": 98,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-04-10T02:59:33Z",
+    "pack": "mail",
+    "rule_id": "R5",
+    "situation_id": "ad105590bc2852158b5e77b45f432990",
+    "true_action": "REPLY"
+  },
+  "aeb37e476b060db369545bab672e0a68": {
+    "attributes": {
+      "has_deadline": true,
+      "intent": "request",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "professor",
+      "urgency": "high"
+    },
+    "candidate_action": "REPLY",
+    "day_idx": 96,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-04-07T18:59:25Z",
+    "pack": "mail",
+    "rule_id": "R1",
+    "situation_id": "aeb37e476b060db369545bab672e0a68",
+    "true_action": "REPLY"
+  },
+  "af33da71def9188fbf66452462f2d340": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "chat",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "friend",
+      "urgency": "normal"
+    },
+    "candidate_action": "REPLY",
+    "day_idx": 122,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-05-03T16:27:57Z",
+    "pack": "mail",
+    "rule_id": "R4",
+    "situation_id": "af33da71def9188fbf66452462f2d340",
+    "true_action": "REPLY"
+  },
+  "afdfb15768cb82db192093f478ffa0fa": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "chat",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "friend",
+      "urgency": "normal"
+    },
+    "candidate_action": "REPLY",
+    "day_idx": 111,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-04-22T20:47:16Z",
+    "pack": "mail",
+    "rule_id": "R4",
+    "situation_id": "afdfb15768cb82db192093f478ffa0fa",
+    "true_action": "REPLY"
+  },
+  "b03512437ea0b8ba4811105143ecbd48": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "newsletter",
+      "is_automated": true,
+      "money_involved": false,
+      "sender_role": "service",
+      "urgency": "normal"
+    },
+    "candidate_action": "ARCHIVE",
+    "day_idx": 61,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-03-04T04:57:45Z",
+    "pack": "mail",
+    "rule_id": "R2",
+    "situation_id": "b03512437ea0b8ba4811105143ecbd48",
+    "true_action": "ARCHIVE"
+  },
+  "b1a9eadfb04d50801826280170a38c6c": {
+    "attributes": {
+      "ext": "pdf",
+      "filename": "CO301_Lab50_Report.pdf",
+      "origin_site": "github.com"
+    },
+    "candidate_action": "MOVE_TO_FOLDER:Downloads/Misc",
+    "day_idx": 175,
+    "family": "file_destination",
+    "is_censored": true,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-06-26T04:29:00Z",
+    "pack": "files",
+    "rule_id": "DEFAULT",
+    "situation_id": "b1a9eadfb04d50801826280170a38c6c",
+    "true_action": "MOVE_TO_FOLDER:Downloads/Misc"
+  },
+  "b27b452c29bd18413b7a2c2e7182531f": {
+    "attributes": {
+      "ext": "docx",
+      "filename": "CO301_Lab15_Report.docx",
+      "origin_site": "kaggle.com"
+    },
+    "candidate_action": "MOVE_TO_FOLDER:Downloads/Misc",
+    "day_idx": 50,
+    "family": "file_destination",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-02-20T22:55:00Z",
+    "pack": "files",
+    "rule_id": "DEFAULT",
+    "situation_id": "b27b452c29bd18413b7a2c2e7182531f",
+    "true_action": "MOVE_TO_FOLDER:Downloads/Misc"
+  },
+  "b379f41d00c84e5550041dc84d50511d": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "chat",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "friend",
+      "urgency": "normal"
+    },
+    "candidate_action": "LEAVE",
+    "day_idx": 13,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-01-14T18:52:27Z",
+    "pack": "mail",
+    "rule_id": "R4",
+    "situation_id": "b379f41d00c84e5550041dc84d50511d",
+    "true_action": "LEAVE"
+  },
+  "b3b05585ef27a0cc449e248d202eebb1": {
+    "attributes": {
+      "organizer_role": "friend",
+      "purpose": "group_study",
+      "start_hour_bucket": "normal"
+    },
+    "candidate_action": "TENTATIVE",
+    "day_idx": 95,
+    "family": "invite_rsvp",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-04-07T02:00:00Z",
+    "pack": "calendar",
+    "rule_id": "DEFAULT",
+    "situation_id": "b3b05585ef27a0cc449e248d202eebb1",
+    "true_action": "TENTATIVE"
+  },
+  "b535454f1fb829fc46071c8ce121cb3f": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "newsletter",
+      "is_automated": true,
+      "money_involved": false,
+      "sender_role": "service",
+      "urgency": "normal"
+    },
+    "candidate_action": "LEAVE",
+    "day_idx": 155,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": true,
+    "noise_applied": false,
+    "occurred_at": "2026-06-06T00:16:18Z",
+    "pack": "mail",
+    "rule_id": "R2",
+    "situation_id": "b535454f1fb829fc46071c8ce121cb3f",
+    "true_action": "LEAVE"
+  },
+  "b5498487ab65d9e5a5153e8571127884": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "newsletter",
+      "is_automated": true,
+      "money_involved": false,
+      "sender_role": "service",
+      "urgency": "normal"
+    },
+    "candidate_action": "ARCHIVE",
+    "day_idx": 55,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": true,
+    "occurred_at": "2026-02-25T23:00:16Z",
+    "pack": "mail",
+    "rule_id": "R2",
+    "situation_id": "b5498487ab65d9e5a5153e8571127884",
+    "true_action": "LEAVE"
+  },
+  "b54b16f08bd5380ee5be3d5d82cbc699": {
+    "attributes": {
+      "ext": "zip",
+      "filename": "CO301_Lab11_Report.zip",
+      "origin_site": "drive.google.com"
+    },
+    "candidate_action": "MOVE_TO_FOLDER:Downloads/Misc",
+    "day_idx": 35,
+    "family": "file_destination",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-02-06T05:32:00Z",
+    "pack": "files",
+    "rule_id": "DEFAULT",
+    "situation_id": "b54b16f08bd5380ee5be3d5d82cbc699",
+    "true_action": "MOVE_TO_FOLDER:Downloads/Misc"
+  },
+  "b618b8753f3c452f342a8c22bb404ef8": {
+    "attributes": {
+      "ext": "py",
+      "filename": "CO301_Lab06_Report.py",
+      "origin_site": "drive.google.com"
+    },
+    "candidate_action": "MOVE_TO_FOLDER:Downloads/Misc",
+    "day_idx": 17,
+    "family": "file_destination",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-01-18T21:55:00Z",
+    "pack": "files",
+    "rule_id": "DEFAULT",
+    "situation_id": "b618b8753f3c452f342a8c22bb404ef8",
+    "true_action": "MOVE_TO_FOLDER:Downloads/Misc"
+  },
+  "b6b63f3c1a2bd61c351b0636c4650ba5": {
+    "attributes": {
+      "has_deadline": true,
+      "intent": "opportunity",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "recruiter",
+      "urgency": "normal"
+    },
+    "candidate_action": "ARCHIVE",
+    "day_idx": 5,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-01-06T19:05:36Z",
+    "pack": "mail",
+    "rule_id": "R5",
+    "situation_id": "b6b63f3c1a2bd61c351b0636c4650ba5",
+    "true_action": "ARCHIVE"
+  },
+  "b74129b78fdda16cac0c248ec0a6f49b": {
+    "attributes": {
+      "ext": "zip",
+      "filename": "CO301_Lab02_Report.zip",
+      "origin_site": "overleaf.com"
+    },
+    "candidate_action": "MOVE_TO_FOLDER:Downloads/Misc",
+    "day_idx": 3,
+    "family": "file_destination",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-01-04T17:13:00Z",
+    "pack": "files",
+    "rule_id": "DEFAULT",
+    "situation_id": "b74129b78fdda16cac0c248ec0a6f49b",
+    "true_action": "MOVE_TO_FOLDER:Downloads/Misc"
+  },
+  "b768bf68e59f6709e0a9774ff501cb12": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "notification",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "club",
+      "urgency": "normal"
+    },
+    "candidate_action": "ARCHIVE",
+    "day_idx": 4,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-01-05T22:49:20Z",
+    "pack": "mail",
+    "rule_id": "DEFAULT",
+    "situation_id": "b768bf68e59f6709e0a9774ff501cb12",
+    "true_action": "ARCHIVE"
+  },
+  "b7eb1219abf462d6ce2645738cc34e82": {
+    "attributes": {
+      "has_deadline": true,
+      "intent": "request",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "professor",
+      "urgency": "normal"
+    },
+    "candidate_action": "REPLY",
+    "day_idx": 40,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-02-10T20:56:08Z",
+    "pack": "mail",
+    "rule_id": "R1",
+    "situation_id": "b7eb1219abf462d6ce2645738cc34e82",
+    "true_action": "REPLY"
+  },
+  "b88e6d7629a89f2f07f78a0d6ffc34f7": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "chat",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "friend",
+      "urgency": "normal"
+    },
+    "candidate_action": "REPLY",
+    "day_idx": 7,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-01-09T04:21:09Z",
+    "pack": "mail",
+    "rule_id": "R4",
+    "situation_id": "b88e6d7629a89f2f07f78a0d6ffc34f7",
+    "true_action": "REPLY"
+  },
+  "b91908722f58c8765389fd5d013ebd0f": {
+    "attributes": {
+      "has_deadline": true,
+      "intent": "request",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "professor",
+      "urgency": "high"
+    },
+    "candidate_action": "REPLY",
+    "day_idx": 156,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-06-06T19:10:47Z",
+    "pack": "mail",
+    "rule_id": "R1",
+    "situation_id": "b91908722f58c8765389fd5d013ebd0f",
+    "true_action": "REPLY"
+  },
+  "b9f6a7725c5396ad08726f31e9e12d6c": {
+    "attributes": {
+      "ext": "pdf",
+      "filename": "CO301_Lab42_Report.pdf",
+      "origin_site": "moodle.national.ac.in"
+    },
+    "candidate_action": "LEAVE",
+    "day_idx": 146,
+    "family": "file_destination",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-05-27T20:13:00Z",
+    "pack": "files",
+    "rule_id": "DEFAULT",
+    "situation_id": "b9f6a7725c5396ad08726f31e9e12d6c",
+    "true_action": "LEAVE"
+  },
+  "ba4a67e9a7adbfd713034ef015aa4b97": {
+    "attributes": {
+      "organizer_role": "professor",
+      "purpose": "office_hours",
+      "start_hour_bucket": "normal"
+    },
+    "candidate_action": "ACCEPT",
+    "day_idx": 173,
+    "family": "invite_rsvp",
+    "is_censored": true,
+    "is_drifted": false,
+    "noise_applied": true,
+    "occurred_at": "2026-06-24T02:00:00Z",
+    "pack": "calendar",
+    "rule_id": "R9",
+    "situation_id": "ba4a67e9a7adbfd713034ef015aa4b97",
+    "true_action": "TENTATIVE"
+  },
+  "ba7de2a4f1171e3aa32e0c051f1fad93": {
+    "attributes": {
+      "has_deadline": true,
+      "intent": "notification",
+      "is_automated": true,
+      "money_involved": false,
+      "sender_role": "service",
+      "urgency": "normal"
+    },
+    "candidate_action": "ARCHIVE",
+    "day_idx": 140,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-05-22T04:33:03Z",
+    "pack": "mail",
+    "rule_id": "R3",
+    "situation_id": "ba7de2a4f1171e3aa32e0c051f1fad93",
+    "true_action": "ARCHIVE"
+  },
+  "bbde9793b5721a591d9bb5b2a354a6eb": {
+    "attributes": {
+      "ext": "zip",
+      "filename": "CO301_Lab34_Report.zip",
+      "origin_site": "moodle.national.ac.in"
+    },
+    "candidate_action": "LEAVE",
+    "day_idx": 118,
+    "family": "file_destination",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": true,
+    "occurred_at": "2026-04-30T05:57:00Z",
+    "pack": "files",
+    "rule_id": "DEFAULT",
+    "situation_id": "bbde9793b5721a591d9bb5b2a354a6eb",
+    "true_action": "MOVE_TO_FOLDER"
+  },
+  "be9e4044323118f9ba3fd704bfd1b5a7": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "sales",
+      "is_automated": true,
+      "money_involved": false,
+      "sender_role": "service",
+      "urgency": "normal"
+    },
+    "candidate_action": "TRASH",
+    "day_idx": 104,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-04-15T20:19:00Z",
+    "pack": "mail",
+    "rule_id": "R7",
+    "situation_id": "be9e4044323118f9ba3fd704bfd1b5a7",
+    "true_action": "TRASH"
+  },
+  "bf11985339701668b7e4a4091506566b": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "chat",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "friend",
+      "urgency": "normal"
+    },
+    "candidate_action": "REPLY",
+    "day_idx": 95,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-04-06T19:14:29Z",
+    "pack": "mail",
+    "rule_id": "R4",
+    "situation_id": "bf11985339701668b7e4a4091506566b",
+    "true_action": "REPLY"
+  },
+  "bf87082e6a98b4b5033815d7a01c5fae": {
+    "attributes": {
+      "has_deadline": true,
+      "intent": "notification",
+      "is_automated": true,
+      "money_involved": false,
+      "sender_role": "service",
+      "urgency": "normal"
+    },
+    "candidate_action": "ARCHIVE",
+    "day_idx": 56,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-02-26T17:30:17Z",
+    "pack": "mail",
+    "rule_id": "R3",
+    "situation_id": "bf87082e6a98b4b5033815d7a01c5fae",
+    "true_action": "ARCHIVE"
+  },
+  "bff5981d33d6e096427309d50cbc124d": {
+    "attributes": {
+      "ext": "py",
+      "filename": "CO301_Lab41_Report.py",
+      "origin_site": "arxiv.org"
+    },
+    "candidate_action": "MOVE_TO_FOLDER:College/CO302",
+    "day_idx": 143,
+    "family": "file_destination",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-05-25T02:33:00Z",
+    "pack": "files",
+    "rule_id": "R13",
+    "situation_id": "bff5981d33d6e096427309d50cbc124d",
+    "true_action": "MOVE_TO_FOLDER:College/CO302"
+  },
+  "c17f1624a525cdb79806e50701b740aa": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "notification",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "professor",
+      "urgency": "normal"
+    },
+    "candidate_action": "ARCHIVE",
+    "day_idx": 92,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-04-04T02:26:05Z",
+    "pack": "mail",
+    "rule_id": "DEFAULT",
+    "situation_id": "c17f1624a525cdb79806e50701b740aa",
+    "true_action": "ARCHIVE"
+  },
+  "c203aa20947dfaac33dbe569c9ae6067": {
+    "attributes": {
+      "has_deadline": true,
+      "intent": "request",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "professor",
+      "urgency": "normal"
+    },
+    "candidate_action": "REPLY",
+    "day_idx": 29,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-01-30T22:50:40Z",
+    "pack": "mail",
+    "rule_id": "R1",
+    "situation_id": "c203aa20947dfaac33dbe569c9ae6067",
+    "true_action": "REPLY"
+  },
+  "c2af5df36b7fcdfff861d063380c6ffd": {
+    "attributes": {
+      "has_deadline": true,
+      "intent": "request",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "professor",
+      "urgency": "normal"
+    },
+    "candidate_action": "REPLY",
+    "day_idx": 77,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-03-20T00:35:13Z",
+    "pack": "mail",
+    "rule_id": "R1",
+    "situation_id": "c2af5df36b7fcdfff861d063380c6ffd",
+    "true_action": "REPLY"
+  },
+  "c37db1ef764aeb174a5fc4101a3b4356": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "receipt",
+      "is_automated": true,
+      "money_involved": true,
+      "sender_role": "service",
+      "urgency": "normal"
+    },
+    "candidate_action": "ARCHIVE",
+    "day_idx": 52,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-02-23T03:40:08Z",
+    "pack": "mail",
+    "rule_id": "R6",
+    "situation_id": "c37db1ef764aeb174a5fc4101a3b4356",
+    "true_action": "ARCHIVE"
+  },
+  "c3f0c256d5cd72233606abe794f237bf": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "newsletter",
+      "is_automated": true,
+      "money_involved": false,
+      "sender_role": "service",
+      "urgency": "normal"
+    },
+    "candidate_action": "ARCHIVE",
+    "day_idx": 167,
+    "family": "email_action",
+    "is_censored": true,
+    "is_drifted": true,
+    "noise_applied": false,
+    "occurred_at": "2026-06-18T03:50:52Z",
+    "pack": "mail",
+    "rule_id": "R2",
+    "situation_id": "c3f0c256d5cd72233606abe794f237bf",
+    "true_action": "ARCHIVE"
+  },
+  "c506f2052a5f867da89352a99de128c9": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "newsletter",
+      "is_automated": true,
+      "money_involved": false,
+      "sender_role": "service",
+      "urgency": "normal"
+    },
+    "candidate_action": "ARCHIVE",
+    "day_idx": 89,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-03-31T19:24:16Z",
+    "pack": "mail",
+    "rule_id": "R2",
+    "situation_id": "c506f2052a5f867da89352a99de128c9",
+    "true_action": "ARCHIVE"
+  },
+  "c589f63ffc1ff13c0aa7846f8f9e1933": {
+    "attributes": {
+      "ext": "pdf",
+      "filename": "CO301_Lab46_Report.pdf",
+      "origin_site": "drive.google.com"
+    },
+    "candidate_action": "LEAVE",
+    "day_idx": 161,
+    "family": "file_destination",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-06-11T22:17:00Z",
+    "pack": "files",
+    "rule_id": "DEFAULT",
+    "situation_id": "c589f63ffc1ff13c0aa7846f8f9e1933",
+    "true_action": "LEAVE"
+  },
+  "c5a74ca7a6cc889da90d1c515791c788": {
+    "attributes": {
+      "organizer_role": "professor",
+      "purpose": "office_hours",
+      "start_hour_bucket": "early"
+    },
+    "candidate_action": "DECLINE",
+    "day_idx": 155,
+    "family": "invite_rsvp",
+    "is_censored": false,
+    "is_drifted": true,
+    "noise_applied": false,
+    "occurred_at": "2026-06-05T16:00:00Z",
+    "pack": "calendar",
+    "rule_id": "R8",
+    "situation_id": "c5a74ca7a6cc889da90d1c515791c788",
+    "true_action": "DECLINE"
+  },
+  "c6cd0580084d6c4531c8209651c84456": {
+    "attributes": {
+      "organizer_role": "professor",
+      "purpose": "office_hours",
+      "start_hour_bucket": "weekend"
+    },
+    "candidate_action": "ACCEPT",
+    "day_idx": 71,
+    "family": "invite_rsvp",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-03-14T02:00:00Z",
+    "pack": "calendar",
+    "rule_id": "R9",
+    "situation_id": "c6cd0580084d6c4531c8209651c84456",
+    "true_action": "ACCEPT"
+  },
+  "c7a542f5345ea2fb85b42b1acf954ade": {
+    "attributes": {
+      "has_deadline": true,
+      "intent": "opportunity",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "recruiter",
+      "urgency": "normal"
+    },
+    "candidate_action": "REPLY",
+    "day_idx": 35,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-02-06T00:03:20Z",
+    "pack": "mail",
+    "rule_id": "R5",
+    "situation_id": "c7a542f5345ea2fb85b42b1acf954ade",
+    "true_action": "REPLY"
+  },
+  "c86736c4a8c905dd4c6fe5729d7c0ee7": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "newsletter",
+      "is_automated": true,
+      "money_involved": false,
+      "sender_role": "service",
+      "urgency": "normal"
+    },
+    "candidate_action": "ARCHIVE",
+    "day_idx": 125,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": true,
+    "noise_applied": false,
+    "occurred_at": "2026-05-06T17:06:24Z",
+    "pack": "mail",
+    "rule_id": "R2",
+    "situation_id": "c86736c4a8c905dd4c6fe5729d7c0ee7",
+    "true_action": "ARCHIVE"
+  },
+  "c87fd89d1b09dbf1d43f87614e133710": {
+    "attributes": {
+      "has_deadline": true,
+      "intent": "request",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "professor",
+      "urgency": "normal"
+    },
+    "candidate_action": "REPLY",
+    "day_idx": 62,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-03-04T22:53:28Z",
+    "pack": "mail",
+    "rule_id": "R1",
+    "situation_id": "c87fd89d1b09dbf1d43f87614e133710",
+    "true_action": "REPLY"
+  },
+  "cb9e6dc5b5bf0d6dcf65d3e13483315a": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "notification",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "professor",
+      "urgency": "normal"
+    },
+    "candidate_action": "LEAVE",
+    "day_idx": 64,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-03-06T20:15:46Z",
+    "pack": "mail",
+    "rule_id": "DEFAULT",
+    "situation_id": "cb9e6dc5b5bf0d6dcf65d3e13483315a",
+    "true_action": "LEAVE"
+  },
+  "cbfe85de819a3dd0de2ade7c9fe7b404": {
+    "attributes": {
+      "organizer_role": "professor",
+      "purpose": "office_hours",
+      "start_hour_bucket": "early"
+    },
+    "candidate_action": "DECLINE",
+    "day_idx": 5,
+    "family": "invite_rsvp",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-01-06T15:00:00Z",
+    "pack": "calendar",
+    "rule_id": "R8",
+    "situation_id": "cbfe85de819a3dd0de2ade7c9fe7b404",
+    "true_action": "DECLINE"
+  },
+  "cc6819790a52ad8737436d4f8ab25812": {
+    "attributes": {
+      "organizer_role": "club",
+      "purpose": "club_meeting",
+      "start_hour_bucket": "normal"
+    },
+    "candidate_action": "ACCEPT",
+    "day_idx": 47,
+    "family": "invite_rsvp",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-02-17T22:00:00Z",
+    "pack": "calendar",
+    "rule_id": "R10",
+    "situation_id": "cc6819790a52ad8737436d4f8ab25812",
+    "true_action": "ACCEPT"
+  },
+  "cd36f025e406173a8243dd2d40daf38e": {
+    "attributes": {
+      "ext": "zip",
+      "filename": "CO301_Lab33_Report.zip",
+      "origin_site": "moodle.national.ac.in"
+    },
+    "candidate_action": "LEAVE",
+    "day_idx": 114,
+    "family": "file_destination",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-04-25T23:56:00Z",
+    "pack": "files",
+    "rule_id": "DEFAULT",
+    "situation_id": "cd36f025e406173a8243dd2d40daf38e",
+    "true_action": "LEAVE"
+  },
+  "d200f519dd933d6c1995908194871220": {
+    "attributes": {
+      "ext": "py",
+      "filename": "CO301_Lab40_Report.py",
+      "origin_site": "kaggle.com"
+    },
+    "candidate_action": "MOVE_TO_FOLDER:Downloads/Misc",
+    "day_idx": 139,
+    "family": "file_destination",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-05-20T18:34:00Z",
+    "pack": "files",
+    "rule_id": "DEFAULT",
+    "situation_id": "d200f519dd933d6c1995908194871220",
+    "true_action": "MOVE_TO_FOLDER:Downloads/Misc"
+  },
+  "d34db5fc29b7867b702fa53eef6102c5": {
+    "attributes": {
+      "organizer_role": "professor",
+      "purpose": "office_hours",
+      "start_hour_bucket": "normal"
+    },
+    "candidate_action": "ACCEPT",
+    "day_idx": 167,
+    "family": "invite_rsvp",
+    "is_censored": true,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-06-18T02:00:00Z",
+    "pack": "calendar",
+    "rule_id": "R9",
+    "situation_id": "d34db5fc29b7867b702fa53eef6102c5",
+    "true_action": "ACCEPT"
+  },
+  "d42eec85ff34d47ffb8c4b3cbee11dee": {
+    "attributes": {
+      "organizer_role": "club",
+      "purpose": "club_meeting",
+      "start_hour_bucket": "normal"
+    },
+    "candidate_action": "ACCEPT",
+    "day_idx": 119,
+    "family": "invite_rsvp",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-05-01T02:00:00Z",
+    "pack": "calendar",
+    "rule_id": "R10",
+    "situation_id": "d42eec85ff34d47ffb8c4b3cbee11dee",
+    "true_action": "ACCEPT"
+  },
+  "d4af186d2970861bc916e0a95202dbf4": {
+    "attributes": {
+      "ext": "zip",
+      "filename": "CO301_Lab37_Report.zip",
+      "origin_site": "kaggle.com"
+    },
+    "candidate_action": "LEAVE",
+    "day_idx": 128,
+    "family": "file_destination",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-05-10T01:31:00Z",
+    "pack": "files",
+    "rule_id": "DEFAULT",
+    "situation_id": "d4af186d2970861bc916e0a95202dbf4",
+    "true_action": "LEAVE"
+  },
+  "d5c51ca34087333fc52c5b3f38558370": {
+    "attributes": {
+      "has_deadline": true,
+      "intent": "opportunity",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "recruiter",
+      "urgency": "normal"
+    },
+    "candidate_action": "REPLY",
+    "day_idx": 132,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-05-13T22:23:05Z",
+    "pack": "mail",
+    "rule_id": "R5",
+    "situation_id": "d5c51ca34087333fc52c5b3f38558370",
+    "true_action": "REPLY"
+  },
+  "d68eb02266f53cac7ba3e96cf166e6c4": {
+    "attributes": {
+      "ext": "docx",
+      "filename": "CO301_Lab24_Report.docx",
+      "origin_site": "overleaf.com"
+    },
+    "candidate_action": "MOVE_TO_FOLDER:Downloads/Misc",
+    "day_idx": 82,
+    "family": "file_destination",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-03-25T04:45:00Z",
+    "pack": "files",
+    "rule_id": "DEFAULT",
+    "situation_id": "d68eb02266f53cac7ba3e96cf166e6c4",
+    "true_action": "MOVE_TO_FOLDER:Downloads/Misc"
+  },
+  "d7418764aa8a75a92273ee6f093f7628": {
+    "attributes": {
+      "has_deadline": true,
+      "intent": "opportunity",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "recruiter",
+      "urgency": "normal"
+    },
+    "candidate_action": "REPLY",
+    "day_idx": 20,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-01-21T20:22:38Z",
+    "pack": "mail",
+    "rule_id": "R5",
+    "situation_id": "d7418764aa8a75a92273ee6f093f7628",
+    "true_action": "REPLY"
+  },
+  "d76763fb28b1dbf4a3bfb875014fd93e": {
+    "attributes": {
+      "has_deadline": true,
+      "intent": "notification",
+      "is_automated": true,
+      "money_involved": false,
+      "sender_role": "service",
+      "urgency": "normal"
+    },
+    "candidate_action": "ARCHIVE",
+    "day_idx": 158,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": true,
+    "occurred_at": "2026-06-09T03:14:36Z",
+    "pack": "mail",
+    "rule_id": "R3",
+    "situation_id": "d76763fb28b1dbf4a3bfb875014fd93e",
+    "true_action": "REPLY"
+  },
+  "d7ce6f29272a7528edbd93e535b82fce": {
+    "attributes": {
+      "ext": "pdf",
+      "filename": "CO301_Lab08_Report.pdf",
+      "origin_site": "portal.national.ac.in"
+    },
+    "candidate_action": "MOVE_TO_FOLDER:College/CO301",
+    "day_idx": 25,
+    "family": "file_destination",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-01-27T02:40:00Z",
+    "pack": "files",
+    "rule_id": "R12",
+    "situation_id": "d7ce6f29272a7528edbd93e535b82fce",
+    "true_action": "MOVE_TO_FOLDER:College/CO301"
+  },
+  "dc2fb5bc2f1d52470b00edde81b69161": {
+    "attributes": {
+      "ext": "docx",
+      "filename": "CO301_Lab07_Report.docx",
+      "origin_site": "arxiv.org"
+    },
+    "candidate_action": "MOVE_TO_FOLDER:College/CO302",
+    "day_idx": 21,
+    "family": "file_destination",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-01-23T05:07:00Z",
+    "pack": "files",
+    "rule_id": "R13",
+    "situation_id": "dc2fb5bc2f1d52470b00edde81b69161",
+    "true_action": "MOVE_TO_FOLDER:College/CO302"
+  },
+  "dcd98ebae0e069988cad8839d8a362dd": {
+    "attributes": {
+      "has_deadline": true,
+      "intent": "request",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "professor",
+      "urgency": "normal"
+    },
+    "candidate_action": "REPLY",
+    "day_idx": 70,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-03-12T19:04:37Z",
+    "pack": "mail",
+    "rule_id": "R1",
+    "situation_id": "dcd98ebae0e069988cad8839d8a362dd",
+    "true_action": "REPLY"
+  },
+  "dd43272163f3b97967e1be2c1a4bc353": {
+    "attributes": {
+      "ext": "pdf",
+      "filename": "CO301_Lab22_Report.pdf",
+      "origin_site": "kaggle.com"
+    },
+    "candidate_action": "LEAVE",
+    "day_idx": 75,
+    "family": "file_destination",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": true,
+    "occurred_at": "2026-03-17T18:13:00Z",
+    "pack": "files",
+    "rule_id": "DEFAULT",
+    "situation_id": "dd43272163f3b97967e1be2c1a4bc353",
+    "true_action": "MOVE_TO_FOLDER"
+  },
+  "dffc97d8ca9bf213edc8bae8bd51fdeb": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "receipt",
+      "is_automated": true,
+      "money_involved": true,
+      "sender_role": "service",
+      "urgency": "normal"
+    },
+    "candidate_action": "ARCHIVE",
+    "day_idx": 135,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-05-17T04:10:43Z",
+    "pack": "mail",
+    "rule_id": "R6",
+    "situation_id": "dffc97d8ca9bf213edc8bae8bd51fdeb",
+    "true_action": "ARCHIVE"
+  },
+  "e028200f3b1a33843fb10aca08823577": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "newsletter",
+      "is_automated": true,
+      "money_involved": false,
+      "sender_role": "service",
+      "urgency": "normal"
+    },
+    "candidate_action": "LEAVE",
+    "day_idx": 171,
+    "family": "email_action",
+    "is_censored": true,
+    "is_drifted": true,
+    "noise_applied": false,
+    "occurred_at": "2026-06-22T00:32:10Z",
+    "pack": "mail",
+    "rule_id": "R2",
+    "situation_id": "e028200f3b1a33843fb10aca08823577",
+    "true_action": "LEAVE"
+  },
+  "e09cbc721623c7d1b0474b3ef4182bad": {
+    "attributes": {
+      "organizer_role": "club",
+      "purpose": "club_meeting",
+      "start_hour_bucket": "weekend"
+    },
+    "candidate_action": "ACCEPT",
+    "day_idx": 107,
+    "family": "invite_rsvp",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-04-18T18:00:00Z",
+    "pack": "calendar",
+    "rule_id": "R10",
+    "situation_id": "e09cbc721623c7d1b0474b3ef4182bad",
+    "true_action": "ACCEPT"
+  },
+  "e1015c7cc5c89c78fb63f174115388ed": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "notification",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "club",
+      "urgency": "normal"
+    },
+    "candidate_action": "REPLY",
+    "day_idx": 174,
+    "family": "email_action",
+    "is_censored": true,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-06-24T23:44:49Z",
+    "pack": "mail",
+    "rule_id": "DEFAULT",
+    "situation_id": "e1015c7cc5c89c78fb63f174115388ed",
+    "true_action": "REPLY"
+  },
+  "e121977669460b198c6e5e2980ab529b": {
+    "attributes": {
+      "organizer_role": "friend",
+      "purpose": "group_study",
+      "start_hour_bucket": "normal"
+    },
+    "candidate_action": "DECLINE",
+    "day_idx": 41,
+    "family": "invite_rsvp",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-02-12T00:00:00Z",
+    "pack": "calendar",
+    "rule_id": "DEFAULT",
+    "situation_id": "e121977669460b198c6e5e2980ab529b",
+    "true_action": "DECLINE"
+  },
+  "e77ccb4d697a836ae7f049daca370164": {
+    "attributes": {
+      "has_deadline": true,
+      "intent": "request",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "professor",
+      "urgency": "normal"
+    },
+    "candidate_action": "REPLY",
+    "day_idx": 0,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-01-01T21:09:25Z",
+    "pack": "mail",
+    "rule_id": "R1",
+    "situation_id": "e77ccb4d697a836ae7f049daca370164",
+    "true_action": "REPLY"
+  },
+  "e80e6f9407c413280c86845b51b2ae5f": {
+    "attributes": {
+      "ext": "zip",
+      "filename": "CO301_Lab44_Report.zip",
+      "origin_site": "portal.national.ac.in"
+    },
+    "candidate_action": "MOVE_TO_FOLDER:College/CO301",
+    "day_idx": 153,
+    "family": "file_destination",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-06-03T19:15:00Z",
+    "pack": "files",
+    "rule_id": "R12",
+    "situation_id": "e80e6f9407c413280c86845b51b2ae5f",
+    "true_action": "MOVE_TO_FOLDER:College/CO301"
+  },
+  "e8cec574e893c2942d2208c01c20c324": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "notification",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "professor",
+      "urgency": "normal"
+    },
+    "candidate_action": "LEAVE",
+    "day_idx": 110,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-04-21T23:39:57Z",
+    "pack": "mail",
+    "rule_id": "DEFAULT",
+    "situation_id": "e8cec574e893c2942d2208c01c20c324",
+    "true_action": "LEAVE"
+  },
+  "eaf5539aea8cdef135fa29c1e767af67": {
+    "attributes": {
+      "organizer_role": "professor",
+      "purpose": "lab_session",
+      "start_hour_bucket": "early"
+    },
+    "candidate_action": "DECLINE",
+    "day_idx": 53,
+    "family": "invite_rsvp",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-02-23T16:00:00Z",
+    "pack": "calendar",
+    "rule_id": "R8",
+    "situation_id": "eaf5539aea8cdef135fa29c1e767af67",
+    "true_action": "DECLINE"
+  },
+  "ed61694cad343283e5480ec07093a285": {
+    "attributes": {
+      "has_deadline": true,
+      "intent": "notification",
+      "is_automated": true,
+      "money_involved": false,
+      "sender_role": "service",
+      "urgency": "normal"
+    },
+    "candidate_action": "LEAVE",
+    "day_idx": 134,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-05-16T04:08:01Z",
+    "pack": "mail",
+    "rule_id": "R3",
+    "situation_id": "ed61694cad343283e5480ec07093a285",
+    "true_action": "LEAVE"
+  },
+  "ee80d99555cdea7eeb9c26cb1e950ad2": {
+    "attributes": {
+      "organizer_role": "professor",
+      "purpose": "office_hours",
+      "start_hour_bucket": "early"
+    },
+    "candidate_action": "ACCEPT",
+    "day_idx": 161,
+    "family": "invite_rsvp",
+    "is_censored": false,
+    "is_drifted": true,
+    "noise_applied": false,
+    "occurred_at": "2026-06-11T16:00:00Z",
+    "pack": "calendar",
+    "rule_id": "R8",
+    "situation_id": "ee80d99555cdea7eeb9c26cb1e950ad2",
+    "true_action": "ACCEPT"
+  },
+  "eef7f12c9060656f5da477b784e894f3": {
+    "attributes": {
+      "has_deadline": true,
+      "intent": "request",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "professor",
+      "urgency": "normal"
+    },
+    "candidate_action": "REPLY",
+    "day_idx": 28,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-01-29T19:06:14Z",
+    "pack": "mail",
+    "rule_id": "R1",
+    "situation_id": "eef7f12c9060656f5da477b784e894f3",
+    "true_action": "REPLY"
+  },
+  "ef1f8f887df8fbe3a1de24055ff16519": {
+    "attributes": {
+      "has_deadline": true,
+      "intent": "request",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "professor",
+      "urgency": "normal"
+    },
+    "candidate_action": "REPLY",
+    "day_idx": 86,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-03-29T04:06:14Z",
+    "pack": "mail",
+    "rule_id": "R1",
+    "situation_id": "ef1f8f887df8fbe3a1de24055ff16519",
+    "true_action": "REPLY"
+  },
+  "ef57bc4e3701b002865826b6e0fd6a39": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "receipt",
+      "is_automated": true,
+      "money_involved": true,
+      "sender_role": "service",
+      "urgency": "normal"
+    },
+    "candidate_action": "ARCHIVE",
+    "day_idx": 153,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-06-03T21:57:47Z",
+    "pack": "mail",
+    "rule_id": "R6",
+    "situation_id": "ef57bc4e3701b002865826b6e0fd6a39",
+    "true_action": "ARCHIVE"
+  },
+  "efc12cfd3b83db4651ea980e9e28b2af": {
+    "attributes": {
+      "organizer_role": "club",
+      "purpose": "club_meeting",
+      "start_hour_bucket": "normal"
+    },
+    "candidate_action": "ACCEPT",
+    "day_idx": 77,
+    "family": "invite_rsvp",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-03-19T22:00:00Z",
+    "pack": "calendar",
+    "rule_id": "R10",
+    "situation_id": "efc12cfd3b83db4651ea980e9e28b2af",
+    "true_action": "ACCEPT"
+  },
+  "f0402fceb269b64ce683a2dacbd5c0e9": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "chat",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "friend",
+      "urgency": "normal"
+    },
+    "candidate_action": "REPLY",
+    "day_idx": 108,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-04-19T22:56:06Z",
+    "pack": "mail",
+    "rule_id": "R4",
+    "situation_id": "f0402fceb269b64ce683a2dacbd5c0e9",
+    "true_action": "REPLY"
+  },
+  "f065b5b2f019215f912c0f7c2c72ccf2": {
+    "attributes": {
+      "organizer_role": "professor",
+      "purpose": "office_hours",
+      "start_hour_bucket": "normal"
+    },
+    "candidate_action": "ACCEPT",
+    "day_idx": 59,
+    "family": "invite_rsvp",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-03-02T00:00:00Z",
+    "pack": "calendar",
+    "rule_id": "R9",
+    "situation_id": "f065b5b2f019215f912c0f7c2c72ccf2",
+    "true_action": "ACCEPT"
+  },
+  "f09e3ee59bcd8e67d7737d6900858ad1": {
+    "attributes": {
+      "ext": "zip",
+      "filename": "CO301_Lab30_Report.zip",
+      "origin_site": "overleaf.com"
+    },
+    "candidate_action": "LEAVE",
+    "day_idx": 103,
+    "family": "file_destination",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-04-15T03:10:00Z",
+    "pack": "files",
+    "rule_id": "DEFAULT",
+    "situation_id": "f09e3ee59bcd8e67d7737d6900858ad1",
+    "true_action": "LEAVE"
+  },
+  "f2c8b3435b0835553d987afb527caa41": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "notification",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "club",
+      "urgency": "normal"
+    },
+    "candidate_action": "ARCHIVE",
+    "day_idx": 65,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-03-08T04:02:39Z",
+    "pack": "mail",
+    "rule_id": "DEFAULT",
+    "situation_id": "f2c8b3435b0835553d987afb527caa41",
+    "true_action": "ARCHIVE"
+  },
+  "f6993798fd0e567ca730aabe03c7221d": {
+    "attributes": {
+      "ext": "zip",
+      "filename": "CO301_Lab05_Report.zip",
+      "origin_site": "arxiv.org"
+    },
+    "candidate_action": "MOVE_TO_FOLDER:College/CO302",
+    "day_idx": 14,
+    "family": "file_destination",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-01-15T21:18:00Z",
+    "pack": "files",
+    "rule_id": "R13",
+    "situation_id": "f6993798fd0e567ca730aabe03c7221d",
+    "true_action": "MOVE_TO_FOLDER:College/CO302"
+  },
+  "f948e63897acd818756ffaffca09fcba": {
+    "attributes": {
+      "organizer_role": "professor",
+      "purpose": "lab_session",
+      "start_hour_bucket": "weekend"
+    },
+    "candidate_action": "ACCEPT",
+    "day_idx": 17,
+    "family": "invite_rsvp",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-01-18T22:00:00Z",
+    "pack": "calendar",
+    "rule_id": "R9",
+    "situation_id": "f948e63897acd818756ffaffca09fcba",
+    "true_action": "ACCEPT"
+  },
+  "fdc3c74d0256e02877c3157c5af468ab": {
+    "attributes": {
+      "has_deadline": true,
+      "intent": "opportunity",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "recruiter",
+      "urgency": "normal"
+    },
+    "candidate_action": "REPLY",
+    "day_idx": 83,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-03-26T01:23:08Z",
+    "pack": "mail",
+    "rule_id": "R5",
+    "situation_id": "fdc3c74d0256e02877c3157c5af468ab",
+    "true_action": "REPLY"
+  },
+  "fe353770446b5c93f51bb9af1281a229": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "chat",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "friend",
+      "urgency": "normal"
+    },
+    "candidate_action": "REPLY",
+    "day_idx": 116,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-04-27T21:32:55Z",
+    "pack": "mail",
+    "rule_id": "R4",
+    "situation_id": "fe353770446b5c93f51bb9af1281a229",
+    "true_action": "REPLY"
+  },
+  "fefd48bd5df4523d7f8775dc9faeaf12": {
+    "attributes": {
+      "has_deadline": false,
+      "intent": "chat",
+      "is_automated": false,
+      "money_involved": false,
+      "sender_role": "friend",
+      "urgency": "normal"
+    },
+    "candidate_action": "REPLY",
+    "day_idx": 68,
+    "family": "email_action",
+    "is_censored": false,
+    "is_drifted": false,
+    "noise_applied": false,
+    "occurred_at": "2026-03-10T17:57:35Z",
+    "pack": "mail",
+    "rule_id": "R4",
+    "situation_id": "fefd48bd5df4523d7f8775dc9faeaf12",
+    "true_action": "REPLY"
+  }
+}

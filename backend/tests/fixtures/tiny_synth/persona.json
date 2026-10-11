@@ -1,0 +1,141 @@
+{
+  "id": 0,
+  "name": "Meena Krishnamurthy",
+  "email": "meena.k@national.ac.in",
+  "role": "student",
+  "college": "National Institute of Technology",
+  "department": "Computer Science",
+  "is_test_persona": false,
+  "writing_style": {
+    "greetings": [
+      "Hi",
+      "Hey",
+      "Hello",
+      "Hi everyone"
+    ],
+    "signoffs": [
+      "Thanks,\nMeena",
+      "Cheers,\nMeena",
+      "Best,\nMeena Krishnamurthy"
+    ],
+    "median_words": 18,
+    "formality": 0.5
+  },
+  "contacts": [
+    {
+      "name": "Prof. R. Ramanathan",
+      "email": "r.ramanathan@national.ac.in",
+      "role": "professor",
+      "company_or_dept": "Computer Science",
+      "course": "CO301 Advanced Computer Science"
+    },
+    {
+      "name": "Prof. Anita Swaminathan",
+      "email": "a.swaminathan@national.ac.in",
+      "role": "professor",
+      "company_or_dept": "Computer Science",
+      "course": "CO302 Systems & Algorithms"
+    },
+    {
+      "name": "Prof. S. Chakrabarti",
+      "email": "s.chakrabarti@national.ac.in",
+      "role": "professor",
+      "company_or_dept": "Mathematics",
+      "course": "MA201 Linear Algebra & Probability"
+    },
+    {
+      "name": "Rahul Krishna",
+      "email": "rahul.k@national.ac.in",
+      "role": "friend",
+      "company_or_dept": "Computer Science",
+      "course": ""
+    },
+    {
+      "name": "Akanksha Roy",
+      "email": "akanksha.roy2026@gmail.com",
+      "role": "friend",
+      "company_or_dept": "Study Group",
+      "course": ""
+    },
+    {
+      "name": "Samir Jain",
+      "email": "samir.jain.tech@outlook.com",
+      "role": "friend",
+      "company_or_dept": "Project Partner",
+      "course": ""
+    },
+    {
+      "name": "Campus Coding Club",
+      "email": "codingclub@national.ac.in",
+      "role": "club",
+      "company_or_dept": "Student Activities",
+      "course": ""
+    },
+    {
+      "name": "Hackathon & Innovation Cell",
+      "email": "hackathons@national.ac.in",
+      "role": "club",
+      "company_or_dept": "Placement Cell",
+      "course": ""
+    },
+    {
+      "name": "Acme Tech Campus Hiring",
+      "email": "campus-recruitment@acmetech.example.com",
+      "role": "recruiter",
+      "company_or_dept": "Acme Tech",
+      "course": ""
+    },
+    {
+      "name": "Global AI Labs Internships",
+      "email": "internships@ailabs.example.org",
+      "role": "recruiter",
+      "company_or_dept": "Global AI Labs",
+      "course": ""
+    },
+    {
+      "name": "College Academic Portal",
+      "email": "noreply-portal@national.ac.in",
+      "role": "service",
+      "company_or_dept": "Academic Office",
+      "course": ""
+    },
+    {
+      "name": "Library Services",
+      "email": "library-alerts@national.ac.in",
+      "role": "service",
+      "company_or_dept": "Central Library",
+      "course": ""
+    },
+    {
+      "name": "Tech Digest Newsletter",
+      "email": "newsletter@techdigest.example.com",
+      "role": "service",
+      "company_or_dept": "Subscriptions",
+      "course": ""
+    }
+  ],
+  "origin_sites": [
+    "portal.national.ac.in",
+    "moodle.national.ac.in",
+    "arxiv.org",
+    "github.com",
+    "drive.google.com",
+    "overleaf.com",
+    "kaggle.com"
+  ],
+  "courses": [
+    "CO301 Advanced Computer Science",
+    "CO302 Systems & Algorithms",
+    "MA201 Linear Algebra & Probability",
+    "HS101 Professional Ethics"
+  ],
+  "folders": [
+    "College/CO301",
+    "College/CO302",
+    "College/Lab_Reports",
+    "Projects/Code",
+    "Internships/Resumes",
+    "Personal/Bills",
+    "Downloads/Misc"
+  ]
+}

@@ -1,0 +1,456 @@
+{
+  "snapshot_at": "2026-01-01T08:00:00Z",
+  "root": "fs",
+  "files": [
+    {
+      "rel_path": "Downloads/CO301_Lab01_Report.zip",
+      "filename": "CO301_Lab01_Report.zip",
+      "ext": "zip",
+      "size_bytes": 158,
+      "mtime": "2026-01-02T05:06:00Z",
+      "sha256": "1ff5726c3f7ecb7ac0de2d5ef49a711c7b5b62fbcad8a912cf51b0bd05a57360",
+      "origin_url": "https://drive.google.com/downloads/CO301_Lab01_Report.zip"
+    },
+    {
+      "rel_path": "Downloads/CO301_Lab02_Report.zip",
+      "filename": "CO301_Lab02_Report.zip",
+      "ext": "zip",
+      "size_bytes": 154,
+      "mtime": "2026-01-04T17:13:00Z",
+      "sha256": "3540aa9808ac71c6adcb81d1f2e33481c5d90180903a32157e3b33889147af72",
+      "origin_url": "https://overleaf.com/downloads/CO301_Lab02_Report.zip"
+    },
+    {
+      "rel_path": "Downloads/CO301_Lab03_Report.zip",
+      "filename": "CO301_Lab03_Report.zip",
+      "ext": "zip",
+      "size_bytes": 151,
+      "mtime": "2026-01-09T03:23:00Z",
+      "sha256": "fe3315ffec60a0500a228ce90dc53752594e5e6c970e9607bf2b724c6c094c3a",
+      "origin_url": "https://arxiv.org/downloads/CO301_Lab03_Report.zip"
+    },
+    {
+      "rel_path": "Downloads/CO301_Lab04_Report.py",
+      "filename": "CO301_Lab04_Report.py",
+      "ext": "py",
+      "size_bytes": 163,
+      "mtime": "2026-01-11T20:18:00Z",
+      "sha256": "fec4d12827568ed8388bd934d681211490e7df1d79d5b624955226aa04ff3a62",
+      "origin_url": "https://github.com/downloads/CO301_Lab04_Report.py"
+    },
+    {
+      "rel_path": "Downloads/CO301_Lab05_Report.zip",
+      "filename": "CO301_Lab05_Report.zip",
+      "ext": "zip",
+      "size_bytes": 151,
+      "mtime": "2026-01-15T21:18:00Z",
+      "sha256": "fe0172ee028fefa7a79d14383fe8229ba897230ae8f5c965144ad386448becf7",
+      "origin_url": "https://arxiv.org/downloads/CO301_Lab05_Report.zip"
+    },
+    {
+      "rel_path": "Downloads/CO301_Lab06_Report.py",
+      "filename": "CO301_Lab06_Report.py",
+      "ext": "py",
+      "size_bytes": 169,
+      "mtime": "2026-01-18T21:55:00Z",
+      "sha256": "0d2884ec5171dcdade1188fd18cecddedc46a3131d0b1db5325d61b773b5d273",
+      "origin_url": "https://drive.google.com/downloads/CO301_Lab06_Report.py"
+    },
+    {
+      "rel_path": "Downloads/CO301_Lab07_Report.docx",
+      "filename": "CO301_Lab07_Report.docx",
+      "ext": "docx",
+      "size_bytes": 153,
+      "mtime": "2026-01-23T05:07:00Z",
+      "sha256": "35b696d7d179ac12267e7b07b4d0f9a124868ff6da0d2de4396261ce1461a8ba",
+      "origin_url": "https://arxiv.org/downloads/CO301_Lab07_Report.docx"
+    },
+    {
+      "rel_path": "Downloads/CO301_Lab08_Report.pdf",
+      "filename": "CO301_Lab08_Report.pdf",
+      "ext": "pdf",
+      "size_bytes": 163,
+      "mtime": "2026-01-27T02:40:00Z",
+      "sha256": "5046892f7a5800743408ba377a1883c238954a9c303775979798567530e35e56",
+      "origin_url": "https://portal.national.ac.in/downloads/CO301_Lab08_Report.pdf"
+    },
+    {
+      "rel_path": "Downloads/CO301_Lab09_Report.pdf",
+      "filename": "CO301_Lab09_Report.pdf",
+      "ext": "pdf",
+      "size_bytes": 158,
+      "mtime": "2026-01-29T23:34:00Z",
+      "sha256": "9a819f6b5f2e1c006279e1df11f20d3f825ad778f6f4794a58a9eb7ce762c06b",
+      "origin_url": "https://drive.google.com/downloads/CO301_Lab09_Report.pdf"
+    },
+    {
+      "rel_path": "Downloads/CO301_Lab10_Report.zip",
+      "filename": "CO301_Lab10_Report.zip",
+      "ext": "zip",
+      "size_bytes": 152,
+      "mtime": "2026-02-02T17:12:00Z",
+      "sha256": "09db24e23f7b1facb8346e9c04981a1f5b4c057f610a4721917ac955efda6536",
+      "origin_url": "https://kaggle.com/downloads/CO301_Lab10_Report.zip"
+    },
+    {
+      "rel_path": "Downloads/CO301_Lab11_Report.zip",
+      "filename": "CO301_Lab11_Report.zip",
+      "ext": "zip",
+      "size_bytes": 158,
+      "mtime": "2026-02-06T05:32:00Z",
+      "sha256": "ee54f77acf658b505bfb575a2958aa62fed9c6f43f132848e8ccbd76910f6725",
+      "origin_url": "https://drive.google.com/downloads/CO301_Lab11_Report.zip"
+    },
+    {
+      "rel_path": "Downloads/CO301_Lab12_Report.pdf",
+      "filename": "CO301_Lab12_Report.pdf",
+      "ext": "pdf",
+      "size_bytes": 158,
+      "mtime": "2026-02-10T04:44:00Z",
+      "sha256": "e2ac51823e00d49f1a3497f409b36079fd04c7dd1c2459d4306593a2ba6061f8",
+      "origin_url": "https://drive.google.com/downloads/CO301_Lab12_Report.pdf"
+    },
+    {
+      "rel_path": "Downloads/CO301_Lab13_Report.docx",
+      "filename": "CO301_Lab13_Report.docx",
+      "ext": "docx",
+      "size_bytes": 154,
+      "mtime": "2026-02-13T00:40:00Z",
+      "sha256": "6ddcb85f3d6a890b04f457710a68109a0d028e6298c0cc1e7128bf73b2ecd460",
+      "origin_url": "https://kaggle.com/downloads/CO301_Lab13_Report.docx"
+    },
+    {
+      "rel_path": "Downloads/CO301_Lab14_Report.pdf",
+      "filename": "CO301_Lab14_Report.pdf",
+      "ext": "pdf",
+      "size_bytes": 152,
+      "mtime": "2026-02-16T17:26:00Z",
+      "sha256": "53b888d973cc922119c04cc86c9162a79828e8dbe449da159f4302b716b51758",
+      "origin_url": "https://kaggle.com/downloads/CO301_Lab14_Report.pdf"
+    },
+    {
+      "rel_path": "Downloads/CO301_Lab15_Report.docx",
+      "filename": "CO301_Lab15_Report.docx",
+      "ext": "docx",
+      "size_bytes": 154,
+      "mtime": "2026-02-20T22:55:00Z",
+      "sha256": "f59eddd53508620c85d31e0ced66db0c9ae44ead0a710c0aee0371972b89a675",
+      "origin_url": "https://kaggle.com/downloads/CO301_Lab15_Report.docx"
+    },
+    {
+      "rel_path": "Downloads/CO301_Lab16_Report.docx",
+      "filename": "CO301_Lab16_Report.docx",
+      "ext": "docx",
+      "size_bytes": 153,
+      "mtime": "2026-02-23T21:55:00Z",
+      "sha256": "a3d5c2b86c034dc4cdd6d6276e4286e026a324145fa96d0b1387ba20a57f7530",
+      "origin_url": "https://arxiv.org/downloads/CO301_Lab16_Report.docx"
+    },
+    {
+      "rel_path": "Downloads/CO301_Lab17_Report.pdf",
+      "filename": "CO301_Lab17_Report.pdf",
+      "ext": "pdf",
+      "size_bytes": 154,
+      "mtime": "2026-02-27T23:36:00Z",
+      "sha256": "0d0a9802a748569f422168f1bd255dab11f3d3c1b0cb4ca5b939c594d1f1e20f",
+      "origin_url": "https://overleaf.com/downloads/CO301_Lab17_Report.pdf"
+    },
+    {
+      "rel_path": "Downloads/CO301_Lab18_Report.zip",
+      "filename": "CO301_Lab18_Report.zip",
+      "ext": "zip",
+      "size_bytes": 152,
+      "mtime": "2026-03-02T18:49:00Z",
+      "sha256": "7533d0e89834c736e2aa20d760e7c380055268a3c5a1824e67655d61a43c2edf",
+      "origin_url": "https://kaggle.com/downloads/CO301_Lab18_Report.zip"
+    },
+    {
+      "rel_path": "Downloads/CO301_Lab19_Report.zip",
+      "filename": "CO301_Lab19_Report.zip",
+      "ext": "zip",
+      "size_bytes": 163,
+      "mtime": "2026-03-07T00:04:00Z",
+      "sha256": "b90d0f21ee8b90c142817055903f8ab7b176cd13dcb330e00c80908e08842441",
+      "origin_url": "https://portal.national.ac.in/downloads/CO301_Lab19_Report.zip"
+    },
+    {
+      "rel_path": "Downloads/CO301_Lab20_Report.zip",
+      "filename": "CO301_Lab20_Report.zip",
+      "ext": "zip",
+      "size_bytes": 152,
+      "mtime": "2026-03-11T03:09:00Z",
+      "sha256": "4d2cc3ae94770c718e9d896a2e5ed6f6b30a83a612fb0e71ccba532f49ee9f23",
+      "origin_url": "https://github.com/downloads/CO301_Lab20_Report.zip"
+    },
+    {
+      "rel_path": "Downloads/CO301_Lab21_Report.pdf",
+      "filename": "CO301_Lab21_Report.pdf",
+      "ext": "pdf",
+      "size_bytes": 163,
+      "mtime": "2026-03-14T00:13:00Z",
+      "sha256": "d806973123746a0c8011620f3e1fa33a65a5dbecae321a64b21497cc47997cdc",
+      "origin_url": "https://moodle.national.ac.in/downloads/CO301_Lab21_Report.pdf"
+    },
+    {
+      "rel_path": "Downloads/CO301_Lab22_Report.pdf",
+      "filename": "CO301_Lab22_Report.pdf",
+      "ext": "pdf",
+      "size_bytes": 152,
+      "mtime": "2026-03-17T18:13:00Z",
+      "sha256": "5b57aaefb9ea2d29e95f20e73d32e4602d9bc051e76a979b374c97eb0d48bb4c",
+      "origin_url": "https://kaggle.com/downloads/CO301_Lab22_Report.pdf"
+    },
+    {
+      "rel_path": "Downloads/CO301_Lab23_Report.docx",
+      "filename": "CO301_Lab23_Report.docx",
+      "ext": "docx",
+      "size_bytes": 156,
+      "mtime": "2026-03-21T00:46:00Z",
+      "sha256": "61f5c95cb48a8cff005923c53a2f468d790d7fb40d4a459c3083dba8c3a73117",
+      "origin_url": "https://overleaf.com/downloads/CO301_Lab23_Report.docx"
+    },
+    {
+      "rel_path": "Downloads/CO301_Lab24_Report.docx",
+      "filename": "CO301_Lab24_Report.docx",
+      "ext": "docx",
+      "size_bytes": 156,
+      "mtime": "2026-03-25T04:45:00Z",
+      "sha256": "b177de1a8c9c3ea910f9a5903080677f4bd71662cd62ac300e03b55fc5800394",
+      "origin_url": "https://overleaf.com/downloads/CO301_Lab24_Report.docx"
+    },
+    {
+      "rel_path": "Downloads/CO301_Lab25_Report.zip",
+      "filename": "CO301_Lab25_Report.zip",
+      "ext": "zip",
+      "size_bytes": 154,
+      "mtime": "2026-03-28T03:35:00Z",
+      "sha256": "fef16fdb0f0a725dd382a5f66d88b1ad81d9d5a75f9a23e515147c327024f773",
+      "origin_url": "https://overleaf.com/downloads/CO301_Lab25_Report.zip"
+    },
+    {
+      "rel_path": "Downloads/CO301_Lab26_Report.pdf",
+      "filename": "CO301_Lab26_Report.pdf",
+      "ext": "pdf",
+      "size_bytes": 163,
+      "mtime": "2026-03-31T21:58:00Z",
+      "sha256": "a43f2cb5f2568bb2334d75c6a1c047d62602c506913d0ba442d7dbee8a9641bd",
+      "origin_url": "https://portal.national.ac.in/downloads/CO301_Lab26_Report.pdf"
+    },
+    {
+      "rel_path": "Downloads/CO301_Lab27_Report.docx",
+      "filename": "CO301_Lab27_Report.docx",
+      "ext": "docx",
+      "size_bytes": 153,
+      "mtime": "2026-04-04T23:19:00Z",
+      "sha256": "c7084643d571eaede732d811e65d2cb209cc7f4e604eadc71432f506a436c1e5",
+      "origin_url": "https://arxiv.org/downloads/CO301_Lab27_Report.docx"
+    },
+    {
+      "rel_path": "Downloads/CO301_Lab28_Report.py",
+      "filename": "CO301_Lab28_Report.py",
+      "ext": "py",
+      "size_bytes": 162,
+      "mtime": "2026-04-08T02:03:00Z",
+      "sha256": "62518aa7db906a736d012e4bf125c13afcf912e2c0126e2445fa5dad64a306ba",
+      "origin_url": "https://arxiv.org/downloads/CO301_Lab28_Report.py"
+    },
+    {
+      "rel_path": "Downloads/CO301_Lab29_Report.docx",
+      "filename": "CO301_Lab29_Report.docx",
+      "ext": "docx",
+      "size_bytes": 165,
+      "mtime": "2026-04-12T00:43:00Z",
+      "sha256": "d88defe159c04986051e612e494e15d9d346efdba3acd3fb5e756d5f782ca6d3",
+      "origin_url": "https://moodle.national.ac.in/downloads/CO301_Lab29_Report.docx"
+    },
+    {
+      "rel_path": "Downloads/CO301_Lab30_Report.zip",
+      "filename": "CO301_Lab30_Report.zip",
+      "ext": "zip",
+      "size_bytes": 154,
+      "mtime": "2026-04-15T03:10:00Z",
+      "sha256": "6146f25089dac29fd6748c6cc22263d128d48ec347cb38a9b233f828b393fdc7",
+      "origin_url": "https://overleaf.com/downloads/CO301_Lab30_Report.zip"
+    },
+    {
+      "rel_path": "Downloads/CO301_Lab31_Report.py",
+      "filename": "CO301_Lab31_Report.py",
+      "ext": "py",
+      "size_bytes": 163,
+      "mtime": "2026-04-19T00:17:00Z",
+      "sha256": "02118496973141eeda434c5bdd872d801d9a72ccd05e0da2d0745867ae75cb88",
+      "origin_url": "https://kaggle.com/downloads/CO301_Lab31_Report.py"
+    },
+    {
+      "rel_path": "Downloads/CO301_Lab32_Report.docx",
+      "filename": "CO301_Lab32_Report.docx",
+      "ext": "docx",
+      "size_bytes": 165,
+      "mtime": "2026-04-22T02:46:00Z",
+      "sha256": "d85cb2b5cad0bf5e904d5056f72c9aa1dcd0e51439baf7c3adf87165960403ca",
+      "origin_url": "https://portal.national.ac.in/downloads/CO301_Lab32_Report.docx"
+    },
+    {
+      "rel_path": "Downloads/CO301_Lab33_Report.zip",
+      "filename": "CO301_Lab33_Report.zip",
+      "ext": "zip",
+      "size_bytes": 163,
+      "mtime": "2026-04-25T23:56:00Z",
+      "sha256": "d2ffcf95142e59bdd90f9f38b6e933c3f91420ee393cbe49cf04970fdb16b06c",
+      "origin_url": "https://moodle.national.ac.in/downloads/CO301_Lab33_Report.zip"
+    },
+    {
+      "rel_path": "Downloads/CO301_Lab34_Report.zip",
+      "filename": "CO301_Lab34_Report.zip",
+      "ext": "zip",
+      "size_bytes": 163,
+      "mtime": "2026-04-30T05:57:00Z",
+      "sha256": "58a1935b5d333c5c38e11878455219189e68a8da3d0fff8df6b060c75306a467",
+      "origin_url": "https://moodle.national.ac.in/downloads/CO301_Lab34_Report.zip"
+    },
+    {
+      "rel_path": "Downloads/CO301_Lab35_Report.pdf",
+      "filename": "CO301_Lab35_Report.pdf",
+      "ext": "pdf",
+      "size_bytes": 163,
+      "mtime": "2026-05-02T21:27:00Z",
+      "sha256": "626225447809af21931eb1b20ef0d1b52c1c4fb55266a61875aa9d099c8bd170",
+      "origin_url": "https://moodle.national.ac.in/downloads/CO301_Lab35_Report.pdf"
+    },
+    {
+      "rel_path": "Downloads/CO301_Lab36_Report.zip",
+      "filename": "CO301_Lab36_Report.zip",
+      "ext": "zip",
+      "size_bytes": 151,
+      "mtime": "2026-05-07T02:09:00Z",
+      "sha256": "d19d4f0420c73ed05140280b14f12a04ff7ddf0c06b62d7c7fc9594ca579d812",
+      "origin_url": "https://arxiv.org/downloads/CO301_Lab36_Report.zip"
+    },
+    {
+      "rel_path": "Downloads/CO301_Lab37_Report.zip",
+      "filename": "CO301_Lab37_Report.zip",
+      "ext": "zip",
+      "size_bytes": 152,
+      "mtime": "2026-05-10T01:31:00Z",
+      "sha256": "cad587e6f5a8a4f611b60240e568154547e58f45abb39c9ae21e47d5e65205c5",
+      "origin_url": "https://kaggle.com/downloads/CO301_Lab37_Report.zip"
+    },
+    {
+      "rel_path": "Downloads/CO301_Lab38_Report.pdf",
+      "filename": "CO301_Lab38_Report.pdf",
+      "ext": "pdf",
+      "size_bytes": 158,
+      "mtime": "2026-05-13T20:19:00Z",
+      "sha256": "bd5d2b9ae022b618f8c7d18fb15442f9f81386bca1045b59813d2ab6a0617f11",
+      "origin_url": "https://drive.google.com/downloads/CO301_Lab38_Report.pdf"
+    },
+    {
+      "rel_path": "Downloads/CO301_Lab39_Report.pdf",
+      "filename": "CO301_Lab39_Report.pdf",
+      "ext": "pdf",
+      "size_bytes": 151,
+      "mtime": "2026-05-17T20:59:00Z",
+      "sha256": "b83cfa62a08d02fdd01e990a5b946f4d2148c9ccdf13588a5e6728cf301b25b6",
+      "origin_url": "https://arxiv.org/downloads/CO301_Lab39_Report.pdf"
+    },
+    {
+      "rel_path": "Downloads/CO301_Lab40_Report.py",
+      "filename": "CO301_Lab40_Report.py",
+      "ext": "py",
+      "size_bytes": 163,
+      "mtime": "2026-05-20T18:34:00Z",
+      "sha256": "f1d343e3efb77420454a7a0a25803857c4d82163d3d8d0aabec443e5ac23a95a",
+      "origin_url": "https://kaggle.com/downloads/CO301_Lab40_Report.py"
+    },
+    {
+      "rel_path": "Downloads/CO301_Lab41_Report.py",
+      "filename": "CO301_Lab41_Report.py",
+      "ext": "py",
+      "size_bytes": 162,
+      "mtime": "2026-05-25T02:33:00Z",
+      "sha256": "03e350d98b2c958835fadec65e2fa7516c36027093955f7cb55355d2ecde540c",
+      "origin_url": "https://arxiv.org/downloads/CO301_Lab41_Report.py"
+    },
+    {
+      "rel_path": "Downloads/CO301_Lab42_Report.pdf",
+      "filename": "CO301_Lab42_Report.pdf",
+      "ext": "pdf",
+      "size_bytes": 163,
+      "mtime": "2026-05-27T20:13:00Z",
+      "sha256": "2f7e6c4ee4e5e88aa18cc9e60c22bdfcd73bed73d6cc271397640d8d6d07178c",
+      "origin_url": "https://moodle.national.ac.in/downloads/CO301_Lab42_Report.pdf"
+    },
+    {
+      "rel_path": "Downloads/CO301_Lab43_Report.py",
+      "filename": "CO301_Lab43_Report.py",
+      "ext": "py",
+      "size_bytes": 169,
+      "mtime": "2026-05-31T22:36:00Z",
+      "sha256": "a924b91756c9629483be9e16fe09537766482838e861a40d9ea18fe03140942f",
+      "origin_url": "https://drive.google.com/downloads/CO301_Lab43_Report.py"
+    },
+    {
+      "rel_path": "Downloads/CO301_Lab44_Report.zip",
+      "filename": "CO301_Lab44_Report.zip",
+      "ext": "zip",
+      "size_bytes": 163,
+      "mtime": "2026-06-03T19:15:00Z",
+      "sha256": "fe80d0736480b05f18ea1fc29a33afc6ae3440a0dacd00488a8a925228594c19",
+      "origin_url": "https://portal.national.ac.in/downloads/CO301_Lab44_Report.zip"
+    },
+    {
+      "rel_path": "Downloads/CO301_Lab45_Report.pdf",
+      "filename": "CO301_Lab45_Report.pdf",
+      "ext": "pdf",
+      "size_bytes": 152,
+      "mtime": "2026-06-08T03:29:00Z",
+      "sha256": "db9341a3af5aa2cedad2a0319662c9923fc83cb7d45d5ee4f57f5a137f214d00",
+      "origin_url": "https://kaggle.com/downloads/CO301_Lab45_Report.pdf"
+    },
+    {
+      "rel_path": "Downloads/CO301_Lab46_Report.pdf",
+      "filename": "CO301_Lab46_Report.pdf",
+      "ext": "pdf",
+      "size_bytes": 158,
+      "mtime": "2026-06-11T22:17:00Z",
+      "sha256": "1a7bb77d32fee96f549af502756058fc81a037e0978468e78381fa99d3cf7cce",
+      "origin_url": "https://drive.google.com/downloads/CO301_Lab46_Report.pdf"
+    },
+    {
+      "rel_path": "Downloads/CO301_Lab47_Report.docx",
+      "filename": "CO301_Lab47_Report.docx",
+      "ext": "docx",
+      "size_bytes": 160,
+      "mtime": "2026-06-15T02:31:00Z",
+      "sha256": "a606f8e0e9595d201cbdccb3e836c6073805a179c92e0610fa5bab98bbcc662d",
+      "origin_url": "https://drive.google.com/downloads/CO301_Lab47_Report.docx"
+    },
+    {
+      "rel_path": "Downloads/CO301_Lab48_Report.docx",
+      "filename": "CO301_Lab48_Report.docx",
+      "ext": "docx",
+      "size_bytes": 154,
+      "mtime": "2026-06-18T23:06:00Z",
+      "sha256": "81697e635d6dd177e99b62ec3ff85d0ea1f127f369cd7a8b5bfec3eaaaedef76",
+      "origin_url": "https://github.com/downloads/CO301_Lab48_Report.docx"
+    },
+    {
+      "rel_path": "Downloads/CO301_Lab49_Report.pdf",
+      "filename": "CO301_Lab49_Report.pdf",
+      "ext": "pdf",
+      "size_bytes": 163,
+      "mtime": "2026-06-21T19:24:00Z",
+      "sha256": "91696341eb2c4d211cdf1722f1c37f288de9f13ff2aeeee54eb2121eabf60576",
+      "origin_url": "https://portal.national.ac.in/downloads/CO301_Lab49_Report.pdf"
+    },
+    {
+      "rel_path": "Downloads/CO301_Lab50_Report.pdf",
+      "filename": "CO301_Lab50_Report.pdf",
+      "ext": "pdf",
+      "size_bytes": 152,
+      "mtime": "2026-06-26T04:29:00Z",
+      "sha256": "9e032f7490a48f7aaef3933e2a3befdec703bb4ee0a3988b3130fd87456e7655",
+      "origin_url": "https://github.com/downloads/CO301_Lab50_Report.pdf"
+    }
+  ]
+}

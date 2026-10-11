@@ -1,0 +1,207 @@
+{
+  "persona_id": 0,
+  "noise": 0.07,
+  "rules": [
+    {
+      "id": "R1",
+      "family": "email_action",
+      "when": {
+        "sender_role": "professor",
+        "intent": "request"
+      },
+      "then": {
+        "REPLY": 0.95,
+        "LEAVE": 0.05
+      }
+    },
+    {
+      "id": "R2",
+      "family": "email_action",
+      "when": {
+        "intent": "newsletter"
+      },
+      "then": {
+        "ARCHIVE": 0.96,
+        "TRASH": 0.04
+      }
+    },
+    {
+      "id": "R3",
+      "family": "email_action",
+      "when": {
+        "sender_role": "service",
+        "intent": "notification"
+      },
+      "then": {
+        "ARCHIVE": 0.92,
+        "LEAVE": 0.08
+      }
+    },
+    {
+      "id": "R4",
+      "family": "email_action",
+      "when": {
+        "sender_role": "friend",
+        "intent": "chat"
+      },
+      "then": {
+        "REPLY": 0.9,
+        "LEAVE": 0.1
+      }
+    },
+    {
+      "id": "R5",
+      "family": "email_action",
+      "when": {
+        "sender_role": "recruiter",
+        "intent": "opportunity"
+      },
+      "then": {
+        "REPLY": 0.88,
+        "ARCHIVE": 0.12
+      }
+    },
+    {
+      "id": "R6",
+      "family": "email_action",
+      "when": {
+        "intent": "receipt"
+      },
+      "then": {
+        "ARCHIVE": 0.94,
+        "LEAVE": 0.06
+      }
+    },
+    {
+      "id": "R7",
+      "family": "email_action",
+      "when": {
+        "intent": "sales"
+      },
+      "then": {
+        "TRASH": 0.85,
+        "ARCHIVE": 0.15
+      }
+    },
+    {
+      "id": "R8",
+      "family": "invite_rsvp",
+      "when": {
+        "start_hour_bucket": "early"
+      },
+      "then": {
+        "DECLINE": 0.93,
+        "ACCEPT": 0.07
+      }
+    },
+    {
+      "id": "R9",
+      "family": "invite_rsvp",
+      "when": {
+        "organizer_role": "professor"
+      },
+      "then": {
+        "ACCEPT": 0.97,
+        "DECLINE": 0.03
+      }
+    },
+    {
+      "id": "R10",
+      "family": "invite_rsvp",
+      "when": {
+        "organizer_role": "club"
+      },
+      "then": {
+        "ACCEPT": 0.86,
+        "DECLINE": 0.14
+      }
+    },
+    {
+      "id": "R11",
+      "family": "invite_rsvp",
+      "when": {
+        "start_hour_bucket": "weekend"
+      },
+      "then": {
+        "DECLINE": 0.8,
+        "ACCEPT": 0.2
+      }
+    },
+    {
+      "id": "R12",
+      "family": "file_destination",
+      "when": {
+        "origin_site": "portal.national.ac.in"
+      },
+      "then": {
+        "MOVE_TO_FOLDER:College/CO301": 0.96,
+        "LEAVE": 0.04
+      }
+    },
+    {
+      "id": "R13",
+      "family": "file_destination",
+      "when": {
+        "origin_site": "arxiv.org"
+      },
+      "then": {
+        "MOVE_TO_FOLDER:College/CO302": 0.95,
+        "LEAVE": 0.05
+      }
+    },
+    {
+      "id": "R14",
+      "family": "file_destination",
+      "when": {
+        "ext": "pdf",
+        "origin_site": "moodle.college.edu"
+      },
+      "then": {
+        "MOVE_TO_FOLDER:College/CO301": 0.97,
+        "LEAVE": 0.03
+      }
+    }
+  ],
+  "chains": [
+    {
+      "trigger": {
+        "family": "email_action",
+        "sender_role": "professor",
+        "has_deadline": true
+      },
+      "follow": [
+        {
+          "action": "REPLY",
+          "p": 0.95
+        },
+        {
+          "action": "BLOCK_TIME",
+          "p": 0.85,
+          "delay_hours": [
+            2,
+            20
+          ]
+        }
+      ]
+    }
+  ],
+  "drift": {
+    "at_day": 120,
+    "changes": [
+      {
+        "rule": "R8",
+        "then": {
+          "ACCEPT": 0.8,
+          "DECLINE": 0.2
+        }
+      },
+      {
+        "rule": "R2",
+        "then": {
+          "ARCHIVE": 0.5,
+          "LEAVE": 0.5
+        }
+      }
+    ]
+  }
+}

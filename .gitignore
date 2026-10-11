@@ -9,7 +9,7 @@ data/
 *.db
 *.db-wal
 *.db-shm
-
+!backend/tests/fixtures/**/*.db
 
 # Python caches and environments
 __pycache__/
@@ -21,6 +21,7 @@ __pycache__/
 .coverage
 htmlcov/
 .venv/
+.venv*/
 env/
 venv/
 dist/
