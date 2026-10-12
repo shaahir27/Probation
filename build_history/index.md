@@ -15,6 +15,9 @@ Governed by [`docs/BUILD_LOGGING_PROTOCOL.md`](file:///d:/Desktop/project/Probat
 | PII Redaction Pipeline and Resilient LLM Client | Phase 1 | [feature_redaction_llm_client.md](phase_01_core_ledger_llm/feature_redaction_llm_client.md) | Built | 2026-10-10 |
 | Synthetic World Generator and Habits DSL | Phase 2 | [feature_synthetic_world_generator.md](phase_02_synth_world_importers/feature_synthetic_world_generator.md) | Built | 2026-10-11 |
 | Data Importers and SimWorld Renderers | Phase 2 | [feature_importers_and_simworld.md](phase_02_synth_world_importers/feature_importers_and_simworld.md) | Built | 2026-10-11 |
+| Mail Pack Adapter, Clues & Resolver | Phase 3 | [feature_mail_pack.md](phase_03_mail_calendar_packs/feature_mail_pack.md) | Built | 2026-10-12 |
+| Calendar Pack Adapter, Clues & Resolver | Phase 3 | [feature_calendar_pack.md](phase_03_mail_calendar_packs/feature_calendar_pack.md) | Built | 2026-10-12 |
+| Ingestor Worker & Brain Featurization Pipeline | Phase 3 | [feature_ingestor_brain_features.md](phase_03_mail_calendar_packs/feature_ingestor_brain_features.md) | Built | 2026-10-12 |
 
 
 ---

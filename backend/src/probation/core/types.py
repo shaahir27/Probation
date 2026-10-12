@@ -224,3 +224,40 @@ class RedactionResult(BaseDomainModel):
 
     def __iter__(self) -> Any:
         return iter((self.text, self.restore_map, self.counts))
+
+
+class ActionSpec(BaseDomainModel):
+    """Specification of an action in a pack's action catalog."""
+
+    type: str
+    recallable: bool
+    base_cap: int
+    loss: float
+
+
+class ReaderSpec(BaseDomainModel):
+    """Specification of an LLM reader prompt and schema for a pack."""
+
+    prompt_id: str
+    prompt_version: str
+    json_schema: dict[str, Any]
+    redaction_profile: str
+
+
+class ExamOperator(BaseDomainModel):
+    """Perturbation operator for counterfactual exam board evaluation."""
+
+    name: str
+    engine: str  # "code" | "llm"
+    expectation: str  # "invariant" | "no_more_autonomous"
+    critical: bool = False
+    validator_name: str = ""
+
+
+class ExecResult(BaseDomainModel):
+    """Result of an action execution or undo operation."""
+
+    success: bool
+    action_id: str
+    error: str | None = None
+    undo_data: dict[str, Any] | None = None

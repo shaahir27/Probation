@@ -248,6 +248,24 @@ def run_eval(
     console.print(f"[green]Running evaluation suite {suite} (Phase 10).[/green]")
 
 
+@app.command("ingest")
+def ingest_cmd() -> None:
+    """Extract situations from raw_items and featurize them."""
+    from probation.workers.brain import extract_features_for_situations
+    from probation.workers.ingestor import ingest_situations
+
+    conn = get_connection(settings.db_path)
+    try:
+        sit_count = ingest_situations(conn)
+        feat_count = extract_features_for_situations(conn)
+        console.print(
+            f"[bold green]Ingestion complete.[/] Situations extracted: {sit_count}, "
+            f"Features computed: {feat_count}"
+        )
+    finally:
+        conn.close()
+
+
 def main() -> None:
     """Run CLI application."""
     app()
