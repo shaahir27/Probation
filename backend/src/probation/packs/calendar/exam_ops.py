@@ -91,21 +91,23 @@ def validate_calendar_operator_result(
 ) -> bool:
     """Validate that calendar operator effect was correctly applied."""
     if operator_name == "add_boilerplate":
-        return "join promptly" in mutated_payload.get("description", "")
+        desc = str(mutated_payload.get("description") or "")
+        return "join promptly" in desc
 
     elif operator_name == "organizer_unknown":
-        return bool(mutated_payload.get("organizer") != original_payload.get("organizer"))
+        return str(mutated_payload.get("organizer")) != str(original_payload.get("organizer"))
 
     elif operator_name == "add_fee_mention":
-        return "Registration fee" in mutated_payload.get("description", "")
+        desc = str(mutated_payload.get("description") or "")
+        return "Registration fee" in desc
 
     elif operator_name == "introduce_conflict":
-        return bool(
-            int(mutated_payload.get("conflicts_count", 0))
-            > int(original_payload.get("conflicts_count", 0))
-        )
+        mut_count = int(mutated_payload.get("conflicts_count") or 0)
+        orig_count = int(original_payload.get("conflicts_count") or 0)
+        return mut_count > orig_count
 
     elif operator_name == "unusual_hour":
-        return "07:00" in mutated_payload.get("start_time", "")
+        start_time = str(mutated_payload.get("start_time") or "")
+        return "07:00" in start_time
 
     return True

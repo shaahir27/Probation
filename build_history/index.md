@@ -18,6 +18,9 @@ Governed by [`docs/BUILD_LOGGING_PROTOCOL.md`](file:///d:/Desktop/project/Probat
 | Mail Pack Adapter, Clues & Resolver | Phase 3 | [feature_mail_pack.md](phase_03_mail_calendar_packs/feature_mail_pack.md) | Built | 2026-10-12 |
 | Calendar Pack Adapter, Clues & Resolver | Phase 3 | [feature_calendar_pack.md](phase_03_mail_calendar_packs/feature_calendar_pack.md) | Built | 2026-10-12 |
 | Ingestor Worker & Brain Featurization Pipeline | Phase 3 | [feature_ingestor_brain_features.md](phase_03_mail_calendar_packs/feature_ingestor_brain_features.md) | Built | 2026-10-12 |
+| Event-Sourced Replay Engine & Backtest | Phase 4 | [feature_replay_engine.md](phase_04_engine_core_backtest/feature_replay_engine.md) | Built | 2026-10-13 |
+| Policy, Novelty & Lower-Bound Evidence | Phase 4 | [feature_policy_novelty_lb.md](phase_04_engine_core_backtest/feature_policy_novelty_lb.md) | Built | 2026-10-13 |
+| Phase 4 Engine Summary | Phase 4 | [phase_04_summary.md](phase_04_engine_core_backtest/phase_04_summary.md) | Built | 2026-10-13 |
 
 
 ---

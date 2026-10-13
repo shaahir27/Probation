@@ -64,6 +64,15 @@ class Settings(BaseSettings):
     psi_threshold: float = 0.25
     exam_valid_days: int = 90
     exam_max_per_day: int = 5
+    retrain_interval_days: int = 7
+    train_half_life_days: float = 90.0
+    cold_start_min_situations: int = 20
+    novelty_k: int = 10
+    novelty_pctl: float = 95.0
+    pooling_kappa: float = 10.0
+    lb_quantile: float = 0.05
+    attention_cost: float = 1.0
+    evidence_window_days: int = 180
 
 
 settings = Settings()

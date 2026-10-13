@@ -3,6 +3,8 @@
 Authority: docs/TECH_STACK_AND_REPO.md section 3, docs/ENGINE_SPEC.md, and docs/CONTRACT.md section 10.
 """
 
+from pathlib import Path
+
 import typer
 from rich.console import Console
 from rich.table import Table
@@ -235,9 +237,58 @@ def exam_run(
 @app.command("backtest")
 def backtest(
     family: str = typer.Option("email_action", "--family", "-f", help="Action family"),
+    until: str | None = typer.Option(None, "--until", "-u", help="Replay cutoff timestamp"),
+    db: str | None = typer.Option(None, "--db", help="Path to database"),
 ) -> None:
-    """Run event-sourced replay backtest."""
-    console.print(f"[green]Running backtest for family {family} (Phase 4).[/green]")
+    """Run event-sourced replay backtest (Phase 4)."""
+    from probation.core.clock import Clock
+    from probation.core.enums import ClockMode
+    from probation.engine.replay import run_replay
+
+    db_path = Path(db) if db else settings.db_path
+    console.print(
+        f"[bold cyan]Running event-sourced replay backtest (Phase 4) for family: {family}...[/]"
+    )
+
+    from probation.db.connection import apply_schema
+
+    conn = get_connection(db_path)
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='situations';")
+        if not cur.fetchone():
+            apply_schema(conn)
+
+        clock = Clock(mode=ClockMode.REPLAY)
+        report = run_replay(conn, clock=clock, family=family, until=until)
+
+        table = Table(title=f"Probation Report Card — {family} (Phase 4)")
+        table.add_column("Metric", style="cyan")
+        table.add_column("Value", style="green")
+
+        table.add_row("Total Proposals Emitted", str(report.get("total_proposals", 0)))
+        table.add_row("Total Evaluated (Strong)", str(report.get("total_evaluated", 0)))
+        table.add_row("Same (Agreement)", str(report.get("same", 0)))
+        table.add_row("Different (Disagreement)", str(report.get("different", 0)))
+        table.add_row("Would Ask (Abstain / Ask)", str(report.get("would_ask", 0)))
+        table.add_row("Censored / Weak", str(report.get("censored", 0)))
+        table.add_row("Probation Agreement Rate", f"{report.get('accuracy', 0.0):.2%}")
+        table.add_row("Baseline B0 (Majority) Rate", f"{report.get('b0_accuracy', 0.0):.2%}")
+        table.add_row("Baseline B2 (Generic Rules) Rate", f"{report.get('b2_accuracy', 0.0):.2%}")
+
+        console.print(table)
+        acc = report.get("accuracy", 0.0)
+        b0_acc = report.get("b0_accuracy", 0.0)
+        if acc >= b0_acc:
+            console.print(
+                f"[bold green]Success: Probation agreement ({acc:.2%}) >= Baseline B0 ({b0_acc:.2%})[/]"
+            )
+        else:
+            console.print(
+                f"[yellow]Notice: Probation agreement ({acc:.2%}) < Baseline B0 ({b0_acc:.2%})[/]"
+            )
+    finally:
+        conn.close()
 
 
 @app.command("eval")
