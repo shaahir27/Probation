@@ -21,6 +21,11 @@ Governed by [`docs/BUILD_LOGGING_PROTOCOL.md`](file:///d:/Desktop/project/Probat
 | Event-Sourced Replay Engine & Backtest | Phase 4 | [feature_replay_engine.md](phase_04_engine_core_backtest/feature_replay_engine.md) | Built | 2026-10-13 |
 | Policy, Novelty & Lower-Bound Evidence | Phase 4 | [feature_policy_novelty_lb.md](phase_04_engine_core_backtest/feature_policy_novelty_lb.md) | Built | 2026-10-13 |
 | Phase 4 Engine Summary | Phase 4 | [phase_04_summary.md](phase_04_engine_core_backtest/phase_04_summary.md) | Built | 2026-10-13 |
+| Action Autonomy Caps, Hands-off Rules, and Pure Gate | Phase 5 | [feature_caps_handsoff_pure_gate.md](phase_05_evidence_licences_gate_drift/feature_caps_handsoff_pure_gate.md) | Built | 2026-10-16 |
+| Evidence Pooling, Lower Bounds, and Licence Ladder | Phase 5 | [feature_evidence_pooling_and_licence_ladder.md](phase_05_evidence_licences_gate_drift/feature_evidence_pooling_and_licence_ladder.md) | Built | 2026-10-16 |
+| Executor Worker, Hold Queue, Licence Re-check, and Undo | Phase 5 | [feature_executor_worker_and_simworld.md](phase_05_evidence_licences_gate_drift/feature_executor_worker_and_simworld.md) | Built | 2026-10-16 |
+| Statistical Drift Monitoring (CUSUM) and Family Shift (PSI) | Phase 5 | [feature_statistical_drift_cusum_psi.md](phase_05_evidence_licences_gate_drift/feature_statistical_drift_cusum_psi.md) | Built | 2026-10-16 |
+| Phase 5 Engine Summary | Phase 5 | [phase_05_summary.md](phase_05_evidence_licences_gate_drift/phase_05_summary.md) | Built | 2026-10-16 |
 
 
 ---

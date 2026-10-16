@@ -4,7 +4,7 @@ Authority: docs/PACKS_SPEC.md section 0 and docs/CONTRACT.md section 5.
 """
 
 from datetime import datetime, timedelta
-from typing import Any, Protocol
+from typing import Any, Protocol, runtime_checkable
 
 from probation.core.history import HistoryView
 from probation.core.types import (
@@ -20,6 +20,7 @@ from probation.core.types import (
 )
 
 
+@runtime_checkable
 class WorldView(Protocol):
     """Read-only view over simulated or live external world state."""
 
@@ -40,6 +41,7 @@ class WorldView(Protocol):
         ...
 
 
+@runtime_checkable
 class ExecutorIO(Protocol):
     """Side-effect write interface over simulated or live external world state."""
 

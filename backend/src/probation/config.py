@@ -54,6 +54,7 @@ class Settings(BaseSettings):
 
     # --- Engine Tunables (ENGINE_SPEC section 12) ---
     audit_fraction: float = 0.10
+    audit_seed: str = "probation-audit-v1"
     l1_min_n: int = 20
     l1_min_lb: float = 0.70
     l2_min_n: int = 50

@@ -23,12 +23,18 @@ from probation.core.types import Features, Situation
 from probation.db.access import Role, RoleAccess
 from probation.db.ledger import append_ledger
 from probation.engine.baselines import BaselineB0, BaselineB2
+from probation.engine.caps import get_action_loss, is_recallable
+from probation.engine.drift import CUSUMTracker, check_family_shift
+from probation.engine.evidence import aggregate_evidence
+from probation.engine.gate import compute_audit_draw, decide_gate
+from probation.engine.licence import derive_and_cache_licences
 from probation.engine.novelty import NoveltyDetector
 from probation.engine.policy import Policy
 from probation.engine.report import generate_report_card
-from probation.packs.base import WorldView
+from probation.packs.base import ExecutorIO, WorldView
 from probation.packs.registry import registry
 from probation.workers.brain import extract_features_for_situations
+from probation.workers.executor import Executor
 from probation.workers.resolver import resolve_outcomes
 
 PRIORITY_OUTCOME_KNOWN = 0
@@ -216,6 +222,8 @@ def run_replay(
     b2_predictions: dict[str, str] = {}
 
     brain_access = RoleAccess(conn, Role.BRAIN)
+    executor_io: ExecutorIO | None = world if isinstance(world, ExecutorIO) else None
+    executor = Executor(conn, world=executor_io)
 
     # 7. Execute replay loop
     for ev in timeline:
@@ -232,6 +240,50 @@ def run_replay(
             if str(out_row["strength"]) == "STRONG":
                 if fam in b0_baselines:
                     b0_baselines[fam].update(obs_act)
+
+            # If outcome is undo or override, update CUSUM drift tracker (ENGINE_SPEC.md section 10)
+            if str(out_row["source"]) in ("undo", "override"):
+                cur.execute(
+                    "SELECT class_key, action FROM proposals WHERE situation_id = ?;",
+                    (str(out_row["situation_id"]),),
+                )
+                p_row = cur.fetchone()
+                if p_row:
+                    ck = str(p_row["class_key"])
+                    ac = str(p_row["action"])
+                    cur.execute(
+                        "SELECT * FROM drift_state WHERE class_key = ? AND action = ?;",
+                        (ck, ac),
+                    )
+                    d_row = cur.fetchone()
+                    tracker = CUSUMTracker(
+                        baseline_err=float(d_row["baseline_err"]) if d_row else 0.03,
+                        initial_s=float(d_row["cusum"]) if d_row else 0.0,
+                        last_alarm_at=d_row["last_alarm_at"] if d_row else None,
+                    )
+                    alarm = tracker.update(
+                        is_error=True, is_undo=True, timestamp=str(out_row["known_at"])
+                    )
+                    cur.execute(
+                        """
+                        INSERT OR REPLACE INTO drift_state (class_key, action, cusum, baseline_err, last_alarm_at)
+                        VALUES (?, ?, ?, ?, ?);
+                        """,
+                        (ck, ac, tracker.s, tracker.baseline_err, tracker.last_alarm_at),
+                    )
+                    if alarm:
+                        append_ledger(
+                            conn,
+                            kind=LedgerKind.DRIFT_ALARM,
+                            ref_id=f"alarm-{ck}-{ac}",
+                            payload={
+                                "class_key": ck,
+                                "action": ac,
+                                "alarm_at": str(out_row["known_at"]),
+                            },
+                            created_at=str(out_row["known_at"]),
+                        )
+                    conn.commit()
 
         elif ev.kind == "RETRAIN":
             as_of_iso = clock.now_iso()
@@ -284,9 +336,16 @@ def run_replay(
                     )
                     novelties[fam].fit(redacted_texts)
 
+            # Weekly PSI check
+            if day_idx % 7 == 0:
+                for fam in distinct_families:
+                    check_family_shift(conn, family=fam, as_of=as_of_iso)
+
         elif ev.kind == "LICENCE_REVIEW":
-            # Licence review tick (Phase 5 will calculate Beta lower bounds and level transitions)
-            pass
+            day_iso = ev.timestamp
+            stats = aggregate_evidence(conn, as_of=day_iso)
+            derive_and_cache_licences(conn, as_of=day_iso, stats=stats)
+            executor.process_queue(as_of=day_iso)
 
         elif ev.kind == "SITUATION":
             s_row = ev.payload
@@ -369,8 +428,40 @@ def run_replay(
             b2_act, _ = BaselineB2.predict(sit, feat_obj)
             b2_predictions[sit.id] = b2_act
 
-            # Gate in Phase 4 is SHADOW (Phase 5 activates autonomous gate logic and licences)
-            gate = GateDecision.SHADOW
+            # Fetch derived licence level
+            cur.execute(
+                "SELECT level FROM licence_cache WHERE class_key = ? AND action = ?;",
+                (c_key, action),
+            )
+            lic_row = cur.fetchone()
+            licence_level = int(lic_row["level"]) if lic_row else 0
+
+            loss = get_action_loss(action)
+            recallable = is_recallable(action)
+            audit_draw = compute_audit_draw(sit.id, seed=settings.audit_seed)
+
+            # Gate in Phase 5: pure gate function with economic test and audit holdout
+            gate_res = decide_gate(
+                action=action,
+                p=p_max,
+                novel=is_novel,
+                licence_level=licence_level,
+                cap=cap,
+                hands_off=sit.hands_off_reason,
+                reader_required=False,
+                reader_ok=reader_ok,
+                deterministic_ok=True,
+                loss=loss,
+                attention_cost=1.0,
+                recallable=recallable,
+                audit_draw=audit_draw,
+                audit_fraction=settings.audit_fraction,
+                budget_ok=True,
+            )
+            gate = gate_res.decision
+            if gate_res.reason:
+                reasons.append(gate_res.reason)
+            audit_holdout = 1 if gate_res.audit_holdout else 0
 
             # Append to immutable hash-chained ledger (Contract I-7)
             prop_id = f"prop-{sit.id}"
@@ -394,6 +485,26 @@ def run_replay(
                 created_at=sit.occurred_at,
             )
 
+            # If autonomous execution level, dispatch action to Executor
+            if gate in (
+                GateDecision.HOLD_THEN_EXECUTE,
+                GateDecision.EXECUTE_UNDO,
+                GateDecision.EXECUTE_SILENT,
+            ):
+                level_req = 3 if gate == GateDecision.EXECUTE_SILENT else 2
+                executor.create_action(
+                    proposal_id=prop_id,
+                    pack=sit.pack,
+                    action_type=action,
+                    params={},
+                    level_required=level_req,
+                    recallable=recallable,
+                    gate_decision=gate,
+                    as_of=sit.occurred_at,
+                )
+                if world is not None:
+                    executor.process_queue(as_of=sit.occurred_at)
+
             # Insert proposal record
             brain_access.execute_write(
                 "proposals",
@@ -414,7 +525,7 @@ def run_replay(
                     p_max,
                     novelty_dist,
                     1 if is_novel else 0,
-                    0,  # licence_level = 0 throughout Phase 4
+                    licence_level,
                     cap,
                     gate.value,
                     canonical_json(reasons),
@@ -423,7 +534,7 @@ def run_replay(
                     "{}",
                     policies[fam].policy_version,
                     features_hash,
-                    0,
+                    audit_holdout,
                     sit.occurred_at,
                     seq,
                 ),
