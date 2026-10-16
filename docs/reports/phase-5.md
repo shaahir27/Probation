@@ -1,6 +1,6 @@
 # Phase 5 Handoff: Evidence, Licences, Gate, Executor, and Drift
 
-**Branch / Commit:** `phase-5-evidence-licences-gate` / `8047bac`  
+**Branch / Commit:** `phase-5-evidence-licences-gate` / `4770806`  
 **Phase:** 5 — Evidence, Licences, Gate, Executor, and Drift  
 **Lane:** Lane A (Member 1)  
 
