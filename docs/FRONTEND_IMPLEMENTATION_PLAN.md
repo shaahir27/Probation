@@ -31,7 +31,7 @@ The interface should make the safe next step clear without asking users to under
 
 ## 2. Navigation and screen decisions
 
-Use one responsive navigation model: a compact left sidebar on desktop and the five-item bottom bar already described in `USER_FLOW.md` on mobile. “More” opens a labeled list of secondary destinations; it is not a dumping ground for core tasks.
+Use the same five top-level destinations at every breakpoint: **Home, Queue, Actions, Permissions, More**. Desktop uses a compact sidebar; mobile uses a five-item bottom bar. “More” is a normal destination that opens a labeled directory page on both layouts. On desktop, its secondary links may expand beneath More in the sidebar, but they remain nested destinations, not additional top-level tabs. Do not replace More with a mobile-only drawer behavior.
 
 | Destination | Keep? | User job and contents | Data/action source |
 |---|---|---|---|
@@ -39,6 +39,7 @@ Use one responsive navigation model: a compact left sidebar on desktop and the f
 | **Queue** | Yes, primary | Resolve items that need the user. Group carefully by kind of task, keep each item individually reviewable, and expose a detail view with reason and sources. | `/queue`, `/items/{proposal_id}`, `/queue/{proposal_id}/respond` |
 | **Actions** | Yes, primary | See held, completed, failed, and undone actions; cancel a hold or request undo where allowed. Show the current status and remaining undo/cancel window. | `/actions`, `/actions/{id}/undo` |
 | **Permissions** | Yes, primary | Inspect what Probation can do for each task/action pair, its evidence, caps, exam status, and recent changes. This is the main home for task-level confidence and permission. | `/licences`; exam details from `/exams` when implemented |
+| **More** | Yes, primary | Open a directory of secondary destinations. On desktop, this destination may expand to reveal nested links; on mobile it opens the same directory page. | Static navigation; destinations appear only when their screen is in scope |
 | **Insights** | Keep as a section under More | Report card, trends, “different” cases, attention, habits, chains, and exam history. Organize by task filter; no single accuracy headline. Habits/chains are patterns, not permissions. | `/report-card?family=`, `/metrics/summary`, `/habits`, `/chains`, `/exams` |
 | **Radar** | Conditional under More | Show verified opportunity tracking only when the Radar pack, board API, and sources are available. If unavailable, omit it from navigation; do not show a fake empty feature. It is not a sixth primary tab. | `/boards/radar`, `/items/{proposal_id}` |
 | **Library** | Defer | Reading library is a separate pack and is cut before Radar in the current implementation plan. Do not show a placeholder tab in v1. Add only when the pack and board API are in scope. | `/boards/reading` (planned) |
@@ -59,8 +60,8 @@ Pack content follows backend capability, not the existence of a folder in the re
 
 ### Navigation behavior
 
-- Desktop: persistent, narrow sidebar with text labels and icons; selected destination has a clear text and shape state, not color alone.
-- Mobile: Home, Queue, Actions, Permissions, More. Show a count badge only for actionable queue items, never for all unread or historical items.
+- Desktop: persistent, narrow sidebar with exactly five top-level destinations and text labels/icons; selected destination has a clear text and shape state, not color alone. Secondary links can be shown indented under More when expanded, but Activity Record and Settings are not promoted to peer destinations.
+- Mobile: Home, Queue, Actions, Perms, More. `Perms` is the compact visible label at widths where “Permissions” would crowd the bar; keep the accessible name and page title “Permissions.” Keep all five touch targets and labels visible, and show a count badge only for actionable queue items, never for all unread or historical items.
 - Preserve the current route on refresh and support browser back/forward. Use ordinary links and buttons with descriptive labels.
 - Global status strip: show Demo/Replay or Live mode only when the API reports it. Display the simulated date during replay; do not blend it with the machine's real date.
 - Persistent alerts are reserved for actionable conditions such as a failed service, exhausted budget, or habit-change demotion. Dismissal must not hide a safety state that still applies.
@@ -117,7 +118,7 @@ Do not hard-code a budget amount, a replay clock label, a record count, a privac
 
 ### 4.2 Queue item card and detail
 
-Use a calm, spacious card with a readable subject/title, source identity where safe, time, proposed action, plain-language reason, and one visually primary safe action. “Not this” and “Change” remain easy to find; “Why?” opens the focused detail view. Do not require one-tap action on high-impact items if the user needs to review the content first.
+Use a calm, spacious card with a readable subject/title, safe source identity, time, exact proposed action and target, and a compact inline decision bar. Keep the `Do it`, `Not this`, and `Change` controls required by `USER_FLOW.md` visible on every queue item; routine items do not require opening a detail view first. `Why?` or the item title opens the focused inspection view. Put enough context on the card to make its action and target unambiguous, and include a short draft preview when available. The deeper view adds evidence, similar cases, full draft, and source details. `Do it` is explicit approval and can execute immediately under `USER_FLOW.md` and the contract; never present it as a harmless preview.
 
 The detail view includes the situation summary, proposal, task/action evidence, top clues, similar past cases, web status and source URLs if checked, and a draft when present. Show untrusted item and web text as plain text, never HTML. Cite web-derived claims directly beside the claim. Never label an organisation or sender a scam as a verdict.
 
@@ -148,48 +149,58 @@ Use a compact level marker plus human-readable state, evidence line, exam state,
 
 ### 5.1 Design decision and rationale
 
-**Chosen direction:** a warm, light, editorial interface with **restrained glass material only on the navigation shell** and crisp, opaque surfaces for all task data. This is one material language: glass separates persistent controls from the work area; solid content surfaces keep decisions, evidence, and numbers calm and readable. Do not combine glassmorphism with skeuomorphic textures or neumorphic raised controls.
+**Chosen direction:** one dark-only visual identity called **Spruce & Brass**: deep spruce-charcoal surfaces, quiet green-gray text, and one restrained brushed-brass interaction accent. **Restrained glass appears only on the navigation shell**; all task data uses consistent opaque surfaces. Every tab shares this exact system; no tab gets its own palette or special card treatment. Do not combine glassmorphism with skeuomorphic textures or neumorphic raised controls.
 
-Probation is a high-trust, data-heavy decision tool. People need to inspect a proposed action, understand its evidence, and recover from a mistake. The primary interface should feel precise, quiet, and humane, not futuristic or playful. A light porcelain canvas with ink typography gives long explanations and dense evidence a clear reading plane. A single deep teal brand accent identifies interaction. Muted semantic colors communicate state without turning the product into a traffic-light dashboard.
+Probation is a high-trust, data-heavy decision tool. People need to inspect a proposed action, understand its evidence, and recover from a mistake. The interface should feel precise, quiet, and humane, not futuristic or playful. Spruce-charcoal surfaces connect the product to stewardship and careful handling; the restrained brass accent marks deliberate interaction and earned authority. This avoids the familiar black-plus-neon AI dashboard look and avoids cream/terracotta. The base is a deep green charcoal rather than pure black; elevation comes from small shifts in spruce hue and fine borders, not translucent gray overlays or a different theme for each section.
 
-**Why this material choice:** Apple's current Human Interface Guidelines describe materials as a way to establish foreground/background hierarchy, recommend Liquid Glass for navigation and controls, and explicitly advise against using it across the content layer. This translates well to Probation: a subtle glass sidebar/top bar/bottom bar can feel elevated and platform-aware, while queue, evidence, and permission content remain opaque. Apple also grounds visual quality in purpose, user agency, responsibility, familiarity, clear feedback, and privacy; these are evaluation principles, not a request to imitate Apple's native controls or branding. See [Apple design principles](https://developer.apple.com/design/human-interface-guidelines/design-principles/) and [Apple materials](https://developer.apple.com/design/human-interface-guidelines/materials).
+**Why this material choice:** Apple's Human Interface Guidelines treat materials as a way to establish foreground/background hierarchy and emphasize legibility. This translates well to Probation: a subtle glass sidebar/top bar/bottom bar can feel elevated, while queue, evidence, and permission content remain opaque. Apple also grounds visual quality in purpose, user agency, responsibility, familiarity, clear feedback, and privacy; these are evaluation principles, not a request to imitate Apple's native controls or branding. The single dark appearance is an explicit Phase 9 product direction, based on the requested brand identity and this high-trust review context. It is not a claim that Apple generally recommends dark-only apps. See [Apple design principles](https://developer.apple.com/design/human-interface-guidelines/design-principles/), [Apple materials](https://developer.apple.com/design/human-interface-guidelines/materials), and [Apple Dark Mode guidance](https://developer.apple.com/design/human-interface-guidelines/dark-mode).
 
 **Why not the other treatments:** skeuomorphic objects imply physical controls and metaphors that do not exist in this product. Neumorphism relies on low-contrast shadows and becomes ambiguous for dense controls, borders, focus, and status. Full-screen glass puts text over changing backdrops and makes legibility fragile. Use no glossy reflections, bevels, inset-control illusions, glowing edges, or decorative blur behind text.
 
 This is Apple-informed web design, not an Apple UI clone. Use the repo's React/Tailwind/Lucide stack and familiar web interaction patterns. Do not use Apple logos, SF Symbols assets, or platform-specific patterns that conflict with browser expectations.
 
-### 5.2 Theme and color tokens
+### 5.2 Dark-only color tokens
 
-The first shipped appearance is **light**. Do not add an appearance toggle in Phase 9. A dark appearance may be a later, separately audited enhancement; the layout must use semantic tokens so a second appearance can be added without redesigning components. The colors below are starting values. Verify actual text, focus, disabled, and semantic-state contrast in the browser before delivery; do not claim the palette is accessible based on color names alone.
+Phase 9 uses **one dark appearance throughout the product**. Do not add a light theme, per-tab themes, system appearance switching, or an appearance toggle. Keep colors in semantic CSS variables so the palette remains consistent and can be deliberately revisited later. These are starting values; check contrast in the browser before delivery.
 
-| Token | Starting value | Use |
+| Token | Value | Use |
 |---|---|---|
-| `canvas` | `#F4F5F3` | Quiet warm-gray application background |
-| `surface` | `#FFFFFF` | Main content panels, queue rows, dialogs |
-| `surface-subtle` | `#ECEFEC` | Search/filter wells and quiet inset grouping |
-| `ink` | `#202824` | Primary text and headings |
-| `ink-secondary` | `#59645F` | Supporting text and metadata |
-| `ink-tertiary` | `#626D67` | Timestamps and secondary labels; still checked for readable contrast |
-| `line` | `#D9DEDA` | Separators, input boundaries, card outlines |
-| `brand` | `#176B62` | Links, selected navigation, primary action |
-| `brand-hover` | `#12574F` | Hover/pressed state with visible text contrast |
-| `focus` | `#245DCE` | High-visibility keyboard focus ring |
-| `success` | `#246344` | Success state paired with label/icon |
-| `warning` | `#80530A` | Needs-attention state paired with label/icon |
-| `danger` | `#A13B3B` | Failed/destructive state paired with label/icon |
+| `canvas` | `#111B18` | Deep spruce-charcoal page background, not pure black |
+| `surface` | `#192723` | Main opaque surfaces: queue items, permission rows, dialogs |
+| `surface-raised` | `#21322D` | Selected row, open menu, or raised panel |
+| `surface-subtle` | `#293B34` | Input wells and quiet grouping, not a second card theme |
+| `ink` | `#EDF2EB` | Primary text and headings |
+| `ink-secondary` | `#B7C3B8` | Supporting text and metadata |
+| `ink-tertiary` | `#91A096` | Timestamps and secondary labels |
+| `line` | `#344840` | Separators, input boundaries, card outlines |
+| `brand` | `#C8B27D` | Brass accent for links, selected navigation marker, primary action |
+| `on-brand` | `#18231E` | Text and icon color on brass-filled controls |
+| `brand-hover` | `#D8C693` | Hover/pressed brass state |
+| `focus` | `#E8D5A0` | Clear keyboard focus ring |
+| `success` | `#85B99A` | Success state, always paired with text/icon |
+| `warning` | `#E0B663` | Needs-attention state, always paired with text/icon |
+| `danger` | `#E28F88` | Failed/destructive state, always paired with text/icon |
 
-Use semantic CSS variables (`--canvas`, `--surface`, `--ink`, `--brand`, and state equivalents), not repeated hex literals in view components. The brand accent is not a status color. Do not make every button, chart, badge, and icon teal. Reserve strong color for the selected route, primary action, keyboard focus, or an actual safety condition. Use a pale teal selected-row tint only as an accompaniment to a shape/border and text label.
+Use these same roles and values on Home, Queue, Actions, Permissions, More, and every secondary route. Do not recolor tabs to make them distinct: differentiate destinations through content hierarchy and selected navigation state, not a new accent per page. Brass means interactive/selected; it does not mean success or warning. Reserve semantic colors strictly for their named states. Do not add neon glows, blue/purple gradients, pure-black backgrounds, or generic gray translucent layers. Use a readable dark surface ladder and clear labels instead.
+
+#### One-screen visual reference
+
+The Queue image below establishes the palette and shared shell. A second example for Permissions appears in section A5. Both use the same color roles and navigation style, while their content layouts differ to suit their jobs. Queue is for making review decisions, Actions is for seeing what the system did and undoing it, and Permissions is for checking task-specific evidence and limits.
+
+![Spruce & Brass dark palette applied to one Queue screen](images/spruce-and-brass-queue-preview.png)
+
+Palette key: page canvas `#111B18`; normal content `#192723`; raised/selected surfaces `#21322D`; quiet grouping `#293B34`; fine borders `#344840`; primary text `#EDF2EB`; secondary text `#B7C3B8`; selected/primary action `#C8B27D` with dark text `#18231E`. Status colors stay muted and appear only beside explicit status text/icons. The image is an illustrative visual reference; its sample rows, counts, and status values are not API requirements. Implementations must use real API-backed fields and contract-supported actions.
 
 ### 5.3 Glass material specification
 
 Apply glass to the **persistent navigation layer only**: desktop sidebar and sticky top bar; mobile bottom navigation and a transient floating toolbar if one is truly needed. The material must remain visually subordinate to content.
 
-- Desktop glass: warm white at roughly 82-90% opacity, `backdrop-filter: blur(16px) saturate(125%)`, a 1px translucent neutral border, and one soft shadow. The content must not be readable only through the glass.
-- Mobile bottom bar: same material family, slightly more opaque behind labels, with a clear top hairline and safe-area inset. Keep all five labels visible and the selected item shape distinct.
+- Desktop glass: use the same deep spruce tint as the shell at 90-94% opacity, `backdrop-filter: blur(12px)`, a 1px spruce border, and one restrained shadow. The content must not be readable only through the glass.
+- Mobile bottom bar: use the same single dark material, slightly more opaque behind labels, with a clear top hairline and safe-area inset. Keep all five labels visible and the selected item shape distinct; use brass only for the selected marker/label.
 - Provide an opaque fallback when backdrop filters are unavailable, `prefers-reduced-transparency` is requested, or contrast testing finds the material unstable. Never render critical text directly over a scrolling data panel through the blur.
-- Do not apply the material to queue cards, permission rows, charts, text fields, or detail panels. Those are solid white/neutral surfaces.
+- Do not apply the material to queue rows, permission rows, charts, text fields, or detail panels. Those use the same opaque spruce surfaces from section 5.2.
 
-This follows Apple's material separation: a translucent functional layer above a solid content layer. It gives the interface a premium depth cue without making the underlying app look like a glass-card template.
+This follows Apple's material separation: a translucent functional layer above a solid content layer. It gives the navigation a restrained depth cue without turning every content panel into glass.
 
 ### 5.4 Typography, layout, and surface craft
 
@@ -203,15 +214,15 @@ This follows Apple's material separation: a translucent functional layer above a
 
 ### 5.5 Component patterns and dependencies
 
-The repository includes React, Tailwind, Lucide, TanStack Query, and Recharts. Use these patterns as design references; do not add dependencies solely to obtain a premium look. Current frontend package does **not** include shadcn/ui, Radix, or Sonner.
+The repository includes React, Tailwind, Lucide, TanStack Query, and Recharts. Phase 9 should default to **no new npm dependencies**. Use native HTML elements and small, purpose-built React/Tailwind components for the interaction actually needed; do not build a large custom widget library. Prefer native `<dialog>` for confirmation where it meets the flow, a real button/select for simple choices, and visible inline help instead of tooltips. A small `aria-live` status region can provide transient feedback; a toast library is not required. Current frontend package does **not** include shadcn/ui, Radix, or Sonner, and the references below do not authorize installing them. If an implementation genuinely needs a new package, stop and request approval as `AGENTS.md` requires, then check compatibility, maintenance, license, and bundle cost before proposing it.
 
 | Pattern | Reference | Application |
 |---|---|---|
 | Responsive navigation and current location | [Apple tab bars](https://developer.apple.com/design/human-interface-guidelines/tab-bars), [Apple sidebars](https://developer.apple.com/design/human-interface-guidelines/sidebars), [shadcn sidebar](https://ui.shadcn.com/docs/components/sidebar) | Five top-level destinations; labels remain visible; desktop sidebar adapts to the same information architecture as mobile navigation. |
 | Item context and review | [shadcn Sheet](https://ui.shadcn.com/docs/components/radix/sheet) | Use a right-side sheet only for supplementary detail that should preserve list context. Full review is a route/pane, not a narrow overlay. |
-| Consequential confirmation | [Radix Alert Dialog](https://www.radix-ui.com/primitives/docs/components/alert-dialog) | Confirm only when the action is consequential; name the exact target and reversal; preserve focus and Escape behavior. |
+| Consequential confirmation | [Radix Alert Dialog](https://www.radix-ui.com/primitives/docs/components/alert-dialog) (behavior reference only) | Prefer native `<dialog>` where suitable. Confirm only when the action is consequential; name the exact target and reversal; preserve focus and Escape behavior. |
 | Related local views | [Radix Tabs](https://www.radix-ui.com/primitives/docs/components/tabs) | Only for a small, stable set of closely related Insights views. Top-level navigation stays links/routes and is never hidden inside tabs. |
-| Durable action feedback | [Sonner](https://sonner.emilkowal.ski/) | Optional toast for a concise echo; the durable result remains in the Actions row. Do not add Sonner unless the existing app needs it. |
+| Durable action feedback | [Sonner](https://sonner.emilkowal.ski/) (behavior reference only) | Prefer inline pending/result state and an accessible live region. The durable result remains in the Actions row; Sonner is not a Phase 9 dependency. |
 | Material and clarity | [Apple materials](https://developer.apple.com/design/human-interface-guidelines/materials), [Apple color](https://developer.apple.com/design/human-interface-guidelines/color) | Glass only for chrome; solid readable content surfaces; semantic colors remain consistent across the product. |
 
 Before adding a UI package, verify its license, maintenance, compatibility, and bundle cost against the existing stack. Build the shell and a small set of reusable primitives first; do not create a parallel design system framework.
@@ -282,11 +293,12 @@ frontend/src/
   layout/       responsive shell, desktop sidebar, mobile bottom navigation
   views/        Home, Queue, Actions, Permissions, Insights, More destinations
   App.tsx       routing and app-level providers
-  index.css     palette, typography, focus, motion, and surface tokens
+  index.css     Spruce & Brass dark tokens, focus, motion, surfaces
 ```
 
 Implementation notes:
 
+- Define the Spruce & Brass semantic variables in `index.css` as the single dark appearance; do not hard-code colors in views or add appearance switching in Phase 9.
 - Use TanStack Query for server state, retry rules, and invalidation after accepted/rejected/edited queue items, undo, habit denial, and replay control.
 - Keep UI filters and selected task in URL state when useful, so a task detail can be shared/reloaded and browser navigation works.
 - Keep reusable components domain-neutral. A permission card should receive validated data and format it; it must not derive or change a licence.
@@ -328,7 +340,7 @@ Use the fixtures and test cases defined by `TEST_PLAN.md` and `USER_FLOW.md`. A 
 ### Usability and quality
 
 - [ ] All journeys in `USER_FLOW.md` that are in Phase 9 scope can be completed in the browser using the demo database.
-- [ ] The light porcelain/ink/teal token system is implemented consistently; ordinary data surfaces are opaque and glass is limited to navigation chrome.
+- [ ] The Spruce & Brass dark token set is implemented consistently on every tab: deep spruce-charcoal canvas, opaque data surfaces, and glass limited to navigation chrome. There is one coherent appearance and no per-tab color scheme.
 - [ ] Keyboard focus, text, status, and control contrast are checked in the browser; no essential meaning depends on color, blur, shadow, or motion alone.
 - [ ] The app is reviewed against the Apple-informed rubric in section 5.6 at desktop, phone, keyboard-only, and 200% zoom.
 - [ ] Every API-backed view has loading, empty, error/retry, and stale states.
@@ -364,7 +376,7 @@ This appendix turns the product direction into buildable screen layouts. The wir
 
 ### A1. Shared application shell
 
-**Desktop, 1024px and wider:** use a 232px persistent glass sidebar and a 64px sticky glass header above a warm canvas. Main content caps at 1180px and aligns to the left; do not stretch reading surfaces across an ultrawide display. Use 32px page gutters at wide desktop and 24px section gaps. The sidebar contains a simple wordmark and five destinations with icons and labels; keep critical controls away from its bottom edge. The header contains the current page title/breadcrumb on the left and API-reported mode/health on the right. Keep all task data on opaque surfaces. Do not add global search or a profile menu without a real user job.
+**Desktop, 1024px and wider:** use a 232px persistent glass sidebar and a 64px sticky glass header above the deep spruce canvas. Main content caps at 1180px and aligns to the left; do not stretch reading surfaces across an ultrawide display. Use 32px page gutters at wide desktop and 24px section gaps. The sidebar contains a simple wordmark and five destinations with icons and labels; keep critical controls away from its bottom edge. The header contains the current page title/breadcrumb on the left and API-reported mode/health on the right. Keep all task data on opaque spruce surfaces. Do not add global search or a profile menu without a real user job.
 
 ```text
 DESKTOP SHELL (minimum target 1280 x 800)
@@ -372,13 +384,14 @@ DESKTOP SHELL (minimum target 1280 x 800)
 | Probation            | Page title / breadcrumb      REPLAY · Healthy    |
 |                      +----------------------------------------------------+
 |  ◉ Home              |                                                    |
-|  ◷ Queue         3   |  Warm canvas; opaque content surface              |
+|  ◷ Queue         3   |  Deep spruce canvas; opaque content surface       |
 |  ↗ Actions           |  max width ~1180px; aligned left                   |
 |  ◈ Permissions       |                                                    |
 |                      |                                                    |
-|  More             >  |                                                    |
-|                      |                                                    |
-|  · More           >  |                                                    |
+|  More             v  |                                                    |
+|    Insights          |                                                    |
+|    Privacy & web     |                                                    |
+|    Record / Settings |                                                    |
 +----------------------+----------------------------------------------------+
 ```
 
@@ -446,19 +459,20 @@ Queue                                             3 need your decision
 | From: Example Org · 10:42         |  | Why: This matches a task you  |
 | Prepare decline draft             |  | have handled before.         |
 | Needs your decision               |  |                              |
-| [Open review]                     |  | Evidence · 8 similar cases   |
+| [Do it] [Not this] [Change]      |  | Evidence · 8 similar cases   |
 |-----------------------------------|  | [Why this suggestion?]       |
 | Calendar change                   |  |                              |
-| Move meeting · Needs your decision|  | [Approve]                    |
-| ...                               |  | [Change]       [Not this]    |
+| Move meeting · Needs your decision|  | Draft preview (if available) |
+| [Do it] [Not this] [Change]      |  |                              |
+| ...                               |  |                              |
 +-----------------------------------+  +-----------------------------+
 ```
 
-On desktop, use a 360px list column and a flexible detail panel. A selected row uses a quiet raised surface and a left accent; do not use color alone. The list row contains a safe subject/source label, proposed action, time, and state. The detail panel order is: item summary; proposed action; plain-language reason; task/action evidence; similar cases; web check and cited sources if present; draft preview if present; response controls. Put the safe primary response first. Keep `Change` and `Not this` visible beside it; ask for confirmation only when the particular action requires it. Render all source/model/web text as escaped plain text.
+On desktop, use a 360px list column and a flexible detail panel. Each list item has an inline decision bar. Use an opaque white row, fine neutral divider, and a pale selected outline/tint; do not use color alone. The row contains a safe subject/source label, exact proposed action and target, time, state, and the three user-flow responses: `Do it`, `Not this`, `Change`. Keep the action and target explicit; show a short draft preview when one is available so the user can make an informed choice without opening details. The detail panel order is item summary; proposed action and target; plain-language reason; task/action evidence; similar cases; web check and cited sources if present; full draft preview/editing if present. Retain response controls there as a second access point after inspection. Render all source/model/web text as escaped plain text.
 
-Use a sheet only for optional explanation when it preserves queue context. The full review itself should remain in the main panel on desktop and become a full-page route on mobile. If the API cannot load the selected item, keep the list visible, label the detail stale or unavailable, and disable response buttons.
+Do not open a modal or drawer for every queue response. Use the detail pane for inspection while keeping the list and its inline decisions available. Use a dialog only for a consequential confirmation that the specific action requires. If the API cannot load the selected item, keep the list visible, label the detail stale or unavailable, and disable response buttons.
 
-**Mobile:** show filter chips horizontally only if they fit; otherwise use a labeled filter button. Render one list row/card per item. Opening an item navigates to the full detail page; put Back to Queue at the top and response controls at the bottom of the detail content (not fixed over text).
+**Mobile:** show filter chips horizontally only if they fit; otherwise use a labeled filter button. Each stacked item card contains the summary and inline decision bar; opening its title/body navigates to the full detail page with Back to Queue at the top. Keep decision controls available in the detail view after its context. At very narrow widths, allow the three labeled controls to wrap into a second row rather than clipping or shrinking below touch-target size. Do not add `E`/`X` keyboard shortcuts in Phase 9; standard keyboard focus, Enter/Space activation, and visible labels are sufficient.
 
 ### A4. Actions
 
@@ -522,13 +536,17 @@ Test                   Pass/fail + date + tested level (if available)
 Recent changes         Date, previous state → current state, reason    
 ```
 
+The image below is a second, task-focused visual reference. It uses a task list plus a selected-task detail pane, so this page does not repeat Queue's review-row layout. Keep the Permissions screen read-only in v1; do not implement editing controls suggested by illustrative image details. Counts, dates, task names, and statuses in the image are examples, not API requirements.
+
+![Spruce & Brass Permissions screen with task-specific evidence and a selected-task detail pane](images/spruce-and-brass-permissions-preview.png)
+
 Use full-width rows on desktop, not a wall of equal-sized tiles. Each row's first line is task and action; second line is state and strongest relevant evidence; third line is a cap, exam need, drift, or recent change only when applicable. The detail route keeps the exact task/action in both title and breadcrumb. Order detail sections as current permission, historical agreement (only if the API supplies exact task/action scope), evidence lower-bound estimate, exam result, caps/hands-off reason, and history. Keep these measures visibly separate and label denominator/time range/censored cases. Until the contract change exists, show a clear unavailable explanation for task-specific historical agreement; never copy a family score into the detail view. A four-step level marker may explain the scale, but must not look like an editable slider.
 
 **Mobile:** rows become stacked cards with task/action as the heading and state as a text badge. Detail sections become full-width disclosure panels only for long history/examples; keep current permission and any blocking reason open by default.
 
 ### A6. More and Insights
 
-`More` is a directory of less frequent destinations, not a sixth dashboard. Show links as labeled rows with one-line descriptions and small icons; do not bury Queue, Actions, or Permissions here.
+`More` is a directory of less frequent destinations, not a sixth dashboard or a different mobile-only control. Selecting More navigates to the directory page at every breakpoint; show links as labeled rows with one-line descriptions and small icons. Do not bury Queue, Actions, or Permissions here. Do not add a persona switch in v1: the current user flow and API do not provide a dashboard persona-switching capability.
 
 ```text
 MORE — DESKTOP OR MOBILE
@@ -611,7 +629,7 @@ For desktop, use a narrow explanation column (about 680px) so privacy and settin
 | Detail disclosure | Within selected item/task, below the summary | Keep main explanation visible; technical metadata behind “Details” |
 | Toast | Bottom edge, above mobile nav; short transient feedback | Echo success/failure only; durable state remains on page |
 
-Use the light semantic palette in section 5.2. Leave generous empty space around queue decisions; use compact rows only for secondary logs. Keep translucent glass on the shell only. Avoid gradient fills, glow, glass content cards, nested cards, ornamental charts, and shadows on every row. The first viewport should show the page title and its primary job without requiring a scroll.
+Use the Spruce & Brass semantic palette in section 5.2. Leave generous empty space around queue decisions; use compact rows only for secondary logs. Keep translucent glass on the shell only. Avoid gradient fills, glow, glass content cards, nested cards, ornamental charts, and shadows on every row. The first viewport should show the page title and its primary job without requiring a scroll.
 
 ### A9. What these visuals do and do not specify
 
