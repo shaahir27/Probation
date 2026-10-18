@@ -208,11 +208,13 @@ Cut line: **Reading is cut first**; keep Radar.
 ### Phase 9: API and dashboard (14-25 Oct, parallel from Phase 5)
 
 **Goal:** a clear, polished product experience.
-**Read:** `CONTRACT.md` section 9; `USER_FLOW.md`; `DEMO_AND_SUBMISSION.md` section 2.
+**Read:** `CONTRACT.md` section 9; `USER_FLOW.md`; [`FRONTEND_IMPLEMENTATION_PLAN.md`](FRONTEND_IMPLEMENTATION_PLAN.md) (required design and navigation brief); `DEMO_AND_SUBMISSION.md` section 2; `TEST_PLAN.md` (T-API).
 
 Tasks:
 - [ ] All endpoints in `CONTRACT.md` section 9 (build over fixtures first, then real data).
-- [ ] Pages (see `USER_FLOW.md` section 4): Report card, Licences (level ladder with evidence), Queue (digest, one-tap respond), Item detail (why, similar past cases, draft), Actions (undo), Habits (deny), Chains, Exams, Metrics (attention curve, drift alarms), Exposure, Ledger (verify badge), Settings (read-only), Replay controls (play, pause, speed).
+- [ ] Build the five primary destinations and screen groupings in `FRONTEND_IMPLEMENTATION_PLAN.md`; use `USER_FLOW.md` for individual journeys and copy. Keep Radar conditional on its pack/API being active; Reading is cut first and must not appear as a working destination in v1.
+- [ ] Scores and historical agreement are task/action-specific in the UI; never show one overall trust or accuracy score. The current report-card contract is family-scoped, so raise the Contract Change Request described in `FRONTEND_IMPLEMENTATION_PLAN.md`. Implement the task-specific backtest score only if the change is approved and the API returns that scope; otherwise label it unavailable. Do not invent the score in the browser.
+- [ ] Deliver Queue (digest and respond), item detail (why, similar cases, draft), Actions (cancel/undo), Permissions (per task/action evidence), and grouped Insights/More views for report card, habits, chains, exams, metrics, exposure, ledger verification, settings, and replay controls, following the plan and actual API readiness.
 - [ ] Empty, loading and error states; responsive layout (judges may use a phone).
 
 Acceptance: **T-API** passes; the five demo beats run in the browser without console errors.

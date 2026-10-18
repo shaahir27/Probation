@@ -27,7 +27,7 @@ Persona: **Meena** (synthetic student). The demo database is pre-run to a chosen
 
 | Beat | What the viewer sees | Screens and data needed |
 |---|---|---|
-| **1. The driving test** | "Before it touches anything, here is what it would have done with your last six months." A report card: same / different / would-ask counts per family | Report card page; per-family numbers |
+| **1. The driving test** | "Before it touches anything, here is what it would have done with your last six months." Show same / different / would-ask counts for one selected task/action at a time, with scope and sample size visible. Family totals are secondary context, never a blended overall score. | Report card / Insights; task/action-scoped numbers when the approved API supports them |
 | **2. A day in the life** | A newsletter archived silently; a college PDF moved to the right folder (undo button visible); an early-morning invite declined after a hold; a recruiter mail answered with a polite-no draft; a professor's deadline mail producing one combined suggestion (draft reply plus block time) | Queue, Actions, Chains pages; replay playing |
 | **3. Licences earned** | A ladder per task type: watch, suggest, do with undo, do silently, with the evidence ("58 clean agreements" style) beside each | Licences page with lower bounds and counts |
 | **4. The exam** | A shortcut policy (or an injected mail) fails the trick questions; the proper policy passes | Exams page with flipped cases highlighted |
@@ -41,6 +41,7 @@ The screen-by-screen behaviour behind these beats is in `USER_FLOW.md` (section 
 ### Design rules for the dashboard
 - Plain words, no jargon on first screen ("Allowed to: suggest").
 - Every automatic action shows **why** (the evidence line and the three most similar past cases) and an **undo** button.
+- Historical agreement scores are scoped to one task/action, and show counts and unresolved items beside any percentage. Do not show an overall score or relabel a family total as a task score. Until the task-scoped report API change is approved and implemented, show the family summary with its true label and make the task-level score unavailable.
 - Works on a phone-sized screen.
 - Empty, loading and error states for every page.
 

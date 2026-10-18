@@ -202,12 +202,23 @@ only if time remains.
 
 ### 5.10 Phase 9
 ```
-PHASE 9: API and dashboard. Read: docs/CONTRACT.md section 9, docs/USER_FLOW.md, docs/DEMO_AND_SUBMISSION.md
-section 2, docs/TEST_PLAN.md (T-API), docs/IMPLEMENTATION_PLAN.md (Phase 9).
-Goal: every endpoint in CONTRACT section 9 including /web-facts and /boards/{pack} (start over fixtures), then the React dashboard pages (including the Radar board, Library and the Tavily usage view)
-and replay controls. Plain-language UI, evidence and undo on every automatic action, phone-sized
-layout, empty/loading/error states. Do not change backend logic; if the API is missing something,
-report it.
+PHASE 9: API and dashboard. Read: docs/CONTRACT.md section 9, docs/USER_FLOW.md,
+docs/FRONTEND_IMPLEMENTATION_PLAN.md (required design brief), docs/DEMO_AND_SUBMISSION.md section 2,
+docs/TEST_PLAN.md (T-API), docs/IMPLEMENTATION_PLAN.md (Phase 9), and the Member 2 handoff in
+docs/MEMBER_SPLIT.md. Goal: implement the contract endpoints over fixtures first, then build the
+responsive React dashboard using the navigation, screen grouping, visual, and accessibility decisions
+in FRONTEND_IMPLEMENTATION_PLAN.md. Use USER_FLOW.md for journeys and microcopy.
+
+Primary destinations: Home, Queue, Actions, Permissions, and More. Keep report card, metrics,
+habits, chains, and exams together under Insights/More; Radar is available only when its pack and API
+are active; Reading is cut first. Keep all scores scoped to the task/action they measure and never
+show an overall trust/accuracy score. The current report-card API is family-scoped; surface the
+task-score API gap and follow contract change control before claiming or fabricating task-level
+historical scores. Do not change `CONTRACT.md` without approval.
+
+Preserve plain-language UI, evidence and undo/cancel on automatic actions, phone-sized layouts,
+loading/empty/error/stale states, and the Phase 9 T-API acceptance. If an API is missing something,
+report the gap and its user impact.
 ```
 
 ### 5.11 Phase 10

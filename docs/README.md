@@ -28,8 +28,9 @@ Humans read top to bottom. Agents read what their phase needs (see `AGENT_PLAYBO
 | 13 | `DEMO_AND_SUBMISSION.md` | Demo script and submission checklist |
 | 13b | `TAVILY_AND_NEW_PACKS.md` | Tavily web grounding, the Radar and Reading packs, and the contract change CCR-1 |
 | 14 | `USER_FLOW.md` | What the user sees and does, screen by screen |
-| 15 | `AGENT_PLAYBOOK.md` | How to drive Antigravity agents phase by phase |
-| 16 | `agent-kit/` | Workflow files to copy into the Antigravity workflows folder |
+| 15 | `FRONTEND_IMPLEMENTATION_PLAN.md` | Required Phase 9 UI/UX brief: navigation, per-task score scope, visual system, and implementation guidance |
+| 16 | `AGENT_PLAYBOOK.md` | How to drive Antigravity agents phase by phase |
+| 17 | `agent-kit/` | Workflow files to copy into the Antigravity workflows folder |
 
 ---
 

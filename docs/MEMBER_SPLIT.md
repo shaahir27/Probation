@@ -67,6 +67,12 @@ Probation uses a **4-Lane Architecture** that permits two team members (or two c
 | **Lane C (Interface)** | **Member 2 (Parallel)** | `backend/src/probation/api/`<br>`frontend/` | 9 |
 | **Lane D (Evaluation)** | **Both (Sequential)** | `backend/src/probation/eval/`<br>`deploy/`<br>`docs/results/` | 10, 11, 12 |
 
+### Phase 9 handoff for Member 2
+
+Before planning or implementing Lane C, Member 2 must read [`FRONTEND_IMPLEMENTATION_PLAN.md`](FRONTEND_IMPLEMENTATION_PLAN.md), especially section 5's visual decision/rubric and Appendix A's screen wireframes/component placement, [`USER_FLOW.md`](USER_FLOW.md), Phase 9 in [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md), `CONTRACT.md` section 9, `TEST_PLAN.md` (T-API), and `DEMO_AND_SUBMISSION.md` section 2. The frontend plan is the required design brief for navigation, screen hierarchy, component placement, responsive behavior, visual direction, accessibility, and task-level score presentation; the contract remains authoritative for available data and actions. Use the warm light theme, keep glass to navigation chrome, and use opaque task/evidence surfaces. Implement the wireframes as the first visual pass and resolve API gaps through the documented change process rather than inventing data or flows.
+
+The primary navigation has five destinations: Home, Queue, Actions, Permissions, and More. Secondary screens are grouped under Insights/More as described in the frontend plan. Radar appears only when its pack and API are active; Reading is cut first. The requested historical score is per task/action, but the current report-card API is family-scoped. Member 2 must surface this API/contract gap and follow the approved change-control process; do not fabricate task-level scores or silently change `CONTRACT.md`.
+
 ---
 
 ## 4. Phase-by-Phase Split & Merge Sequence
@@ -78,7 +84,7 @@ Probation uses a **4-Lane Architecture** that permits two team members (or two c
 
 ### Step 2: The Core Engine & Interface Split (Phases 3, 4, 5 & 9, 6b)
 - **Member 1**: Takes `phase-3-mail-calendar` (depends on Phases 1 and 2). Implements mail and calendar clue extraction and resolvers. Then proceeds directly to `phase-4-engine-backtest` and `phase-5-licences-gate`.
-- **Member 2**: While Member 1 builds the engine replay, Member 2 builds `phase-9-api-ui` (the FastAPI routes and React dashboard using `tiny_synth` fixtures) and `phase-6b-entity-facts-tavily` (Tavily search/extract vetting service).
+- **Member 2**: While Member 1 builds the engine replay, Member 2 builds `phase-9-api-ui` (the FastAPI routes and React dashboard using `tiny_synth` fixtures; follow the Phase 9 handoff above) and `phase-6b-entity-facts-tavily` (Tavily search/extract vetting service).
 - **Merge Point 2**: Both branches converge into `main`.
 
 ### Step 3: Generality, Autonomy & New Packs (Phases 7, 8 & 6, 8b)

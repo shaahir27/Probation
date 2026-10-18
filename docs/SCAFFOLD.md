@@ -41,6 +41,7 @@ probation/
 │   ├── SECURITY_PRIVACY.md                   # Threat model T1-T18, trust boundaries, public hardening
 │   ├── TECH_STACK_AND_REPO.md                # Technology choices, package inventory, day-1 spikes
 │   ├── USER_FLOW.md                          # User journeys F1-F14, plain-language microcopy, UI states
+│   ├── FRONTEND_IMPLEMENTATION_PLAN.md     # Phase 9 design brief: navigation, UX, accessibility, and score scope
 │   ├── AGENT_PLAYBOOK.md                     # Agent loop, lane rules, kickoff prompts, review checklist
 │   ├── DECISIONS_AND_OPEN_QUESTIONS.md       # Decision log (D-01 to D-18), day-1 checklist (O-1 to O-18)
 │   ├── DEMO_AND_SUBMISSION.md                # 3-minute video storyboard, 5 demo beats, Devpost checklist
@@ -329,10 +330,10 @@ probation/
         ├── components/                       # Focused, reusable UI components
         │   ├── common/
         │   │   ├── Header.tsx                # App header with connection badge & mode indicator
-        │   │   ├── Sidebar.tsx               # Navigation sidebar (Home, Queue, Licences, Radar, Record, etc.)
+        │   │   ├── Sidebar.tsx               # Desktop nav: Home, Queue, Actions, Permissions, More; secondary routes grouped under More
         │   │   ├── Button.tsx                # Styled button with loading and active states
         │   │   ├── Badge.tsx                 # Status and level badges (Watching, Suggests, Does with undo)
-        │   │   ├── Card.tsx                  # Premium glassmorphic container card
+        │   │   ├── Card.tsx                  # Restrained solid-surface card using FRONTEND_IMPLEMENTATION_PLAN.md tokens
         │   │   ├── Modal.tsx                 # Accessible modal dialog
         │   │   ├── LoadingSkeleton.tsx       # Shimmer loading skeleton
         │   │   ├── ErrorBanner.tsx           # Inline and toast error alerts with retry
@@ -346,9 +347,9 @@ probation/
         │       ├── WebFactBadge.tsx          # "Matches official site" or "Check sender" with source citations
         │       └── UndoToast.tsx             # Floating undo notification with countdown timer
         │
-        └── pages/                            # Full dashboard page views (USER_FLOW.md section 4)
+        └── pages/                            # Route views; group navigation per FRONTEND_IMPLEMENTATION_PLAN.md and use USER_FLOW.md section 4 for screen content
             ├── Home.tsx                      # System status, pending queue count, habit change alerts
-            ├── ReportCard.tsx                # Driving test: same / different / would-ask bars
+            ├── ReportCard.tsx                # Task/action-scoped history when API supports it; family summary labeled as family
             ├── Queue.tsx                     # Review queue (Needs you, Ready for you, one-tap accept/reject/edit)
             ├── ItemDetail.tsx                # Deep explanation: why, similar cases, evidence line, web facts
             ├── Actions.tsx                   # Executed and held actions with 7-day Undo & 10-min Cancel buttons
@@ -356,12 +357,12 @@ probation/
             ├── Habits.tsx                    # Mined habits with humanized wording & deny capability
             ├── Chains.tsx                    # Discovered multi-step chains across packs
             ├── Exams.tsx                     # Trick-question exam board results & flipped counterfactual cases
-            ├── Metrics.tsx                   # Attention savings curve, accuracy, drift alarms timeline
+            ├── Metrics.tsx                   # Scoped operational trends and drift alarms; no overall accuracy score
             ├── Exposure.tsx                  # Data privacy counter: characters scrubbed, tokens egressed
             ├── Ledger.tsx                    # Append-only activity record with tamper verification badge
             ├── Settings.tsx                  # Read-only tunables, hard-coded caps, and hands-off lists
-            ├── RadarBoard.tsx                # Opportunity Radar: verified hackathons/scholarships & fee alerts
-            ├── ReadingLibrary.tsx            # Reading Triage: auto-filed saved links by collection
+            ├── RadarBoard.tsx                # More destination only when Radar pack/API are active
+            ├── ReadingLibrary.tsx            # Deferred while Reading is cut from v1
             └── ImportHelp.tsx                # Instructions for importing Takeout/folder snapshots
 ```
 
@@ -389,7 +390,7 @@ probation/
 | `backend/src/probation/links/` | Lane B (Data) | Phase 8b | `TAVILY_AND_NEW_PACKS.md` section 7 |
 | `backend/src/probation/packs/radar/` | Lane B (Data) | Phase 8b | `TAVILY_AND_NEW_PACKS.md` section 8 |
 | `backend/src/probation/packs/reading/` | Lane B (Data) | Phase 8b | `TAVILY_AND_NEW_PACKS.md` section 9 |
-| `backend/src/probation/api/` & `frontend/` | Lane C (UI) | Phase 9 | `CONTRACT.md` section 9, `USER_FLOW.md` |
+| `backend/src/probation/api/` & `frontend/` | Lane C (UI) | Phase 9 | `CONTRACT.md` section 9, `USER_FLOW.md`, `FRONTEND_IMPLEMENTATION_PLAN.md` |
 | `backend/src/probation/eval/` | Lane D (Eval) | Phase 10 | `EVALUATION_PLAN.md` |
 | `deploy/` | Lane D (Deploy) | Phase 11 | `TECH_STACK_AND_REPO.md` section 6 |
 

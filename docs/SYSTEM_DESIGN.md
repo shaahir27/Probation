@@ -291,9 +291,9 @@ Limit: a Takeout export shows the *final* state of labels, not when you archived
 ## 10. How it earns trust
 
 ### 10.1 The driving test on your own past
-Before touching anything, the system replays your history in order, one situation at a time, predicting from only what it could have known then and comparing with what you really did. The result is a **report card**:
+Before touching anything, the system replays your history in order, one situation at a time, predicting from only what it could have known then and comparing with what you really did. Show historical agreement separately for each **task type and action**, with same/different counts, the number of unresolved situations, and the time range. Do not blend different tasks into one trust or accuracy score.
 
-> Out of 500 situations: same as you 412 times, different 38 times, would have asked 50 times.
+Family totals may be shown as secondary context, clearly labeled as family-level results. The current report-card API and `engine/report.py` only produce family-scoped results; the requested task/action score requires an approved API/contract change. Until then, the dashboard must not copy a family result onto individual tasks or imply the task score is available.
 
 You click nothing. Your behaviour is the answer key.
 

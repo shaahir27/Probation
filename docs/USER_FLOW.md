@@ -69,16 +69,17 @@ Each journey lists what the user does, what the system does, the screens, and th
 
 ### F2. The driving test (report card)
 
-**Goal:** show what the system would have done with the user's past, before it touches anything.
+**Goal:** show what the system would have done with the user's past, before it touches anything, with results scoped to the kind of task and action being judged.
 
 **What the user sees**
-- Per kind of work (Mail, Invites, Files): three numbers and a bar: **Same as you**, **Different**, **Would have asked**, plus "No answer yet" for recent items.
-- A line: "Out of 500 mail items: the same as you 412 times, different 38 times, would have asked 50 times." (Numbers are examples.)
+- A task/action selector or task-specific list (for example, recruiter messages → draft a decline, or meeting invitations → accept). Never show one combined trust or accuracy score.
+- For the selected task/action, show **Same as you**, **Different**, **Would have asked**, and **No answer yet** as counts. If a percentage is shown, calculate agreement as `same / (same + different)` and show the counts, time range, and censored count beside it.
+- A family summary (Mail, Invites, Files) may remain as optional context, clearly labeled as a family total. Never repeat its score as if it belonged to each task/action.
 - Tapping "Different" lists those items with what the system predicted and what the user actually did.
 - A footnote: "Based only on what was known at the time. Recent items have no answer yet."
 
-**API:** `GET /report-card?family=email_action` (repeat for `invite_rsvp`, `file_destination`).
-**Edge cases:** a family with too little history shows "Not enough history yet to guess" (the cold-start period, ENGINE_SPEC section 4), not a zero.
+**Current API and required change:** `GET /report-card?family=email_action` (repeat for `invite_rsvp`, `file_destination`) returns family-scoped results. The user-requested task/action score needs an approved Contract Change Request to expose matching historical counts at the task/action grain. Until that is approved and implemented, label the family results accurately and say the task-specific backtest score is not available; do not infer it from `/licences` or `/exams`.
+**Edge cases:** a task/action with too little history shows "Not enough history yet to guess", not a zero. Outcomes that are missing, weak, or not yet known are listed as censored/unresolved and excluded from the agreement denominator, per `ENGINE_SPEC.md` section 17.
 
 ### F3. Daily use: the queue
 
@@ -232,30 +233,33 @@ Each journey lists what the user does, what the system does, the screens, and th
 
 ## 4. Screen inventory
 
-| Screen | Purpose | Main data | Actions |
-|---|---|---|---|
-| **Home** | Where am I; what needs me | `/replay/state`, `/queue` count, recent permission or habit-change cards | Open Queue, open Report card, replay controls |
-| **Report card** | The driving test | `/report-card` | Drill into "Different" |
-| **Queue** | Answer what needs you | `/queue` | accept, reject, edit |
-| **Item detail** | Explain one item | `/items/{id}` | accept, reject, edit; edit draft |
-| **Actions** | What was done, undo | `/actions` | undo, cancel |
-| **Permissions** (Licences) | What is allowed and why | `/licences` | none (read-only) |
-| **Habits** | Patterns found | `/habits` | deny |
-| **Chains** | Follow-up patterns | `/chains` | none |
-| **Tests** (Exams) | Trick-question results | `/exams` | run a test (admin only) |
-| **Metrics** | Attention, accuracy, alarms over time | `/metrics/summary` | none |
-| **Privacy** (Exposure) | What left the machine | `/exposure` | none |
-| **Record** (Ledger) | Tamper check | `/ledger/verify` | re-verify |
-| **Settings** | Effective settings | `/settings` | none (read-only in v1) |
-| **Radar board** | Verified opportunities with deadlines, evidence and fee warnings | `/boards/radar`, `/items/{id}` | accept, reject, edit |
-| **Library** | Saved links filed into collections | `/boards/reading` | accept, reject, edit |
-| **Import help** | How to use your own data | static | none |
+| Screen | Navigation group | Purpose | Main data | Actions |
+|---|---|---|---|---|
+| **Home** | Primary | Where am I; what needs me | `/replay/state`, `/queue` count, recent permission or habit-change cards | Open Queue, task-specific report, replay controls |
+| **Queue** | Primary | Answer what needs you | `/queue` | accept, reject, edit |
+| **Actions** | Primary | What was done; cancel or undo | `/actions` | undo, cancel |
+| **Permissions** (Licences) | Primary | What is allowed for each task/action, and why | `/licences` | none (read-only) |
+| **Report card** | More → Insights | Historical results, with task/action scope when API supports it | `/report-card` | Drill into "Different" |
+| **Habits** | More → Insights | Patterns found | `/habits` | deny |
+| **Chains** | More → Insights | Follow-up patterns | `/chains` | none |
+| **Tests** (Exams) | More → Insights or task detail | Trick-question results for one task/action | `/exams` | run a test (admin only) |
+| **Metrics** | More → Insights | Attention and habit-change trends, with clear scope | `/metrics/summary` | none |
+| **Privacy & web** (Exposure) | More | What text left for model processing and what web lookups were made | `/exposure`, `/web-facts` | none |
+| **Record** (Ledger) | More | Tamper check | `/ledger/verify` | re-verify |
+| **Settings** | More | Effective settings | `/settings` | none (read-only in v1) |
+| **Radar board** | More, only when active | Verified opportunities with deadlines, sources and fee warnings | `/boards/radar`, `/items/{id}` | accept, reject, edit |
+| **Library** | Deferred; hidden in v1 while Reading is cut | Saved links filed into collections | `/boards/reading` when implemented | accept, reject, edit |
+| **Import help** | More/help | How to use your own data | static | none |
 
 **States every screen must have:** loading (skeleton), empty (a friendly sentence), error (banner with retry), and "as of {time}" when showing stale data.
 
 ---
 
 ## 5. Navigation map
+
+There are five primary destinations on desktop and mobile: **Home**, **Queue**, **Actions**, **Permissions**, and **More**. The route tree below shows the secondary screens reached from those destinations; it does not make each screen a separate top-level tab. More contains Insights (Report card, Metrics, Habits, Chains, Tests), Privacy & web, Record, Settings, and Import help. Radar appears in More only while its pack and API are active. Keep Reading's Library hidden until that pack is in scope.
+
+Item detail opens from Queue, the report card, or Radar; it is a focused view, not another primary tab. Keep replay controls and service alerts persistent only when relevant to the current mode/state.
 
 ```
  Home ──┬── Report card ── (drill into "Different") ── Item detail
@@ -371,6 +375,9 @@ Numbers: show counts and the safe estimate as whole percentages (round down).
 - [ ] Every journey F1 to F11 can be completed in the browser with the demo database.
 - [ ] Every automatic action shows its reason and an Undo or Cancel button.
 - [ ] No screen uses the words "licence", "class", "gate" or "ledger" in user-facing text.
+- [ ] The five primary destinations are Home, Queue, Actions, Permissions, and More; secondary screens are grouped as described in section 5.
+- [ ] No overall score is shown. Historical agreement names its task/action and includes counts, time range, and unresolved count; any family total is labeled as family-level context.
+- [ ] A task-level score is not displayed until an approved API/contract change supplies that scope; a family score is never copied onto individual tasks.
 - [ ] Loading, empty, error and stale states exist for every screen.
 - [ ] The five demo beats run without console errors on a phone-sized viewport.
 - [ ] Replay controls work at 1x, 10x and 100x without freezing the page.
