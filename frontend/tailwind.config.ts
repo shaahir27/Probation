@@ -8,16 +8,40 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        background: "#090d16",
-        surface: "#111827",
-        surfaceElevated: "#1f2937",
-        borderSubtle: "#374151",
-        accent: {
-          blue: "#38bdf8",
-          emerald: "#34d399",
-          amber: "#fbbf24",
-          rose: "#f43f5e",
+        canvas: "var(--canvas)",
+        surface: "var(--surface)",
+        surfaceRaised: "var(--surface-raised)",
+        surfaceSubtle: "var(--surface-subtle)",
+        line: "var(--line)",
+        ink: {
+          DEFAULT: "var(--ink)",
+          secondary: "var(--ink-secondary)",
+          tertiary: "var(--ink-tertiary)",
         },
+        brand: {
+          DEFAULT: "var(--brand)",
+          hover: "var(--brand-hover)",
+          on: "var(--on-brand)",
+        },
+        focus: "var(--focus)",
+        status: {
+          success: "var(--success)",
+          warning: "var(--warning)",
+          danger: "var(--danger)",
+        },
+      },
+      fontFamily: {
+        sans: [
+          "ui-sans-serif",
+          "system-ui",
+          "-apple-system",
+          "BlinkMacSystemFont",
+          '"Segoe UI"',
+          "Roboto",
+          '"Helvetica Neue"',
+          "Arial",
+          "sans-serif",
+        ],
       },
     },
   },

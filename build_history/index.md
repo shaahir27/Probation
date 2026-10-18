@@ -26,6 +26,7 @@ Governed by [`docs/BUILD_LOGGING_PROTOCOL.md`](file:///d:/Desktop/project/Probat
 | Executor Worker, Hold Queue, Licence Re-check, and Undo | Phase 5 | [feature_executor_worker_and_simworld.md](phase_05_evidence_licences_gate_drift/feature_executor_worker_and_simworld.md) | Built | 2026-10-16 |
 | Statistical Drift Monitoring (CUSUM) and Family Shift (PSI) | Phase 5 | [feature_statistical_drift_cusum_psi.md](phase_05_evidence_licences_gate_drift/feature_statistical_drift_cusum_psi.md) | Built | 2026-10-16 |
 | Phase 5 Engine Summary | Phase 5 | [phase_05_summary.md](phase_05_evidence_licences_gate_drift/phase_05_summary.md) | Built | 2026-10-16 |
+| API Endpoints and Responsive Dashboard | Phase 9 | [feature_api_and_dashboard.md](phase_09_api_dashboard/feature_api_and_dashboard.md) | Built | 2026-10-18 |
 
 
 ---

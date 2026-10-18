@@ -4,6 +4,8 @@ rem make.cmd - Windows wrapper for Probation development targets
 set TARGET=%1
 if "%TARGET%"=="" set TARGET=help
 
+set PYTHONPATH=%~dp0backend\src;%PYTHONPATH%
+
 if exist "%~dp0.venv311\Scripts\python.exe" (
     set PYTHON="%~dp0.venv311\Scripts\python.exe"
     set PYTEST="%~dp0.venv311\Scripts\pytest.exe"
@@ -59,7 +61,7 @@ if "%TARGET%"=="test" (
 )
 
 if "%TARGET%"=="serve" (
-    %UVICORN% probation.api.app:app --host 0.0.0.0 --port 8000 --reload
+    %UVICORN% probation.api.app:app --app-dir "%~dp0backend\src" --host 0.0.0.0 --port 8000 --reload
     exit /b %ERRORLEVEL%
 )
 
@@ -78,28 +80,30 @@ if "%TARGET%"=="budget" (
     exit /b %ERRORLEVEL%
 )
 
-if "%TARGET%"=="synth" (
-    set P=%2
-    if "%P%"=="" set P=1
-    set S=%3
-    if "%S%"=="" set S=1
-    %PYTHON% -m probation.cli synth generate --persona %P% --seed %S%
-    exit /b %ERRORLEVEL%
-)
-
-if "%TARGET%"=="backtest" (
-    set F=%2
-    if "%F%"=="" set F=email_action
-    %PYTHON% -m probation.cli backtest --family %F%
-    exit /b %ERRORLEVEL%
-)
-
-if "%TARGET%"=="eval" (
-    set S=%2
-    if "%S%"=="" set S=main
-    %PYTHON% -m probation.cli eval --suite %S%
-    exit /b %ERRORLEVEL%
-)
+if "%TARGET%"=="synth" goto :synth
+if "%TARGET%"=="backtest" goto :backtest
+if "%TARGET%"=="eval" goto :eval
 
 echo Unknown target: %TARGET%
 exit /b 1
+
+:synth
+set P=%2
+if "%P%"=="" set P=1
+set S=%3
+if "%S%"=="" set S=1
+%PYTHON% -m probation.cli synth generate --persona %P% --seed %S%
+exit /b %ERRORLEVEL%
+
+:backtest
+set F=%2
+if "%F%"=="" set F=email_action
+%PYTHON% -m probation.cli backtest --family %F%
+exit /b %ERRORLEVEL%
+
+:eval
+set S=%2
+if "%S%"=="" set S=main
+%PYTHON% -m probation.cli eval --suite %S%
+exit /b %ERRORLEVEL%
+

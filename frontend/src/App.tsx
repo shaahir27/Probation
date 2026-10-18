@@ -1,142 +1,274 @@
+import { useEffect, useState, useCallback } from "react";
+import { Sparkles } from "lucide-react";
+import { apiClient } from "./api/client";
 import {
-  ShieldCheck,
-  Award,
-  Compass,
-  Lock,
-  ExternalLink,
-  Database,
-  Sparkles,
-} from "lucide-react";
+  ActionItem,
+  ChainItem,
+  ExamRunItem,
+  HabitItem,
+  LicenceItem,
+  MetricsSummaryResponse,
+  QueueItem,
+  ReportCardResponse,
+} from "./api/types";
+import { DesktopSidebar } from "./components/layout/DesktopSidebar";
+import { MobileNav } from "./components/layout/MobileNav";
+import { Header } from "./components/layout/Header";
+import { ErrorBanner } from "./components/common/ErrorBanner";
+import { HomeView } from "./views/HomeView";
+import { QueueView } from "./views/QueueView";
+import { ActionsView } from "./views/ActionsView";
+import { PermissionsView } from "./views/PermissionsView";
+import { MoreView } from "./views/MoreView";
 
 export default function App() {
+  const [currentTab, setCurrentTab] = useState<string>("home");
+  const [previewMode, setPreviewMode] = useState<boolean>(false);
+  const [radarActive, setRadarActive] = useState<boolean>(false);
+  const [clockMode, setClockMode] = useState<string>("live");
+  const [simulatedDate, setSimulatedDate] = useState<string | undefined>(undefined);
+
+  // Core Data
+  const [queueItems, setQueueItems] = useState<QueueItem[]>([]);
+  const [actions, setActions] = useState<ActionItem[]>([]);
+  const [licences, setLicences] = useState<LicenceItem[]>([]);
+  const [reportCard, setReportCard] = useState<ReportCardResponse | null>(null);
+  const [metrics, setMetrics] = useState<MetricsSummaryResponse | null>(null);
+  const [habits, setHabits] = useState<HabitItem[]>([]);
+  const [chains, setChains] = useState<ChainItem[]>([]);
+  const [exams, setExams] = useState<ExamRunItem[]>([]);
+
+  // Loading & Error States
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      // 1. Fetch replay / health state
+      try {
+        const replay = await apiClient.getReplayState();
+        setClockMode(replay.mode || "live");
+        setSimulatedDate(replay.simulated_date);
+      } catch {
+        // Fallback to live health check if replay endpoint fails
+        try {
+          const health = await apiClient.getHealth();
+          setClockMode(health.mode || "live");
+        } catch {
+          // If backend is entirely down and not in preview mode, let error bubble
+          if (!previewMode) {
+            throw new Error(
+              "Unable to connect to Probation backend at http://localhost:8000. Start backend with `make serve` or enable Preview Mode."
+            );
+          }
+        }
+      }
+
+      // 2. Fetch Board Radar state (fail-closed check for conditional visibility)
+      try {
+        const radarRes = await apiClient.getBoard("radar");
+        setRadarActive(Boolean(radarRes?.active));
+      } catch {
+        setRadarActive(false);
+      }
+
+      // 3. Fetch Core Data concurrently
+      const [
+        queueRes,
+        actionsRes,
+        licencesRes,
+        reportRes,
+        metricsRes,
+        habitsRes,
+        chainsRes,
+        examsRes,
+      ] = await Promise.all([
+        apiClient.getQueue(),
+        apiClient.getActions(),
+        apiClient.getLicences(),
+        apiClient.getReportCard("email_action").catch(() => null),
+        apiClient.getMetricsSummary().catch(() => null),
+        apiClient.getHabits().catch(() => ({ habits: [] })),
+        apiClient.getChains().catch(() => ({ chains: [] })),
+        apiClient.getExams().catch(() => ({ runs: [] })),
+      ]);
+
+      setQueueItems(queueRes.items || []);
+      setActions(actionsRes.actions || []);
+      setLicences(licencesRes.licences || []);
+      setReportCard(reportRes);
+      setMetrics(metricsRes);
+      setHabits(habitsRes.habits || []);
+      setChains(chainsRes.chains || []);
+      setExams(examsRes.runs || []);
+    } catch (err: unknown) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "An unexpected error occurred while communicating with the API."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [previewMode]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  const handleTogglePreview = () => {
+    const next = !previewMode;
+    setPreviewMode(next);
+    apiClient.setPreviewMode(next);
+  };
+
+  const handleRespond = async (
+    id: string,
+    response: "accept" | "reject" | "edit",
+    editedAction?: string
+  ) => {
+    await apiClient.respondQueue(id, response, editedAction);
+    // Optimistically update queue view
+    setQueueItems((prev) => prev.filter((item) => item.id !== id));
+  };
+
+  const handleUndo = async (actionId: string) => {
+    await apiClient.undoAction(actionId);
+    // Refresh actions to show updated status
+    const updated = await apiClient.getActions();
+    setActions(updated.actions || []);
+  };
+
+  const handleDenyHabit = async (habitId: string) => {
+    await apiClient.denyHabit(habitId);
+    setHabits((prev) =>
+      prev.map((h) => (h.id === habitId ? { ...h, status: "denied", denied: true } : h))
+    );
+  };
+
+  const handleRunExam = async (classKey: string, action: string) => {
+    await apiClient.runExam(classKey, action);
+    const updated = await apiClient.getExams();
+    setExams(updated.runs || []);
+  };
+
+  const getPageTitle = (tab: string) => {
+    switch (tab) {
+      case "home":
+        return "Home";
+      case "queue":
+        return "Queue";
+      case "actions":
+        return "Actions";
+      case "permissions":
+        return "Permissions";
+      case "more":
+        return "More";
+      default:
+        return "Probation";
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-[#090d16] text-slate-100 flex flex-col font-sans selection:bg-sky-500 selection:text-white">
-      {/* Top Header */}
-      <header className="border-b border-slate-800 bg-slate-900/60 backdrop-blur-md sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-sky-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-sky-500/20">
-              <ShieldCheck className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <span className="font-bold text-lg tracking-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
-                Probation
+    <div className="min-h-screen bg-canvas text-ink flex flex-col md:flex-row font-sans selection:bg-brand selection:text-brand-on">
+      {/* Desktop Sidebar (Persistent 5 Destinations) */}
+      <div className="hidden md:block">
+        <DesktopSidebar
+          currentTab={currentTab}
+          onTabChange={setCurrentTab}
+          queueCount={queueItems.length}
+          previewMode={previewMode}
+          onTogglePreview={handleTogglePreview}
+        />
+      </div>
+
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col min-h-screen pb-20 md:pb-6">
+        <Header
+          title={getPageTitle(currentTab)}
+          mode={clockMode}
+          simulatedDate={simulatedDate}
+        />
+
+        {/* Visible Preview Banner (Strictly labeled when enabled) */}
+        {previewMode && (
+          <div className="bg-brand/10 border-b border-brand/30 px-6 py-2.5 flex items-center justify-between text-xs text-brand">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 flex-shrink-0" />
+              <span>
+                <strong>Preview Mode Active:</strong> Displaying synthetic demonstration fixtures
+                (Persona: Meena). Real actions will not be performed.
               </span>
-              <span className="ml-2 px-2 py-0.5 text-xs font-medium rounded-full bg-sky-950 text-sky-400 border border-sky-800/60">
-                Phase 0 Scaffold
-              </span>
             </div>
+            <button
+              onClick={handleTogglePreview}
+              className="text-xs font-semibold underline hover:text-ink ml-4"
+            >
+              Exit Preview
+            </button>
           </div>
+        )}
 
-          <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-2 text-xs text-slate-400 bg-slate-800/70 px-3 py-1.5 rounded-lg border border-slate-700/60">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-              <span>Clock: <strong className="text-slate-200">Replay Monotonic</strong></span>
+        {/* Core View Container */}
+        <main className="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          {error && (
+            <div className="mb-6">
+              <ErrorBanner message={error} onRetry={loadData} />
             </div>
-            <div className="flex items-center space-x-2 text-xs text-slate-400 bg-slate-800/70 px-3 py-1.5 rounded-lg border border-slate-700/60">
-              <Lock className="w-3.5 h-3.5 text-amber-400" />
-              <span>Budget Cap: <strong className="text-slate-200">$20.00 USD</strong></span>
+          )}
+
+          {loading ? (
+            <div className="space-y-4 animate-pulse">
+              <div className="h-28 bg-surface rounded-2xl border border-line" />
+              <div className="h-64 bg-surface rounded-2xl border border-line" />
             </div>
-          </div>
-        </div>
-      </header>
+          ) : (
+            <>
+              {currentTab === "home" && (
+                <HomeView
+                  queueItems={queueItems}
+                  licences={licences}
+                  onNavigate={setCurrentTab}
+                />
+              )}
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full">
-        {/* Hero Section */}
-        <div className="mb-8 p-6 rounded-2xl glass-panel relative overflow-hidden">
-          <div className="absolute -right-12 -top-12 w-64 h-64 bg-sky-500/10 rounded-full blur-3xl pointer-events-none"></div>
-          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-            <div>
-              <div className="flex items-center space-x-2 text-xs font-semibold uppercase tracking-wider text-sky-400 mb-2">
-                <Sparkles className="w-4 h-4" />
-                <span>Earned Autonomy Engine</span>
-              </div>
-              <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-                Driving Test on Your Own Past
-              </h1>
-              <p className="mt-2 text-sm text-slate-400 max-w-2xl leading-relaxed">
-                Probation observes user footprints in mail, calendar, files, and chains under strict temporal isolation. It predicts actions offline in shadow mode and earns licences only after statistical proof ($LB_{`{0.95}`}$) and trick-question exam validation.
-              </p>
-            </div>
-            <div className="flex items-center gap-3">
-              <a
-                href="docs/CONTRACT.md"
-                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-medium text-slate-200 transition-colors flex items-center gap-1.5"
-              >
-                <span>Contract Rules</span>
-                <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
-              </a>
-            </div>
-          </div>
-        </div>
+              {currentTab === "queue" && (
+                <QueueView items={queueItems} onRespond={handleRespond} />
+              )}
 
-        {/* 4 Autonomy Levels Bar */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <div className="p-4 rounded-xl glass-panel border-l-4 border-l-slate-500">
-            <span className="text-xs uppercase font-semibold text-slate-400">Level 0</span>
-            <h3 className="font-bold text-white text-base mt-1">Watch</h3>
-            <p className="text-xs text-slate-400 mt-1">Shadow evaluation only; zero autonomous side effects.</p>
-          </div>
+              {currentTab === "actions" && (
+                <ActionsView actions={actions} onUndo={handleUndo} />
+              )}
 
-          <div className="p-4 rounded-xl glass-panel border-l-4 border-l-sky-500">
-            <span className="text-xs uppercase font-semibold text-sky-400">Level 1</span>
-            <h3 className="font-bold text-white text-base mt-1">Suggest</h3>
-            <p className="text-xs text-slate-400 mt-1">One-click human suggestions queued for approval.</p>
-          </div>
+              {currentTab === "permissions" && (
+                <PermissionsView licences={licences} />
+              )}
 
-          <div className="p-4 rounded-xl glass-panel border-l-4 border-l-amber-500">
-            <span className="text-xs uppercase font-semibold text-amber-400">Level 2</span>
-            <h3 className="font-bold text-white text-base mt-1">Do with Undo</h3>
-            <p className="text-xs text-slate-400 mt-1">Autonomous action held in a time-window with 1-click recall.</p>
-          </div>
+              {currentTab === "more" && (
+                <MoreView
+                  reportCard={reportCard}
+                  metrics={metrics}
+                  habits={habits}
+                  chains={chains}
+                  exams={exams}
+                  onDenyHabit={handleDenyHabit}
+                  onRunExam={handleRunExam}
+                  radarActive={radarActive}
+                />
+              )}
+            </>
+          )}
+        </main>
+      </div>
 
-          <div className="p-4 rounded-xl glass-panel border-l-4 border-l-emerald-500">
-            <span className="text-xs uppercase font-semibold text-emerald-400">Level 3</span>
-            <h3 className="font-bold text-white text-base mt-1">Do Silently</h3>
-            <p className="text-xs text-slate-400 mt-1">Immediate execution for high-volume, easily reversible actions.</p>
-          </div>
-        </div>
-
-        {/* System Architecture Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="p-5 rounded-xl glass-panel">
-            <div className="w-8 h-8 rounded-lg bg-sky-500/20 text-sky-400 flex items-center justify-center mb-3">
-              <Database className="w-4 h-4" />
-            </div>
-            <h4 className="font-semibold text-white text-sm">WAL Ledger & Storage</h4>
-            <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-              SQLite WAL mode with SHA-256 hash-chained immutable audit ledger.
-            </p>
-          </div>
-
-          <div className="p-5 rounded-xl glass-panel">
-            <div className="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center mb-3">
-              <Compass className="w-4 h-4" />
-            </div>
-            <h4 className="font-semibold text-white text-sm">Asymmetric Tavily Vetting</h4>
-            <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-              The web can only warn or restrict autonomy; only your personal history can build trust.
-            </p>
-          </div>
-
-          <div className="p-5 rounded-xl glass-panel">
-            <div className="w-8 h-8 rounded-lg bg-indigo-500/20 text-indigo-400 flex items-center justify-center mb-3">
-              <Award className="w-4 h-4" />
-            </div>
-            <h4 className="font-semibold text-white text-sm">Trick-Question Exam Board</h4>
-            <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-              Deterministic counterfactual exams test invariance and safety before granting licences.
-            </p>
-          </div>
-        </div>
-      </main>
-
-      {/* Footer */}
-      <footer className="border-t border-slate-800/80 py-4 text-center text-xs text-slate-500">
-        Probation Engine · NVIDIA Global AI Hackathon (Personal AI Track) · Nebius Token Factory · Tavily Grounding
-      </footer>
+      {/* Mobile Bottom Navigation (Persistent 5 Destinations) */}
+      <MobileNav
+        currentTab={currentTab}
+        onTabChange={setCurrentTab}
+        queueCount={queueItems.length}
+      />
     </div>
   );
 }

@@ -5,6 +5,17 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from probation.api.routes import (
+    actions,
+    boards,
+    insights,
+    items,
+    licences,
+    queue,
+    replay,
+    report,
+    webfacts,
+)
 from probation.config import settings
 from probation.db.connection import get_connection
 from probation.db.ledger import verify_ledger
@@ -33,6 +44,18 @@ async def custom_http_exception_handler(
         status_code=exc.status_code,
         content={"error": {"code": str(exc.status_code), "message": str(exc.detail)}},
     )
+
+
+# Register sub-routers
+app.include_router(queue.router)
+app.include_router(items.router)
+app.include_router(actions.router)
+app.include_router(licences.router)
+app.include_router(report.router)
+app.include_router(insights.router)
+app.include_router(boards.router)
+app.include_router(webfacts.router)
+app.include_router(replay.router)
 
 
 @app.get("/health")

@@ -1,8 +1,9 @@
-# Frontend Product and Implementation Plan
+# Frontend and API Product and Implementation Plan
 
-**Status:** Product direction for Phase 9; implementation has not started.  
+**Status:** Phase 9 specification and implementation guide.  
+**Scope:** Phase 9 covers both `backend/src/probation/api/` (all CONTRACT.md section 9 HTTP endpoints) and `frontend/` (responsive React dashboard).  
 **Authority:** This plan sits below [`CONTRACT.md`](CONTRACT.md) and [`USER_FLOW.md`](USER_FLOW.md). The backend API in `CONTRACT.md` is the source of truth for data and actions.  
-**Current frontend:** Phase 0 scaffold in `frontend/src/App.tsx`; it has no routes, navigation, data client, or working product screens yet.
+**Current frontend:** Phase 0 scaffold in `frontend/src/App.tsx`; transitioning to full 5-destination dashboard.
 
 This document describes the intended user experience, decides which destinations belong in navigation, and maps each view to existing API capabilities. It does not authorize changes to contract rules or claim that planned endpoints already exist.
 
@@ -118,13 +119,15 @@ Do not hard-code a budget amount, a replay clock label, a record count, a privac
 
 ### 4.2 Queue item card and detail
 
-Use a calm, spacious card with a readable subject/title, safe source identity, time, exact proposed action and target, and a compact inline decision bar. Keep the `Do it`, `Not this`, and `Change` controls required by `USER_FLOW.md` visible on every queue item; routine items do not require opening a detail view first. `Why?` or the item title opens the focused inspection view. Put enough context on the card to make its action and target unambiguous, and include a short draft preview when available. The deeper view adds evidence, similar cases, full draft, and source details. `Do it` is explicit approval and can execute immediately under `USER_FLOW.md` and the contract; never present it as a harmless preview.
+Use a calm, spacious card with a readable subject/title, safe source identity, time, exact proposed action and target, and a compact inline decision bar. Keep the `Do it`, `Not this`, and `Change` controls required by `USER_FLOW.md` visible on every queue item; routine items do not require opening a detail view first. `Why?` or the item title opens the focused inspection view. Put enough context on the card to make its action and target unambiguous, and include a short draft preview when available. The deeper view adds evidence, similar cases, full draft, and source details.
+
+**Process permissions and queue response flow:** Under `CONTRACT.md` section 3 and `Role.API`, the API process is strictly permitted to write to `user_responses` only. When a user chooses `Do it`, `Not this`, or `Change`, `POST /api/queue/{proposal_id}/respond` writes the response row (`response IN ('accept', 'reject', 'edit')`). The API process does not perform external actions or write to the ledger. In `CONTRACT.md` section 9, the table notes "writes user_responses and a strong outcome", whereas section 3 strictly forbids API writes to `outcomes` or `ledger`. We flag this contract conflict: the API writes strictly to `user_responses` per section 3 without inventing process permissions, and the Executor / Resolver processes handle execution and strong outcome generation downstream.
 
 The detail view includes the situation summary, proposal, task/action evidence, top clues, similar past cases, web status and source URLs if checked, and a draft when present. Show untrusted item and web text as plain text, never HTML. Cite web-derived claims directly beside the claim. Never label an organisation or sender a scam as a verdict.
 
 ### 4.3 Actions cards and holds
 
-Show separate status labels for waiting, completed, undone, cancelled, and failed. A hold card makes the action and target explicit, shows the remaining cancellation time as text, and offers a prominent Cancel action. A circular timer can supplement the text but must not be the only cue. Do not use a countdown for actions that are already complete.
+Show separate status labels for contract states (`HELD` / waiting, `DONE` / completed, `UNDONE` / undone, `CANCELLED` / cancelled, and `FAILED` / failed). The backend model returns `DONE`; the UI may label it as “Completed”. A hold card makes the action and target explicit, shows the remaining cancellation time as text, and offers a prominent Cancel action. A circular timer can supplement the text but must not be the only cue. Do not use a countdown for actions that are already complete.
 
 For a completed reversible action, show Undo only while the API says it remains available. Confirm only when the specific action warrants it; confirmation must state what will be reversed. Reflect the asynchronous request lifecycle (“Undo requested”, “Undo complete”, or “Undo failed”) rather than promising instant reversal.
 
@@ -138,7 +141,7 @@ Use a compact level marker plus human-readable state, evidence line, exam state,
 - **Metrics:** use a small number of legible weekly trends for asks, suggestions, automatic actions, and agreement, plus drift/family-shift events. Every chart has text labels, a date range, and an accessible summary.
 - **Habits and chains:** show the pattern, supporting examples/counts where available, and the consequence. Denying a habit requires a clear action label and feedback. Do not imply a mined pattern grants permission.
 - **Exams:** list runs grouped/filterable by task and action, show pass/fail and case summaries, and clearly mark the admin-only “Run test” action. Do not make this a global leaderboard.
-- **Privacy & web:** keep exposure totals distinct from exact queries and cited sources. Never display raw prompt bodies under a token/exposure summary unless the API explicitly supports an appropriately redacted view.
+- **Privacy & web:** keep exposure totals distinct from exact queries and cited sources. Web facts reads recorded Tavily activity from `tavily_calls` and `web_facts`; opening the page must not initiate an outbound web request or call. Never display raw prompt bodies under a token/exposure summary unless the API explicitly supports an appropriately redacted view.
 - **Activity record:** explain “record integrity verified” as a tamper check, not proof of decision quality. If invalid, show the first broken sequence when provided and a clear warning.
 - **Settings:** read-only in v1. Make “effective” values clear and explain units. Never expose secrets.
 - **Radar:** show status, deadline, source and evidence on each opportunity. A fee mismatch is described with its cited source and a cautious “This does not match the official fee information” message, not a definitive fraud label.
@@ -269,11 +272,11 @@ The frontend must be an honest client of the API contract. Build typed request/r
 
 At the time this plan is written, `backend/src/probation/api/app.py` implements health, settings, exposure summary, and ledger verification. The remaining contract routes are not yet registered there. Therefore:
 
-- Build UI states from synthetic fixtures only for visual development; mark fixture mode clearly and keep it out of live responses.
+- Make synthetic fixtures available only in an explicit, visibly labeled demo/preview mode. Never silently substitute mock fixtures for empty, unavailable, or failed live API responses.
 - Keep each screen's data requirement and endpoint visible in this plan. A screen is not complete because its static mock looks finished.
 - Gate or omit routes whose endpoint is unavailable. Show a clear unavailable state only when the user reached that feature intentionally.
 - Never call undeclared network destinations from the frontend. The browser talks to the local API; backend connectors remain responsible for source, LLM, and Tavily access.
-- Use API-provided `as_of`/timestamps and mode when available. Do not call the browser/system clock to make engine decisions or calculate permission.
+- Replay controls apply strictly to demo/replay mode. Use API-provided `as_of`/timestamps and mode when available. Do not call the browser/system clock to make engine decisions or calculate permission.
 - Keep mutations limited to contract actions: queue response, undo, deny habit, exam run, and replay controls. Settings remain read-only in v1.
 
 ### Known contract boundary for task scores
@@ -347,10 +350,12 @@ Use the fixtures and test cases defined by `TEST_PLAN.md` and `USER_FLOW.md`. A 
 - [ ] Queue and actions work by keyboard and touch; focus and dialog behavior are accessible.
 - [ ] The five demo beats work at desktop and phone sizes without horizontal overflow or console errors.
 - [ ] Reduced motion is respected; chart information is available without hover.
-- [ ] A failed request cannot cause an action to be presented as completed or permitted.
-- [ ] Frontend integration uses only endpoints available under the contract, and the API acceptance checks in `TEST_PLAN.md` pass.
+- [ ] Automated tests cover every Phase 9 endpoint (`GET /health`, `GET /report-card?family=`, `GET /licences`, `GET /queue`, `POST /queue/{id}/respond`, `GET /items/{id}`, `GET /actions`, `POST /actions/{id}/undo`, `GET /habits`, `POST /habits/{id}/deny`, `GET /chains`, `GET /exams`, `POST /exams/run`, `GET /web-facts`, `GET /boards/{pack}`, `GET /metrics/summary`, `GET /settings`, `GET /exposure`, `GET /ledger/verify`, `GET /replay/state`, `POST /replay/{start|pause|speed}`).
+- [ ] Process write boundaries are strictly tested: API writes only to `user_responses` using `Role.API` and never writes directly to restricted tables or the ledger.
+- [ ] Idempotency, error shapes (`{ "error": { "code": str, "message": str } }`), and fail-closed behaviors pass test verification.
+- [ ] User journeys F1 (First run), F2 (Report card), F3 (Queue response), F4a (Item detail), F4b (Actions and undo), F5/F6 (Licences), F7/F8 (Habits/Chains), and F9 (Trust & Privacy) are validated.
 
-Automated verification should follow the repo's current `make check` and Phase 9 test plan. Do not add a second conflicting checklist of ad hoc test commands here.
+Automated verification follows `pytest backend/tests/api/` and `make check`.
 
 ---
 
@@ -620,8 +625,8 @@ For desktop, use a narrow explanation column (about 680px) so privacy and settin
 | Mode/service badge | Header top right on desktop; beside title on mobile, on a quiet solid chip | API-reported mode and health in text; distinct from task permission |
 | Queue count badge | Queue navigation item and Home summary only | Actionable count only; omit at zero |
 | Status badge | Beside task/action or event title; softly tinted solid fill, not glass | Word + muted semantic color/icon; never color alone |
-| Task/action row | Full-width opaque white row, 16–20px padding, thin neutral divider; hover uses surface tint only | Task, proposed action, permission state, relevant evidence, one clear detail link |
-| Primary button | At the decision point, deep teal fill with high-contrast label and 10px radius | Verb + object, e.g. `Review queue`, `Approve draft`; pending/disabled state announced |
+| Task/action row | Full-width opaque spruce surface, 16–20px padding, thin line divider; hover uses surface-raised tint only | Task, proposed action, permission state, relevant evidence, one clear detail link |
+| Primary button | At the decision point, brushed brass fill with dark text and 10px radius | Verb + object, e.g. `Review queue`, `Approve draft`; pending/disabled state announced |
 | Secondary/destructive button | Adjacent to primary, outlined neutral; destructive uses text plus muted rose icon/label | Explicit label and consequence; no icon-only controls |
 | Empty state | In the content region where results would appear | Plain explanation, why it is empty, useful next step; no invented counts |
 | Loading state | Preserve page title and content skeleton shape | No fake data; announce loading for assistive tech |
