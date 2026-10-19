@@ -58,6 +58,11 @@ export interface QueueItem {
     body_text: string;
     needs_user_input: boolean;
   } | null;
+  risk_level?: "low" | "medium" | "high";
+  pack_type?: "mail" | "calendar" | "file" | "doc" | "other";
+  metadata_table?: Record<string, string>;
+  requested_time_ago?: string;
+  action_headline?: string;
 }
 
 export interface QueueDigest {
@@ -122,6 +127,44 @@ export interface LicenceItem {
     last_alarm_at: string | null;
   } | null;
   history: LicenceChangeHistory[];
+  title?: string;
+  action_label?: string;
+  pack_icon?: "mail" | "calendar" | "receipt" | "message" | "file" | "users" | "check" | "tag" | "database";
+  status_category?: "allowed" | "limited" | "restricted";
+  description?: string;
+  scope_description?: string;
+  human_review_description?: string;
+  data_access_description?: string;
+  daily_cap?: number;
+  current_usage?: number;
+  blocked_description?: string;
+  evidence_count?: number;
+  evidence_samples?: Array<{ date: string; summary: string }>;
+  exam_summary?: {
+    tested_at?: string;
+    level_tested?: string;
+    pass_rate?: string;
+    flip_rate?: string;
+    critical_violations?: number;
+  };
+  needs_attention?: boolean;
+}
+
+export interface TaskReportItem {
+  class_key: string;
+  action: string;
+  family?: string;
+  total_evaluated: number;
+  same: number;
+  different: number;
+  would_ask: number;
+  censored: number;
+  accuracy: number | null;
+  needs_attention: boolean;
+  lagging?: boolean;
+  status: "stable" | "needs_attention" | "not_enough_history";
+  title?: string;
+  action_label?: string;
 }
 
 export interface ReportCardResponse {
@@ -135,6 +178,7 @@ export interface ReportCardResponse {
   censored: number;
   accuracy: number | null;
   scope: string;
+  tasks?: TaskReportItem[];
 }
 
 export interface MetricWeek {

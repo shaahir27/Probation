@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400..700;1,6..72,400..700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -10,6 +12,7 @@
   --surface: #192723;
   --surface-raised: #21322D;
   --surface-subtle: #293B34;
+  --surface-recessed: #131F1C;
   --ink: #EDF2EB;
   --ink-secondary: #B7C3B8;
   --ink-tertiary: #91A096;
@@ -54,6 +57,25 @@ body {
 }
 .btn-tactile:active {
   transform: scale(0.97);
+}
+
+.font-serif-heading {
+  font-family: 'Newsreader', Georgia, 'Times New Roman', serif;
+}
+
+.brass-indicator {
+  position: relative;
+}
+.brass-indicator::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 3.5px;
+  background-color: var(--brand);
+  border-top-right-radius: 2px;
+  border-bottom-right-radius: 2px;
 }
 
 /* Custom subtle scrollbar */

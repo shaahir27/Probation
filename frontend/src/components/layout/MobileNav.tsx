@@ -1,4 +1,4 @@
-import { Home, Clock, ArrowUpRight, ShieldCheck, MoreHorizontal } from "lucide-react";
+import { Home, Inbox, Zap, Shield, MoreHorizontal } from "lucide-react";
 
 interface MobileNavProps {
   currentTab: string;
@@ -9,9 +9,9 @@ interface MobileNavProps {
 export function MobileNav({ currentTab, onTabChange, queueCount }: MobileNavProps) {
   const destinations = [
     { id: "home", label: "Home", icon: Home },
-    { id: "queue", label: "Queue", icon: Clock, badge: queueCount > 0 ? queueCount : undefined },
-    { id: "actions", label: "Actions", icon: ArrowUpRight },
-    { id: "permissions", label: "Perms", icon: ShieldCheck },
+    { id: "queue", label: "Queue", icon: Inbox, badge: queueCount > 0 ? queueCount : undefined },
+    { id: "actions", label: "Actions", icon: Zap },
+    { id: "permissions", label: "Perms", icon: Shield },
     { id: "more", label: "More", icon: MoreHorizontal },
   ];
 

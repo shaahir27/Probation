@@ -12,6 +12,7 @@ const config: Config = {
         surface: "var(--surface)",
         surfaceRaised: "var(--surface-raised)",
         surfaceSubtle: "var(--surface-subtle)",
+        surfaceRecessed: "var(--surface-recessed)",
         line: "var(--line)",
         ink: {
           DEFAULT: "var(--ink)",
@@ -31,6 +32,14 @@ const config: Config = {
         },
       },
       fontFamily: {
+        serif: [
+          '"Newsreader"',
+          "Georgia",
+          "Cambria",
+          '"Times New Roman"',
+          "Times",
+          "serif",
+        ],
         sans: [
           "ui-sans-serif",
           "system-ui",

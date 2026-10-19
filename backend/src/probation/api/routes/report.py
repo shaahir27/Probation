@@ -24,25 +24,28 @@ def _get_db() -> sqlite3.Connection:
 
 @router.get("/report-card")
 def get_report_card(
-    family: str = Query(..., description="Decision family (e.g. email_action, calendar_action)"),
+    family: str | None = Query(
+        None, description="Decision family (e.g. email_action, calendar_action)"
+    ),
 ) -> dict[str, Any]:
-    """Retrieve family-scoped backtest summary."""
+    """Retrieve family-scoped or system-wide backtest summary with per-task breakdown."""
     if not settings.db_path.exists():
         return {
-            "family": family,
+            "family": family or "all",
             "same": 0,
             "different": 0,
             "would_ask": 0,
             "censored": 0,
             "accuracy": None,
             "scope": "family_summary",
+            "tasks": [],
         }
 
     conn = _get_db()
     try:
         card = generate_report_card(conn, family=family)
         return {
-            "family": card.get("family", family),
+            "family": card.get("family", family or "all"),
             "as_of": card.get("as_of"),
             "total_proposals": card.get("total_proposals", 0),
             "total_evaluated": card.get("total_evaluated", 0),
@@ -52,6 +55,7 @@ def get_report_card(
             "censored": card.get("censored", 0),
             "accuracy": card.get("accuracy"),
             "scope": "family_summary",
+            "tasks": card.get("tasks", []),
         }
     finally:
         conn.close()

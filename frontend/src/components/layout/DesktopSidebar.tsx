@@ -1,10 +1,11 @@
 import {
   Home,
-  Clock,
-  ArrowUpRight,
-  ShieldCheck,
+  Inbox,
+  Zap,
+  Shield,
   MoreHorizontal,
   Sparkles,
+  Layers,
 } from "lucide-react";
 
 interface DesktopSidebarProps {
@@ -24,9 +25,9 @@ export function DesktopSidebar({
 }: DesktopSidebarProps) {
   const destinations = [
     { id: "home", label: "Home", icon: Home },
-    { id: "queue", label: "Queue", icon: Clock, badge: queueCount > 0 ? queueCount : undefined },
-    { id: "actions", label: "Actions", icon: ArrowUpRight },
-    { id: "permissions", label: "Permissions", icon: ShieldCheck },
+    { id: "queue", label: "Queue", icon: Inbox, badge: queueCount > 0 ? queueCount : undefined },
+    { id: "actions", label: "Actions", icon: Zap },
+    { id: "permissions", label: "Permissions", icon: Shield },
     { id: "more", label: "More", icon: MoreHorizontal },
   ];
 
@@ -34,18 +35,20 @@ export function DesktopSidebar({
     <aside className="w-[232px] h-screen sticky top-0 border-r border-line nav-glass flex flex-col justify-between p-4 z-40 select-none">
       <div>
         {/* Brand Header */}
-        <div className="flex items-center gap-2.5 px-3 py-4 mb-4">
-          <div className="w-8 h-8 rounded-xl bg-brand/15 border border-brand/30 flex items-center justify-center">
-            <ShieldCheck className="w-4 h-4 text-brand" />
+        <div className="flex items-center gap-3 px-3 py-4 mb-3">
+          <div className="w-8 h-8 rounded-lg bg-surfaceSubtle border border-line flex items-center justify-center text-brand">
+            <Layers className="w-4 h-4 text-brand" />
           </div>
           <div>
-            <span className="font-bold text-base tracking-tight text-ink">Probation</span>
+            <span className="font-serif text-xl tracking-tight text-ink font-normal">
+              Probation
+            </span>
             <div className="text-[10px] text-ink-tertiary">Earned Autonomy</div>
           </div>
         </div>
 
         {/* Navigation Links */}
-        <nav className="space-y-1">
+        <nav className="space-y-1.5">
           {destinations.map((dest) => {
             const Icon = dest.icon;
             const active = currentTab === dest.id;
@@ -53,15 +56,15 @@ export function DesktopSidebar({
               <button
                 key={dest.id}
                 onClick={() => onTabChange(dest.id)}
-                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm transition-all ${
                   active
-                    ? "bg-surfaceRaised text-brand font-semibold shadow-sm border border-brand/20"
-                    : "text-ink-secondary hover:text-ink hover:bg-surfaceSubtle"
+                    ? "bg-surfaceRaised text-brand font-medium shadow-sm border border-line/80 brass-indicator"
+                    : "text-ink-secondary hover:text-ink hover:bg-surfaceSubtle border border-transparent"
                 }`}
               >
                 <div className="flex items-center gap-3">
                   <Icon className={`w-4 h-4 ${active ? "text-brand" : "text-ink-tertiary"}`} />
-                  <span>{dest.label}</span>
+                  <span className={active ? "text-brand" : "text-ink"}>{dest.label}</span>
                 </div>
                 {dest.badge !== undefined && (
                   <span className="px-1.5 py-0.5 rounded-full text-[11px] font-bold bg-brand text-brand-on">
