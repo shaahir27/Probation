@@ -6,7 +6,7 @@
 
 # Local database and data directories
 data/
-tests/
+/tests/
 *.db
 *.db-wal
 *.db-shm

@@ -27,6 +27,7 @@ budget_app = typer.Typer(help="Budget inspection.")
 synth_app = typer.Typer(help="Synthetic world generation.")
 import_app = typer.Typer(help="Source data importers.")
 exam_app = typer.Typer(help="Examination board.")
+webfacts_app = typer.Typer(help="Web facts and Tavily vetting operations.")
 
 app.add_typer(db_app, name="db")
 app.add_typer(ledger_app, name="ledger")
@@ -34,6 +35,7 @@ app.add_typer(budget_app, name="budget")
 app.add_typer(synth_app, name="synth")
 app.add_typer(import_app, name="import")
 app.add_typer(exam_app, name="exam")
+app.add_typer(webfacts_app, name="webfacts")
 
 console = Console()
 
@@ -313,6 +315,118 @@ def ingest_cmd() -> None:
             f"[bold green]Ingestion complete.[/] Situations extracted: {sit_count}, "
             f"Features computed: {feat_count}"
         )
+    finally:
+        conn.close()
+
+
+@webfacts_app.command("vet")
+def webfacts_vet(
+    domain: str = typer.Argument(..., help="Domain to vet"),
+    brand: str | None = typer.Option(None, "--brand", "-b", help="Display brand name token"),
+) -> None:
+    """Vet an entity domain and display derived EntityFacts and sources."""
+    from probation.db.connection import apply_schema
+    from probation.workers.webfacts import vet_entity
+
+    conn = get_connection(settings.db_path)
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='web_facts';")
+        if not cur.fetchone():
+            apply_schema(conn)
+
+        console.print(f"[bold cyan]Vetting domain:[/] {domain} (brand: {brand or 'auto'})...")
+        res = vet_entity(conn, domain=domain, brand_token=brand)
+        table = Table(title=f"Entity Facts — {domain}")
+        table.add_column("Property", style="cyan")
+        table.add_column("Value", style="green")
+
+        table.add_row("Status", str(res.get("status")))
+        table.add_row("Origin", str(res.get("origin")))
+        table.add_row("Facts", str(res.get("facts", {})))
+        sources = res.get("sources", [])
+        table.add_row("Sources Count", str(len(sources)))
+        for idx, src in enumerate(sources, 1):
+            table.add_row(f"Source {idx}", f"{src.get('title')} -> {src.get('url')}")
+
+        console.print(table)
+    finally:
+        conn.close()
+
+
+@webfacts_app.command("audit")
+def webfacts_audit() -> None:
+    """Display recorded Tavily calls and credit consumption."""
+    from probation.db.connection import apply_schema
+
+    conn = get_connection(settings.db_path)
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='tavily_calls';")
+        if not cur.fetchone():
+            apply_schema(conn)
+
+        cur.execute(
+            """
+            SELECT COUNT(*) AS total_calls, COALESCE(SUM(credits), 0) AS total_credits
+            FROM tavily_calls;
+            """
+        )
+        row = cur.fetchone()
+        total_calls = row[0] if row else 0
+        total_credits = float(row[1]) if row else 0.0
+
+        cur.execute(
+            """
+            SELECT id, endpoint, purpose, query_text, credits, ok, latency_ms, created_at
+            FROM tavily_calls
+            ORDER BY created_at DESC LIMIT 20;
+            """
+        )
+        rows = cur.fetchall()
+
+        table = Table(
+            title=f"Tavily Call Audit (Total Calls: {total_calls}, Total Credits: {total_credits:.1f})"
+        )
+        table.add_column("Created At", style="cyan")
+        table.add_column("Endpoint", style="magenta")
+        table.add_column("Purpose", style="blue")
+        table.add_column("Query / URL", style="yellow")
+        table.add_column("Credits", justify="right")
+        table.add_column("OK", justify="center")
+        table.add_column("Latency (ms)", justify="right")
+
+        for r in rows:
+            table.add_row(
+                str(r["created_at"]),
+                str(r["endpoint"]),
+                str(r["purpose"]),
+                str(r["query_text"]),
+                f"{float(r['credits']):.1f}",
+                "[green]YES[/]" if r["ok"] else "[red]NO[/]",
+                str(r["latency_ms"] or 0),
+            )
+
+        console.print(table)
+    finally:
+        conn.close()
+
+
+@webfacts_app.command("load-fixtures")
+def webfacts_load_fixtures() -> None:
+    """Load recorded entity facts fixtures into web_facts table."""
+    from probation.db.connection import apply_schema
+    from probation.web.fixtures import load_web_facts_fixtures
+
+    conn = get_connection(settings.db_path)
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='web_facts';")
+        if not cur.fetchone():
+            apply_schema(conn)
+
+        count = load_web_facts_fixtures(conn)
+        console.print(f"[bold green]Loaded {count} entity facts fixtures into web_facts table.[/]")
     finally:
         conn.close()
 

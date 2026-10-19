@@ -33,6 +33,7 @@ from probation.engine.policy import Policy
 from probation.engine.report import generate_report_card
 from probation.packs.base import ExecutorIO, WorldView
 from probation.packs.registry import registry
+from probation.web.view import WebFactsView
 from probation.workers.brain import extract_features_for_situations
 from probation.workers.executor import Executor
 from probation.workers.resolver import resolve_outcomes
@@ -224,6 +225,7 @@ def run_replay(
     brain_access = RoleAccess(conn, Role.BRAIN)
     executor_io: ExecutorIO | None = world if isinstance(world, ExecutorIO) else None
     executor = Executor(conn, world=executor_io)
+    web_view = WebFactsView(conn)
 
     # 7. Execute replay loop
     for ev in timeline:
@@ -421,6 +423,26 @@ def run_replay(
                 cap = 0
                 feat_obj = None
 
+            # Web grounding veto (docs/TAVILY_AND_NEW_PACKS 5.6 and CONTRACT I-21)
+            sender_domain = sit.sender_key.split("@")[-1].strip().lower() if sit.sender_key else ""
+            web_facts = web_view.get_entity_facts(sender_domain)
+            if web_facts:
+                web_status = web_facts.status
+                web_cap = web_facts.web_cap
+                web_sources = [
+                    s.get("url", "") if isinstance(s, dict) else str(s) for s in web_facts.sources
+                ]
+                if web_cap == 1:
+                    cap = min(cap, web_cap)
+                    reasons.extend(web_facts.reasons)
+                web_dict = {
+                    "status": web_status,
+                    "cap": web_cap,
+                    "source_ids": web_sources,
+                }
+            else:
+                web_dict = {"status": "not_checked", "cap": 3, "source_ids": []}
+
             # Record baselines
             b0_act = b0_baselines[fam].predict()
             b0_predictions[sit.id] = b0_act
@@ -531,7 +553,7 @@ def run_replay(
                     canonical_json(reasons),
                     "{}",
                     "{}",
-                    "{}",
+                    canonical_json(web_dict),
                     policies[fam].policy_version,
                     features_hash,
                     audit_holdout,

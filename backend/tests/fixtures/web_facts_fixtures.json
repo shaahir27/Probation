@@ -1,0 +1,217 @@
+{
+  "entities": [
+    {
+      "entity_key": "google.com",
+      "status": "confirmed_official",
+      "origin": "local_brand_list",
+      "facts": {
+        "official_candidates": ["google.com"],
+        "lookalike_of": null,
+        "report_hits": 0,
+        "domain_in_results": true
+      },
+      "sources": [
+        {
+          "title": "Verified Brand Registry: google",
+          "url": "https://google.com"
+        }
+      ]
+    },
+    {
+      "entity_key": "github.com",
+      "status": "confirmed_official",
+      "origin": "local_brand_list",
+      "facts": {
+        "official_candidates": ["github.com"],
+        "lookalike_of": null,
+        "report_hits": 0,
+        "domain_in_results": true
+      },
+      "sources": [
+        {
+          "title": "Verified Brand Registry: github",
+          "url": "https://github.com"
+        }
+      ]
+    },
+    {
+      "entity_key": "g00gle.com",
+      "status": "lookalike",
+      "origin": "tavily",
+      "facts": {
+        "official_candidates": ["google.com"],
+        "lookalike_of": "google.com",
+        "report_hits": 0,
+        "domain_in_results": false
+      },
+      "sources": [
+        {
+          "title": "Google Official Search",
+          "url": "https://google.com"
+        }
+      ]
+    },
+    {
+      "entity_key": "m1crosoft.com",
+      "status": "lookalike",
+      "origin": "tavily",
+      "facts": {
+        "official_candidates": ["microsoft.com"],
+        "lookalike_of": "microsoft.com",
+        "report_hits": 0,
+        "domain_in_results": false
+      },
+      "sources": [
+        {
+          "title": "Microsoft Official Site",
+          "url": "https://microsoft.com"
+        }
+      ]
+    },
+    {
+      "entity_key": "paypal-secure-login.com",
+      "status": "lookalike",
+      "origin": "tavily",
+      "facts": {
+        "official_candidates": ["paypal.com"],
+        "lookalike_of": "paypal.com",
+        "report_hits": 0,
+        "domain_in_results": false
+      },
+      "sources": [
+        {
+          "title": "PayPal Official Home",
+          "url": "https://paypal.com"
+        }
+      ]
+    },
+    {
+      "entity_key": "fake-jobs-portal.example",
+      "status": "reports_found",
+      "origin": "tavily",
+      "facts": {
+        "official_candidates": [],
+        "lookalike_of": null,
+        "report_hits": 3,
+        "domain_in_results": true
+      },
+      "sources": [
+        {
+          "title": "Warning: fake-jobs-portal.example phishing and scam reports",
+          "url": "https://cybercrime-alert.org/reports/fake-jobs-portal"
+        },
+        {
+          "title": "User complaints regarding fake-jobs-portal.example fraud",
+          "url": "https://consumer-forum.example/thread/1092"
+        }
+      ]
+    },
+    {
+      "entity_key": "unknown-ghost-corp.example",
+      "status": "no_web_presence",
+      "origin": "tavily",
+      "facts": {
+        "official_candidates": [],
+        "lookalike_of": null,
+        "report_hits": 0,
+        "domain_in_results": false
+      },
+      "sources": []
+    },
+    {
+      "entity_key": "iitm.ac.in",
+      "status": "confirmed_official",
+      "origin": "tavily",
+      "facts": {
+        "official_candidates": ["iitm.ac.in"],
+        "lookalike_of": null,
+        "report_hits": 0,
+        "domain_in_results": true
+      },
+      "sources": [
+        {
+          "title": "Indian Institute of Technology Madras - Official Portal",
+          "url": "https://iitm.ac.in"
+        }
+      ]
+    },
+    {
+      "entity_key": "corner-bakery-chennai.example",
+      "status": "unverified",
+      "origin": "tavily",
+      "facts": {
+        "official_candidates": [],
+        "lookalike_of": null,
+        "report_hits": 0,
+        "domain_in_results": true
+      },
+      "sources": [
+        {
+          "title": "Local business listings mentioning corner-bakery-chennai.example",
+          "url": "https://yellowpages.example/entry/102"
+        }
+      ]
+    }
+  ],
+  "mock_searches": {
+    "google official website": {
+      "status": "ok",
+      "results": [
+        {
+          "title": "Google",
+          "url": "https://www.google.com",
+          "content": "Search the world's information, including webpages, images, videos and more."
+        }
+      ]
+    },
+    "iitm official website": {
+      "status": "ok",
+      "results": [
+        {
+          "title": "IIT Madras",
+          "url": "https://www.iitm.ac.in",
+          "content": "Indian Institute of Technology Madras is a public technical university located in Chennai, Tamil Nadu, India."
+        }
+      ]
+    },
+    "g00gle official website": {
+      "status": "ok",
+      "results": [
+        {
+          "title": "Google",
+          "url": "https://www.google.com",
+          "content": "Did you mean google.com? Search the world's information."
+        }
+      ]
+    },
+    "fake-jobs-portal.example official website": {
+      "status": "ok",
+      "results": [
+        {
+          "title": "Fake Jobs Portal Home",
+          "url": "https://fake-jobs-portal.example",
+          "content": "Registration portal for campus placement offers."
+        }
+      ]
+    },
+    "\"fake-jobs-portal.example\" scam OR fake OR phishing OR complaint": {
+      "status": "ok",
+      "results": [
+        {
+          "title": "Fake jobs portal scam and phishing alert",
+          "url": "https://cybercrime-alert.org/reports/fake-jobs-portal",
+          "content": "Users report fake-jobs-portal.example is a scam asking for money via UPI."
+        },
+        {
+          "title": "Complaint about fake-jobs-portal.example",
+          "url": "https://consumer-forum.example/thread/1092",
+          "content": "Beware of fake-jobs-portal.example fraud and fake internship offer letters."
+        }
+      ]
+    },
+    "unknown-ghost-corp.example official website": {
+      "status": "ok",
+      "results": []
+    }
+  }
+}
