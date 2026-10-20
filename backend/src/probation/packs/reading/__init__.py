@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 from typing import Any
 from urllib.parse import urlparse
 
-import publicsuffix2  # type: ignore[import-untyped]
+import publicsuffix2
 
 from probation.config import settings
 from probation.core.hashing import det_id

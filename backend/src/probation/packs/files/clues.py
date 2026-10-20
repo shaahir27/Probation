@@ -12,7 +12,7 @@ from typing import Any
 from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
 
-import publicsuffix2  # type: ignore[import-untyped]
+import publicsuffix2
 
 from probation.config import settings
 from probation.core.history import HistoryView

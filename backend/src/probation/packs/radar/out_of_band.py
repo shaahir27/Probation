@@ -15,7 +15,7 @@ import sqlite3
 from typing import Any
 from urllib.parse import urlparse
 
-import publicsuffix2  # type: ignore[import-untyped]
+import publicsuffix2
 
 from probation.links.extract import extract_url_content
 from probation.links.quarantine import validate_opportunity_fields
