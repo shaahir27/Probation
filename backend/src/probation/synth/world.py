@@ -62,6 +62,34 @@ CREATE TABLE IF NOT EXISTS tasks (
     status TEXT NOT NULL DEFAULT 'TODO',
     created_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS tracker (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    organizer TEXT NOT NULL,
+    opp_type TEXT NOT NULL DEFAULT 'other',
+    deadline_date TEXT,
+    official_url TEXT,
+    status TEXT NOT NULL DEFAULT 'TRACKED',
+    fee_flag INTEGER NOT NULL DEFAULT 0,
+    sources_json TEXT NOT NULL DEFAULT '[]',
+    details_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_tracker_status ON tracker(status);
+
+CREATE TABLE IF NOT EXISTS library (
+    id TEXT PRIMARY KEY,
+    url TEXT UNIQUE NOT NULL,
+    title TEXT,
+    collection TEXT NOT NULL DEFAULT 'inbox',
+    topic TEXT,
+    content_type TEXT,
+    saved_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_library_col ON library(collection);
 """
 
 
@@ -307,4 +335,156 @@ class SimWorld:
     def delete_task(self, task_id: str) -> None:
         """Delete task by ID."""
         self.conn.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
+        self.conn.commit()
+
+    # --- Opportunity Radar Tracker Operations ---
+
+    def add_tracker_entry(
+        self,
+        entry_id: str,
+        title: str,
+        organizer: str,
+        opp_type: str = "other",
+        deadline_date: str | None = None,
+        official_url: str | None = None,
+        status: str = "TRACKED",
+        fee_flag: bool = False,
+        sources: list[dict[str, Any]] | None = None,
+        details: dict[str, Any] | None = None,
+        created_at: str | None = None,
+    ) -> None:
+        """Insert or replace an opportunity in the Radar tracker."""
+        now_iso = created_at or "2026-10-20T12:00:00Z"
+        sources_json = json.dumps(sources or [])
+        details_json = json.dumps(details or {})
+        self.conn.execute(
+            """
+            INSERT OR REPLACE INTO tracker
+            (id, title, organizer, opp_type, deadline_date, official_url, status, fee_flag, sources_json, details_json, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                entry_id,
+                title,
+                organizer,
+                opp_type,
+                deadline_date,
+                official_url,
+                status,
+                1 if fee_flag else 0,
+                sources_json,
+                details_json,
+                now_iso,
+                now_iso,
+            ),
+        )
+        self.conn.commit()
+
+    def get_tracker_entries(self, status: str | None = None) -> list[dict[str, Any]]:
+        """Retrieve all tracker entries, optionally filtering by status."""
+        cur = self.conn.cursor()
+        if status is not None:
+            cur.execute(
+                "SELECT * FROM tracker WHERE status = ? ORDER BY updated_at DESC", (status,)
+            )
+        else:
+            cur.execute("SELECT * FROM tracker ORDER BY updated_at DESC")
+        results: list[dict[str, Any]] = []
+        for r in cur.fetchall():
+            d = dict(r)
+            try:
+                d["sources"] = json.loads(d["sources_json"])
+            except Exception:
+                d["sources"] = []
+            try:
+                d["details"] = json.loads(d["details_json"])
+            except Exception:
+                d["details"] = {}
+            results.append(d)
+        return results
+
+    def get_tracker_entry(self, entry_id: str) -> dict[str, Any] | None:
+        """Retrieve single tracker entry by ID."""
+        cur = self.conn.cursor()
+        cur.execute("SELECT * FROM tracker WHERE id = ?", (entry_id,))
+        row = cur.fetchone()
+        if not row:
+            return None
+        d = dict(row)
+        try:
+            d["sources"] = json.loads(d["sources_json"])
+        except Exception:
+            d["sources"] = []
+        try:
+            d["details"] = json.loads(d["details_json"])
+        except Exception:
+            d["details"] = {}
+        return d
+
+    def update_tracker_status(self, entry_id: str, status: str) -> None:
+        """Update tracker entry status (e.g. DISMISSED, TRACKED, APPLIED)."""
+        self.conn.execute(
+            "UPDATE tracker SET status = ? WHERE id = ?",
+            (status, entry_id),
+        )
+        self.conn.commit()
+
+    def delete_tracker_entry(self, entry_id: str) -> None:
+        """Delete tracker entry by ID (used for undo)."""
+        self.conn.execute("DELETE FROM tracker WHERE id = ?", (entry_id,))
+        self.conn.commit()
+
+    # --- Reading Triage Library Operations ---
+
+    def add_library_entry(
+        self,
+        entry_id: str,
+        url: str,
+        title: str = "",
+        collection: str = "inbox",
+        topic: str = "other",
+        content_type: str = "article",
+        saved_at: str | None = None,
+    ) -> None:
+        """Insert or replace a saved link in the Reading library."""
+        now_iso = saved_at or "2026-10-20T12:00:00Z"
+        self.conn.execute(
+            """
+            INSERT OR REPLACE INTO library
+            (id, url, title, collection, topic, content_type, saved_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (entry_id, url, title, collection, topic, content_type, now_iso, now_iso),
+        )
+        self.conn.commit()
+
+    def get_library_entries(self, collection: str | None = None) -> list[dict[str, Any]]:
+        """Retrieve library entries, optionally filtering by collection."""
+        cur = self.conn.cursor()
+        if collection is not None:
+            cur.execute(
+                "SELECT * FROM library WHERE collection = ? ORDER BY updated_at DESC", (collection,)
+            )
+        else:
+            cur.execute("SELECT * FROM library ORDER BY updated_at DESC")
+        return [dict(r) for r in cur.fetchall()]
+
+    def get_library_entry(self, url: str) -> dict[str, Any] | None:
+        """Retrieve single library entry by URL."""
+        cur = self.conn.cursor()
+        cur.execute("SELECT * FROM library WHERE url = ?", (url,))
+        row = cur.fetchone()
+        return dict(row) if row else None
+
+    def update_library_collection(self, url: str, collection: str) -> None:
+        """Update collection category for a saved link."""
+        self.conn.execute(
+            "UPDATE library SET collection = ? WHERE url = ?",
+            (collection, url),
+        )
+        self.conn.commit()
+
+    def delete_library_entry(self, url: str) -> None:
+        """Delete library entry by URL."""
+        self.conn.execute("DELETE FROM library WHERE url = ?", (url,))
         self.conn.commit()

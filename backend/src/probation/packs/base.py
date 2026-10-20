@@ -40,6 +40,26 @@ class WorldView(Protocol):
         """Retrieve single calendar event by UID."""
         ...
 
+    def get_files(self) -> list[dict[str, Any]]:
+        """Retrieve simulated file records."""
+        ...
+
+    def get_tracker_entries(self, status: str | None = None) -> list[dict[str, Any]]:
+        """Retrieve simulated opportunity tracker entries."""
+        ...
+
+    def get_tracker_entry(self, entry_id: str) -> dict[str, Any] | None:
+        """Retrieve single tracker entry by ID."""
+        ...
+
+    def get_library_entries(self, collection: str | None = None) -> list[dict[str, Any]]:
+        """Retrieve simulated reading library entries."""
+        ...
+
+    def get_library_entry(self, url: str) -> dict[str, Any] | None:
+        """Retrieve single library entry by URL."""
+        ...
+
 
 @runtime_checkable
 class ExecutorIO(Protocol):
@@ -93,6 +113,74 @@ class ExecutorIO(Protocol):
 
     def delete_event(self, uid: str) -> None:
         """Delete an event (e.g. for undoing BLOCK_TIME)."""
+        ...
+
+    def add_file(
+        self,
+        file_id: str,
+        path: str,
+        filename: str,
+        ext: str,
+        size_bytes: int,
+        origin_url: str,
+        downloaded_at: str,
+        sha256: str,
+    ) -> None:
+        """Add or update file record."""
+        ...
+
+    def add_tracker_entry(
+        self,
+        entry_id: str,
+        title: str,
+        organizer: str,
+        opp_type: str = "other",
+        deadline_date: str | None = None,
+        official_url: str | None = None,
+        status: str = "TRACKED",
+        fee_flag: bool = False,
+        sources: list[dict[str, Any]] | None = None,
+        details: dict[str, Any] | None = None,
+        created_at: str | None = None,
+    ) -> None:
+        """Add opportunity to tracker."""
+        ...
+
+    def update_tracker_status(self, entry_id: str, status: str) -> None:
+        """Update status of tracker entry."""
+        ...
+
+    def delete_tracker_entry(self, entry_id: str) -> None:
+        """Delete opportunity from tracker."""
+        ...
+
+    def get_tracker_entry(self, entry_id: str) -> dict[str, Any] | None:
+        """Retrieve single tracker entry by ID."""
+        ...
+
+    def add_library_entry(
+        self,
+        entry_id: str,
+        url: str,
+        title: str = "",
+        collection: str = "inbox",
+        topic: str = "other",
+        content_type: str = "article",
+        saved_at: str | None = None,
+    ) -> None:
+        """Add link to library."""
+        ...
+
+    def update_library_collection(self, url: str, collection: str) -> None:
+        """Update collection category for a saved link."""
+        ...
+
+    def get_library_entry(self, url: str) -> dict[str, Any] | None:
+        """Retrieve single library entry by URL."""
+        ...
+
+    def delete_library_entry(self, url: str) -> None:
+        """Delete link from library."""
         ...
 
 

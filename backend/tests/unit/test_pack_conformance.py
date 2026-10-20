@@ -36,11 +36,17 @@ from probation.synth.world import SimWorld
 
 def test_t_pack_action_catalogs() -> None:
     """T-PACK Check 3: Every action in action_catalog() has type, recall flag, base cap, and loss."""
-    packs_to_test: list[PackAdapter] = [registry.get("mail"), registry.get("calendar")]
+    packs_to_test: list[PackAdapter] = [
+        registry.get("mail"),
+        registry.get("calendar"),
+        registry.get("files"),
+        registry.get("radar"),
+        registry.get("reading"),
+    ]
 
     for pack in packs_to_test:
         catalog = pack.action_catalog()
-        assert len(catalog) >= 3, f"Pack {pack.name} catalog too small."
+        assert len(catalog) >= 2, f"Pack {pack.name} catalog too small."
         action_types = set()
         for spec in catalog:
             assert spec.type, f"Action in pack {pack.name} missing type."
@@ -53,6 +59,12 @@ def test_t_pack_action_catalogs() -> None:
             assert {"REPLY", "FORWARD", "TRASH", "ARCHIVE", "LEAVE"}.issubset(action_types)
         elif pack.name == "calendar":
             assert {"ACCEPT", "DECLINE", "TENTATIVE", "NO_RESPONSE"}.issubset(action_types)
+        elif pack.name == "files":
+            assert {"MOVE_TO_FOLDER", "LEAVE"}.issubset(action_types)
+        elif pack.name == "radar":
+            assert {"TRACK", "DISMISS", "LEAVE"}.issubset(action_types)
+        elif pack.name == "reading":
+            assert {"FILE_TO_COLLECTION", "ARCHIVE_LINK", "LEAVE"}.issubset(action_types)
 
 
 def test_t_pack_situations_determinism_and_idempotency() -> None:

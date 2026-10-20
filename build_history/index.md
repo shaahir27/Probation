@@ -26,6 +26,8 @@ Governed by [`docs/BUILD_LOGGING_PROTOCOL.md`](file:///d:/Desktop/project/Probat
 | Executor Worker, Hold Queue, Licence Re-check, and Undo | Phase 5 | [feature_executor_worker_and_simworld.md](phase_05_evidence_licences_gate_drift/feature_executor_worker_and_simworld.md) | Built | 2026-10-16 |
 | Statistical Drift Monitoring (CUSUM) and Family Shift (PSI) | Phase 5 | [feature_statistical_drift_cusum_psi.md](phase_05_evidence_licences_gate_drift/feature_statistical_drift_cusum_psi.md) | Built | 2026-10-16 |
 | Phase 5 Engine Summary | Phase 5 | [phase_05_summary.md](phase_05_evidence_licences_gate_drift/phase_05_summary.md) | Built | 2026-10-16 |
+| Files Pack Adapter, Clues & Resolver | Phase 6 | [feature_files_pack.md](phase_06_files_pack/feature_files_pack.md) | Built | 2026-10-20 |
+| Phase 6 Files Pack Summary | Phase 6 | [phase_06_summary.md](phase_06_files_pack/phase_06_summary.md) | Built | 2026-10-20 |
 | Entity Facts Service and Tavily Vetting | Phase 6b | [feature_entity_facts_and_tavily_vetting.md](phase_06b_entity_facts_tavily/feature_entity_facts_and_tavily_vetting.md) | Built | 2026-10-19 |
 | Phase 6b Entity Facts Summary | Phase 6b | [phase_06b_summary.md](phase_06b_entity_facts_tavily/phase_06b_summary.md) | Built | 2026-10-19 |
 | Exam Operators and Validators | Phase 7 | [feature_exam_operators_and_validators.md](phase_07_exam_board/feature_exam_operators_and_validators.md) | Built | 2026-10-19 |
@@ -34,6 +36,10 @@ Governed by [`docs/BUILD_LOGGING_PROTOCOL.md`](file:///d:/Desktop/project/Probat
 | Habit Pattern Mining & Wording Validation | Phase 8 | [feature_habit_mining_and_wording.md](phase_08_chains_habits/feature_habit_mining_and_wording.md) | Built | 2026-10-20 |
 | Action Chains Mining & Execution | Phase 8 | [feature_chains_mining_and_execution.md](phase_08_chains_habits/feature_chains_mining_and_execution.md) | Built | 2026-10-20 |
 | Phase 8 Summary: Chains and Habits | Phase 8 | [phase_08_summary.md](phase_08_chains_habits/phase_08_summary.md) | Built | 2026-10-20 |
+| Link Substrate & Quarantine Extractor | Phase 8b | [feature_links_quarantine.md](phase_08b_radar_reading_triage/feature_links_quarantine.md) | Built | 2026-10-20 |
+| Opportunity Radar Pack & Out-of-Band Vetting | Phase 8b | [feature_opportunity_radar.md](phase_08b_radar_reading_triage/feature_opportunity_radar.md) | Built | 2026-10-20 |
+| Reading Triage Pack | Phase 8b | [feature_reading_triage.md](phase_08b_radar_reading_triage/feature_reading_triage.md) | Built | 2026-10-20 |
+| Phase 8b Summary: Radar & Reading Triage | Phase 8b | [phase_08b_summary.md](phase_08b_radar_reading_triage/phase_08b_summary.md) | Built | 2026-10-20 |
 | API Endpoints and Responsive Dashboard | Phase 9 | [feature_api_and_dashboard.md](phase_09_api_dashboard/feature_api_and_dashboard.md) | Built | 2026-10-18 |
 
 

@@ -52,6 +52,17 @@ class Settings(BaseSettings):
     files_watch_dirs: str = "data/synth/1/fs/Downloads,data/synth/1/fs/Desktop"
     files_allowed_roots: str = "data/synth/1/fs"
     files_reader_enabled: bool = False
+    outcome_window_file_days: int = 14
+
+    # --- Phase 8b: Radar & Reading Packs & Link Substrate ---
+    radar_window_days: int = 14
+    radar_min_window_days: int = 2
+    reading_window_days: int = 14
+    quarantine_max_input_chars: int = 6000
+    extract_ttl_days: int = 30
+    undo_days: int = 7
+    lookalike_max_edit_distance: int = 2
+    report_hits_min: int = 2
 
     # --- Engine Tunables (ENGINE_SPEC section 12) ---
     audit_fraction: float = 0.10

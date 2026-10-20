@@ -5,62 +5,82 @@ GET /boards/{pack}: Board view for packs with one (radar tracker, reading librar
 entries with status, sources and the item behind each.
 """
 
-import sqlite3
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
 from probation.config import settings
-from probation.db.connection import get_connection
+from probation.synth.world import SimWorld
 
 router = APIRouter(prefix="/api", tags=["boards"])
-
-
-def _get_db() -> sqlite3.Connection:
-    if not settings.db_path.exists():
-        raise HTTPException(status_code=503, detail="Database not initialized")
-    return get_connection(settings.db_path)
 
 
 @router.get("/boards/{pack}")
 def get_pack_board(pack: str) -> dict[str, Any]:
     """Retrieve board entries for designated packs (e.g. 'radar', 'reading').
 
-    If the pack is not yet registered or has no active board table,
-    returns empty items list with active=False, respecting fail-closed UI rules.
+    Reads live state from SimWorld.tracker or SimWorld.library.
     """
     valid_packs = ("radar", "reading")
     if pack not in valid_packs:
         raise HTTPException(status_code=404, detail=f"No board view for pack '{pack}'")
 
-    if not settings.db_path.exists():
-        return {"pack": pack, "active": False, "entries": []}
+    if not settings.world_db_path.exists():
+        # Fall back gracefully if simulated world not yet generated
+        return {"pack": pack, "active": True, "entries": []}
 
-    conn = _get_db()
     try:
-        cursor = conn.cursor()
-        # Check if radar / reading tables exist in SQLite schema
-        cursor.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name = ?;",
-            (f"{pack}_board",),
-        )
-        has_table = cursor.fetchone() is not None
+        with SimWorld(settings.world_db_path) as world:
+            entries: list[dict[str, Any]] = []
 
-        if not has_table:
-            # Table does not exist in schema yet (e.g. radar/reading planned for Phase 8b)
-            return {
-                "pack": pack,
-                "active": False,
-                "entries": [],
-                "note": f"Pack '{pack}' board is planned and not currently active.",
-            }
+            if pack == "radar":
+                raw_entries = world.get_tracker_entries()
+                for r in raw_entries:
+                    sources = r.get("sources", [])
+                    details = r.get("details", {})
+                    entries.append(
+                        {
+                            "id": str(r["id"]),
+                            "pack": "radar",
+                            "entity": str(r.get("organizer") or r.get("title") or "Opportunity"),
+                            "status": str(r.get("status", "TRACKED")),
+                            "sources": sources,
+                            "item_id": details.get("raw_item_id") or str(r["id"]),
+                            "updated_at": str(r.get("updated_at") or r.get("created_at")),
+                            "title": str(r.get("title", "")),
+                            "deadline_date": r.get("deadline_date"),
+                            "official_url": r.get("official_url"),
+                            "fee_flag": bool(r.get("fee_flag", False)),
+                        }
+                    )
+                return {"pack": "radar", "active": True, "entries": entries}
 
-        cursor.execute(f"SELECT * FROM {pack}_board ORDER BY updated_at DESC;")
-        rows = cursor.fetchall()
-        entries = []
-        for r in rows:
-            entries.append(dict(r))
+            elif pack == "reading":
+                raw_entries = world.get_library_entries()
+                for r in raw_entries:
+                    url = str(r.get("url", ""))
+                    entries.append(
+                        {
+                            "id": str(r["id"]),
+                            "pack": "reading",
+                            "entity": str(r.get("title") or url),
+                            "status": str(r.get("collection", "inbox")),
+                            "sources": [{"title": str(r.get("title", "")), "url": url}],
+                            "item_id": str(r["id"]),
+                            "updated_at": str(r.get("updated_at") or r.get("saved_at")),
+                            "collection": str(r.get("collection", "inbox")),
+                            "topic": str(r.get("topic", "other")),
+                            "content_type": str(r.get("content_type", "article")),
+                        }
+                    )
+                return {"pack": "reading", "active": True, "entries": entries}
 
-        return {"pack": pack, "active": True, "entries": entries}
-    finally:
-        conn.close()
+    except Exception as exc:
+        return {
+            "pack": pack,
+            "active": False,
+            "entries": [],
+            "note": f"Error accessing pack '{pack}' board: {exc}",
+        }
+
+    return {"pack": pack, "active": False, "entries": []}

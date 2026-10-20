@@ -276,11 +276,16 @@ def test_boards_endpoint(tmp_path: Path) -> None:
     _seed_sample_db(test_db)
 
     with patch.object(settings, "db_path", test_db):
-        # Radar board returns active=False cleanly when pack not yet registered in Phase 8b
+        # In Phase 8b, radar board is registered and active
         res = client.get("/api/boards/radar")
         assert res.status_code == 200
         assert res.json()["pack"] == "radar"
-        assert res.json()["active"] is False
+        assert res.json()["active"] is True
+        assert "entries" in res.json()
+
+        # Unregistered board returns 404 cleanly
+        res_unknown = client.get("/api/boards/unknown_domain")
+        assert res_unknown.status_code == 404
 
 
 def test_webfacts_recorded_activity(tmp_path: Path) -> None:

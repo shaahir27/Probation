@@ -57,8 +57,14 @@ registry = PackRegistry()
 # Auto-register core packs
 from probation.packs.calendar import calendar_pack  # noqa: E402
 from probation.packs.chains import chains_pack  # noqa: E402
+from probation.packs.files import files_pack  # noqa: E402
 from probation.packs.mail import mail_pack  # noqa: E402
+from probation.packs.radar import radar_pack  # noqa: E402
+from probation.packs.reading import reading_pack  # noqa: E402
 
 registry.register(mail_pack)
 registry.register(calendar_pack)
 registry.register(chains_pack)
+registry.register(files_pack)
+registry.register(radar_pack)
+registry.register(reading_pack)

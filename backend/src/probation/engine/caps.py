@@ -109,6 +109,11 @@ def get_conditional_cap(
     if web_cap is not None:
         caps.append(web_cap)
 
+    # 4. Radar conditional caps (ENGINE_SPEC section 8.1)
+    if family == "opportunity_triage":
+        if money_involved or asks_for_personal_info:
+            caps.append(1)
+
     return min(caps)
 
 
