@@ -33,7 +33,12 @@ class DummyInvalidPack:
         return []
 
     def reader_spec(self) -> ReaderSpec:
-        return ReaderSpec(model="test", system_prompt="", output_schema={})
+        return ReaderSpec(
+            prompt_id="test",
+            prompt_version="v1",
+            json_schema={},
+            redaction_profile="standard",
+        )
 
 
 def test_registry_lookups() -> None:
@@ -80,7 +85,7 @@ def test_registry_validation_failures() -> None:
     # Invalid action cap (> 3)
     valid_name_pack.families = ["test_fam"]
     valid_name_pack.action_catalog.return_value = [
-        ActionSpec(type="OP", family="test_fam", base_cap=5, loss=1.0, recallable=True)
+        ActionSpec(type="OP", base_cap=5, loss=1.0, recallable=True)
     ]
     with pytest.raises(ValueError, match="invalid cap"):
         validate_pack(valid_name_pack)

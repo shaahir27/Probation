@@ -44,6 +44,9 @@ Governed by [`docs/BUILD_LOGGING_PROTOCOL.md`](file:///d:/Desktop/project/Probat
 | API Endpoints and Responsive Dashboard | Phase 9 | [feature_api_and_dashboard.md](phase_09_api_dashboard/feature_api_and_dashboard.md) | Built | 2026-10-18 |
 | Phase 2 Remediation: P1 Invariants, Clock Uniformity, Proposal Immutability, and Explicit User Identity | Phase 2 | [feature_phase2_p1_invariants_and_clock.md](phase_02_synth_world_importers/feature_phase2_p1_invariants_and_clock.md) | Built | 2026-10-20 |
 | Phase 3 Remediation: Frontend Production Build, Hygiene, and Performance Optimization | Phase 9 | [feature_phase3_frontend_hygiene_perf.md](phase_09_api_dashboard/feature_phase3_frontend_hygiene_perf.md) | Built | 2026-10-20 |
+| Evaluation Metrics and Comparison Baselines (B0-B3) | Phase 10 | [feature_eval_metrics_and_baselines.md](phase_10_evaluation/feature_eval_metrics_and_baselines.md) | Built | 2026-10-20 |
+| Evaluation Runner Orchestrator, CLI & Benchmark Artifacts | Phase 10 | [feature_eval_runner_and_benchmarks.md](phase_10_evaluation/feature_eval_runner_and_benchmarks.md) | Built | 2026-10-20 |
+| Phase 10 Summary: Evaluation & Benchmarks | Phase 10 | [phase_10_summary.md](phase_10_evaluation/phase_10_summary.md) | Built | 2026-10-20 |
 
 
 ---

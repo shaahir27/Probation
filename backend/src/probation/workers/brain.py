@@ -100,11 +100,11 @@ def extract_features_for_situations(
                 else None
             )
             if rs is not None:
-                prompt_id = rs.prompt_id
-                prompt_version = rs.prompt_version
+                prompt_id = str(rs.prompt_id)
+                prompt_version = str(rs.prompt_version)
                 model_id = settings.model_reader
-                cache_parts = {
-                    "content_hash": sit.content_hash,
+                cache_parts: dict[str, str] = {
+                    "content_hash": str(sit.content_hash),
                     "prompt_id": prompt_id,
                     "prompt_version": prompt_version,
                 }
