@@ -56,7 +56,9 @@ registry = PackRegistry()
 
 # Auto-register core packs
 from probation.packs.calendar import calendar_pack  # noqa: E402
+from probation.packs.chains import chains_pack  # noqa: E402
 from probation.packs.mail import mail_pack  # noqa: E402
 
 registry.register(mail_pack)
 registry.register(calendar_pack)
+registry.register(chains_pack)

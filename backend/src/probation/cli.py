@@ -28,6 +28,8 @@ synth_app = typer.Typer(help="Synthetic world generation.")
 import_app = typer.Typer(help="Source data importers.")
 exam_app = typer.Typer(help="Examination board.")
 webfacts_app = typer.Typer(help="Web facts and Tavily vetting operations.")
+habits_app = typer.Typer(help="Habit mining operations.")
+chains_app = typer.Typer(help="Chain sequence mining operations.")
 
 app.add_typer(db_app, name="db")
 app.add_typer(ledger_app, name="ledger")
@@ -36,6 +38,8 @@ app.add_typer(synth_app, name="synth")
 app.add_typer(import_app, name="import")
 app.add_typer(exam_app, name="exam")
 app.add_typer(webfacts_app, name="webfacts")
+app.add_typer(habits_app, name="habits")
+app.add_typer(chains_app, name="chains")
 
 console = Console()
 
@@ -523,6 +527,78 @@ def webfacts_load_fixtures() -> None:
 
         count = load_web_facts_fixtures(conn)
         console.print(f"[bold green]Loaded {count} entity facts fixtures into web_facts table.[/]")
+    finally:
+        conn.close()
+
+
+@habits_app.command("mine")
+def habits_mine(
+    as_of: str | None = typer.Option(None, "--as-of", help="Historical cutoff timestamp (ISO)"),
+) -> None:
+    """Mine significant habit patterns with Benjamini-Hochberg FDR correction."""
+    from probation.engine.habits import mine_habits
+
+    console.print(f"[bold cyan]Mining habits from database at:[/] {settings.db_path}")
+    conn = get_connection(settings.db_path)
+    try:
+        habits = mine_habits(conn, as_of=as_of)
+        table = Table(title=f"Mined Habits (Count: {len(habits)})")
+        table.add_column("ID", style="cyan")
+        table.add_column("Family", style="magenta")
+        table.add_column("Clue", style="yellow")
+        table.add_column("Action", style="green")
+        table.add_column("k/n", justify="right")
+        table.add_column("Lift", justify="right")
+        table.add_column("q-val", justify="right")
+        table.add_column("Statement", style="white")
+
+        for h in habits:
+            table.add_row(
+                h.id,
+                h.family,
+                f"{h.clue}={h.clue_value}",
+                h.action,
+                f"{h.k}/{h.n}",
+                f"{h.lift:.2f}",
+                f"{h.q_value:.4f}",
+                h.statement,
+            )
+        console.print(table)
+    finally:
+        conn.close()
+
+
+@chains_app.command("mine")
+def chains_mine(
+    as_of: str | None = typer.Option(None, "--as-of", help="Historical cutoff timestamp (ISO)"),
+) -> None:
+    """Mine cross-tool action sequences within 24-hour windows."""
+    from probation.packs.chains.mining import mine_chains
+
+    console.print(f"[bold cyan]Mining action chains from database at:[/] {settings.db_path}")
+    conn = get_connection(settings.db_path)
+    try:
+        chains = mine_chains(conn, as_of=as_of)
+        table = Table(title=f"Mined Chains (Count: {len(chains)})")
+        table.add_column("ID", style="cyan")
+        table.add_column("Trigger Class Key", style="magenta")
+        table.add_column("Follow Action", style="green")
+        table.add_column("k/n", justify="right")
+        table.add_column("Base Rate", justify="right")
+        table.add_column("Lift", justify="right")
+        table.add_column("Status", style="yellow")
+
+        for c in chains:
+            table.add_row(
+                c.id,
+                c.trigger_class_key,
+                c.follow_action,
+                f"{c.k}/{c.n}",
+                f"{c.base_rate:.2f}",
+                f"{c.lift:.2f}",
+                c.status,
+            )
+        console.print(table)
     finally:
         conn.close()
 

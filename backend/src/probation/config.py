@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     model_reader: str = "nvidia/nemotron-mini-4b-instruct"
     model_writer: str = "nvidia/nemotron-4-340b-instruct"
     model_exam_edits: str = "nvidia/nemotron-mini-4b-instruct"
+    model_wording: str = "nvidia/nemotron-mini-4b-instruct"
     model_synth: str = "nvidia/nemotron-mini-4b-instruct"
     llm_max_concurrency: int = 8
     llm_timeout_s: int = 60
@@ -79,6 +80,14 @@ class Settings(BaseSettings):
     lb_quantile: float = 0.05
     attention_cost: float = 1.0
     evidence_window_days: int = 180
+    habit_min_support: int = 20
+    habit_min_lift: float = 1.5
+    habit_q: float = 0.01
+    chain_min_support: int = 20
+    chain_min_p: float = 0.60
+    chain_min_lift: float = 1.5
+    chain_link_min_sim: float = 0.45
+    chain_window_hours: int = 24
 
 
 settings = Settings()

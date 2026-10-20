@@ -28,11 +28,14 @@ from probation.engine.drift import CUSUMTracker, check_family_shift
 from probation.engine.evidence import aggregate_evidence
 from probation.engine.exam import run_exam
 from probation.engine.gate import compute_audit_draw, decide_gate
+from probation.engine.habits import mine_habits
 from probation.engine.licence import derive_and_cache_licences, find_exam_candidates
 from probation.engine.novelty import NoveltyDetector
 from probation.engine.policy import Policy
 from probation.engine.report import generate_report_card
 from probation.packs.base import ExecutorIO, WorldView
+from probation.packs.chains.mining import mine_chains
+from probation.packs.chains.proposer import create_chain_situations_and_proposals
 from probation.packs.registry import registry
 from probation.web.view import WebFactsView
 from probation.workers.brain import extract_features_for_situations
@@ -339,10 +342,12 @@ def run_replay(
                     )
                     novelties[fam].fit(redacted_texts)
 
-            # Weekly PSI check
+            # Weekly PSI check and habit/chain mining
             if day_idx % 7 == 0:
                 for fam in distinct_families:
                     check_family_shift(conn, family=fam, as_of=as_of_iso)
+                mine_habits(conn, as_of=as_of_iso, clock=clock)
+                mine_chains(conn, as_of=as_of_iso, clock=clock)
 
         elif ev.kind == "LICENCE_REVIEW":
             day_iso = ev.timestamp
@@ -584,7 +589,41 @@ def run_replay(
                 ),
             )
 
+            # Trigger chain follow-up situations and proposals for trigger situations
+            if sit.pack != "chains":
+                chain_results = create_chain_situations_and_proposals(
+                    conn,
+                    trigger_sit=sit,
+                    trigger_class_key=c_key,
+                    as_of=sit.occurred_at,
+                    reader_features=reader_dict,
+                )
+                for c_sit, c_prop in chain_results:
+                    if c_prop.gate in (
+                        GateDecision.HOLD_THEN_EXECUTE,
+                        GateDecision.EXECUTE_UNDO,
+                        GateDecision.EXECUTE_SILENT,
+                    ):
+                        c_level_req = 3 if c_prop.gate == GateDecision.EXECUTE_SILENT else 2
+                        c_recallable = is_recallable(c_prop.action)
+                        executor.create_action(
+                            proposal_id=c_prop.id,
+                            pack=c_sit.pack,
+                            action_type=c_prop.action,
+                            params=c_prop.params,
+                            level_required=c_level_req,
+                            recallable=c_recallable,
+                            gate_decision=c_prop.gate,
+                            as_of=c_sit.occurred_at,
+                        )
+                        if world is not None:
+                            executor.process_queue(as_of=c_sit.occurred_at)
+
     brain_access.commit()
+
+    # Final pass for habits and chains up to replay clock
+    mine_habits(conn, as_of=clock.now_iso(), clock=clock)
+    mine_chains(conn, as_of=clock.now_iso(), clock=clock)
 
     # 8. Return comprehensive report card
     return generate_report_card(

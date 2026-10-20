@@ -261,3 +261,35 @@ class ExecResult(BaseDomainModel):
     action_id: str
     error: str | None = None
     undo_data: dict[str, Any] | None = None
+
+
+class Habit(BaseDomainModel):
+    """Mined habit association rule from historical decisions."""
+
+    id: str
+    family: str
+    clue: str
+    clue_value: str
+    action: str
+    k: int
+    n: int
+    lift: float
+    q_value: float
+    statement: str
+    examples: list[str] = Field(default_factory=list)
+    status: str = "active"  # "active" | "denied"
+    created_at: str
+
+
+class Chain(BaseDomainModel):
+    """Mined cross-tool sequence association rule."""
+
+    id: str
+    trigger_class_key: str
+    follow_action: str
+    k: int
+    n: int
+    base_rate: float
+    lift: float
+    status: str = "active"  # "active" | "retired"
+    created_at: str

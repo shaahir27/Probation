@@ -31,6 +31,9 @@ Governed by [`docs/BUILD_LOGGING_PROTOCOL.md`](file:///d:/Desktop/project/Probat
 | Exam Operators and Validators | Phase 7 | [feature_exam_operators_and_validators.md](phase_07_exam_board/feature_exam_operators_and_validators.md) | Built | 2026-10-19 |
 | Exam Board Engine and Worker | Phase 7 | [feature_exam_board_engine_and_worker.md](phase_07_exam_board/feature_exam_board_engine_and_worker.md) | Built | 2026-10-19 |
 | Phase 7 Exam Board Summary | Phase 7 | [phase_07_summary.md](phase_07_exam_board/phase_07_summary.md) | Built | 2026-10-19 |
+| Habit Pattern Mining & Wording Validation | Phase 8 | [feature_habit_mining_and_wording.md](phase_08_chains_habits/feature_habit_mining_and_wording.md) | Built | 2026-10-20 |
+| Action Chains Mining & Execution | Phase 8 | [feature_chains_mining_and_execution.md](phase_08_chains_habits/feature_chains_mining_and_execution.md) | Built | 2026-10-20 |
+| Phase 8 Summary: Chains and Habits | Phase 8 | [phase_08_summary.md](phase_08_chains_habits/phase_08_summary.md) | Built | 2026-10-20 |
 | API Endpoints and Responsive Dashboard | Phase 9 | [feature_api_and_dashboard.md](phase_09_api_dashboard/feature_api_and_dashboard.md) | Built | 2026-10-18 |
 
 
