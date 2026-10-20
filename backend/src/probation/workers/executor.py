@@ -10,6 +10,7 @@ from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from typing import Any, Final
 
+from probation.core.clock import Clock
 from probation.core.enums import ActionStatus, GateDecision, LedgerKind
 from probation.core.hashing import canonical_json
 from probation.core.types import Action, ExecResult
@@ -38,9 +39,11 @@ class Executor:
         conn: sqlite3.Connection,
         world: ExecutorIO | None = None,
         licence_checker: Callable[[str, str, str], int] | None = None,
+        clock: Clock | None = None,
     ) -> None:
         self.conn = conn
         self.world = world
+        self.clock = clock or Clock()
         self.role_access = RoleAccess(conn, Role.EXECUTOR)
 
         # Default licence checker reads from licence_cache
@@ -150,7 +153,7 @@ class Executor:
         - Calls pack execute() in SimWorld / Live.
         - Stores undo_json and marks action DONE.
         """
-        now_iso = as_of or datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+        now_iso = as_of or self.clock.now_iso()
         cur = self.conn.cursor()
 
         cur.execute(
@@ -180,14 +183,10 @@ class Executor:
             # 1. Re-check licence at execution time (CONTRACT section 8)
             current_licence = self.licence_checker(class_key, act_type, now_iso)
             if current_licence < level_req:
-                # Licence dropped below requirement -> cancel action and emit SUGGEST proposal
+                # Licence dropped below requirement -> cancel action
                 cur.execute(
                     "UPDATE actions SET status = ?, updated_at = ? WHERE id = ?;",
                     (ActionStatus.CANCELLED.value, now_iso, act_id),
-                )
-                cur.execute(
-                    "UPDATE proposals SET gate = ?, licence_level = ? WHERE id = ?;",
-                    (GateDecision.SUGGEST.value, current_licence, prop_id),
                 )
                 append_ledger(
                     self.conn,
@@ -266,7 +265,7 @@ class Executor:
 
         Authority: docs/CONTRACT.md section 8 and docs/ENGINE_SPEC.md section 10.
         """
-        now_iso = as_of or datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+        now_iso = as_of or self.clock.now_iso()
         cur = self.conn.cursor()
 
         cur.execute(

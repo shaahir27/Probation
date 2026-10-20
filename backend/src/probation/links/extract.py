@@ -11,11 +11,12 @@ Enforces:
 
 import hashlib
 import sqlite3
-from datetime import UTC, datetime, timedelta
+from datetime import timedelta
 from typing import Any
 from urllib.parse import urlparse
 
 from probation.config import settings
+from probation.core.clock import Clock
 from probation.core.hashing import det_id
 from probation.db.access import Role, RoleAccess
 from probation.links.sanitise import sanitise_url
@@ -88,7 +89,7 @@ def extract_url_content(
         cached = cur.fetchone()
     except sqlite3.OperationalError:
         cached = None
-    now_ts = now_iso or datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    now_ts = now_iso or Clock().now_iso()
 
     if cached and cached["ok"]:
         return {
@@ -121,7 +122,7 @@ def extract_url_content(
 
     extraction_id = det_id("extraction", clean_url, extract_depth, query_hash)
     ttl_days = getattr(settings, "extract_ttl_days", 30)
-    ttl_until = (datetime.now(UTC) + timedelta(days=ttl_days)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    ttl_until = (Clock().now() + timedelta(days=ttl_days)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     # Store in extractions
     try:

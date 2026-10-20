@@ -28,3 +28,11 @@ def memory_db() -> Generator[sqlite3.Connection, None, None]:
         yield conn
     finally:
         conn.close()
+
+
+@pytest.fixture(autouse=True)
+def disable_live_llm_in_tests(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Ensure test suite does not make unintentional live LLM calls by default."""
+    from probation.config import settings
+
+    monkeypatch.setattr(settings, "llm_api_key", "")

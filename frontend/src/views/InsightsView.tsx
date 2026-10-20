@@ -22,7 +22,6 @@ import {
   ExamRunItem,
   TaskReportItem,
 } from "../api/types";
-import { MOCK_REPORT_CARD } from "../api/fixtures";
 import { Button } from "../components/common/Button";
 
 interface InsightsViewProps {
@@ -60,10 +59,9 @@ export function InsightsView({
   const diffPct = Math.round((diffCount / totalEvaluated) * 100);
   const censoredPct = Math.max(0, 100 - (samePct + askPct + diffPct));
 
-  const tasks: TaskReportItem[] =
-    reportCard?.tasks && reportCard.tasks.length > 0
-      ? reportCard.tasks
-      : (MOCK_REPORT_CARD.tasks || []);
+  const tasks: TaskReportItem[] = (reportCard?.tasks || []).filter(
+    (t) => (t.action || "").toUpperCase() !== "ABSTAIN"
+  );
 
   const isAttentionTask = (t: TaskReportItem) => {
     return t.status === "needs_attention" || t.needs_attention === true || (t.accuracy !== null && t.accuracy < 0.90);

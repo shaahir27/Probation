@@ -179,9 +179,19 @@ def test_t_exec_mail_and_calendar_simworld(tmp_path: Path) -> None:
     cur.execute("SELECT status FROM actions WHERE id = ?", (act_id3,))
     assert cur.fetchone()["status"] == ActionStatus.CANCELLED.value
 
-    # Verify that the proposal gate was updated to SUGGEST
-    cur.execute("SELECT gate FROM proposals WHERE situation_id = 'sit-cal-3'")
-    assert cur.fetchone()["gate"] == GateDecision.SUGGEST.value
+    # Verify proposal remains immutable (Brain-generated record is never updated)
+    cur.execute("SELECT gate, licence_level FROM proposals WHERE id = 'prop-3'")
+    prop_row = cur.fetchone()
+    assert prop_row["gate"] == GateDecision.HOLD_THEN_EXECUTE.value
+    assert prop_row["licence_level"] == 2
+
+    # Verify cancellation was audited to ledger
+    cur.execute(
+        "SELECT kind, payload_json FROM ledger WHERE kind = 'action' AND ref_id = ?", (act_id3,)
+    )
+    ledger_row = cur.fetchone()
+    assert ledger_row is not None
+    assert "licence_lost" in ledger_row["payload_json"]
 
     sim_world.close()
     conn.close()

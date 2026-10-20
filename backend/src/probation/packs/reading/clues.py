@@ -13,6 +13,7 @@ from zoneinfo import ZoneInfo
 import publicsuffix2
 
 from probation.config import settings
+from probation.core.clock import Clock
 from probation.core.history import HistoryView
 from probation.core.types import Situation
 
@@ -63,7 +64,7 @@ def extract_reading_clues(
     try:
         dt = datetime.fromisoformat(s.occurred_at.replace("Z", "+00:00")).astimezone(tz)
     except Exception:
-        dt = datetime.now(tz)
+        dt = Clock().now(tz)
 
     hour_of_day = dt.hour
     weekday = dt.weekday()

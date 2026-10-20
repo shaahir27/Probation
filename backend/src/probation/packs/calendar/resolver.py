@@ -19,6 +19,7 @@ def resolve_calendar_outcome(
     now: datetime,
     raw_payload: dict[str, Any] | None = None,
     max_window_days: int | None = None,
+    user_addresses: list[str] | str | None = None,
 ) -> Outcome | None:
     """Resolve observed attendee RSVP outcome for an invite situation."""
     if now.tzinfo is None:

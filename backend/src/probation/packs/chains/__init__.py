@@ -57,7 +57,7 @@ class ChainsPack:
     def level_cap(self, action: str, s: Situation, f: Features) -> int:
         """Autonomy level caps for chain follow-up actions."""
         spec = ACTION_CATALOG.get(action.upper())
-        return spec.base_cap if spec else 1
+        return spec.base_cap if spec else 0
 
     def hands_off(self, s: Situation) -> str | None:
         """Return non-null string reason if auto-acting is strictly forbidden."""

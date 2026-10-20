@@ -3,6 +3,7 @@
 Authority: docs/PACKS_SPEC.md section 1.8 and docs/ENGINE_SPEC.md section 15.
 """
 
+import re
 from typing import Any
 
 from probation.core.types import ExamOperator
@@ -260,9 +261,11 @@ def validate_mail_operator_result(
         return has_currency and has_verb
 
     elif operator_name == "add_personal_info_request":
+        mutated_lower = mutated_text.lower()
+        if bool(re.search(r"\b(?:otp|pin)\b", mutated_lower)):
+            return True
         return any(
-            token in mutated_text.lower()
-            for token in ("otp", "password", "id number", "bank", "pin", "credentials")
+            token in mutated_lower for token in ("password", "id number", "bank", "credentials")
         )
 
     return True

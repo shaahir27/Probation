@@ -247,49 +247,52 @@ def run_replay(
                 if fam in b0_baselines:
                     b0_baselines[fam].update(obs_act)
 
-            # If outcome is undo or override, update CUSUM drift tracker (ENGINE_SPEC.md section 10)
-            if str(out_row["source"]) in ("undo", "override"):
+            # Update CUSUM drift tracker per (c, a) (ENGINE_SPEC.md section 11.1)
+            # x_t = 1 if disagreement else 0 (evidence items AND undo/override events)
+            cur.execute(
+                "SELECT class_key, action FROM proposals WHERE situation_id = ?;",
+                (str(out_row["situation_id"]),),
+            )
+            p_row = cur.fetchone()
+            if p_row:
+                ck = str(p_row["class_key"])
+                ac = str(p_row["action"])
+                is_undo = str(out_row["source"]) in ("undo", "override")
+                is_disagreement = (ac != obs_act) or is_undo
+
                 cur.execute(
-                    "SELECT class_key, action FROM proposals WHERE situation_id = ?;",
-                    (str(out_row["situation_id"]),),
+                    "SELECT * FROM drift_state WHERE class_key = ? AND action = ?;",
+                    (ck, ac),
                 )
-                p_row = cur.fetchone()
-                if p_row:
-                    ck = str(p_row["class_key"])
-                    ac = str(p_row["action"])
-                    cur.execute(
-                        "SELECT * FROM drift_state WHERE class_key = ? AND action = ?;",
-                        (ck, ac),
+                d_row = cur.fetchone()
+                tracker = CUSUMTracker(
+                    baseline_err=float(d_row["baseline_err"]) if d_row else 0.03,
+                    initial_s=float(d_row["cusum"]) if d_row else 0.0,
+                    last_alarm_at=d_row["last_alarm_at"] if d_row else None,
+                )
+                alarm = tracker.update(
+                    is_error=is_disagreement, is_undo=is_undo, timestamp=str(out_row["known_at"])
+                )
+                cur.execute(
+                    """
+                    INSERT OR REPLACE INTO drift_state (class_key, action, cusum, baseline_err, last_alarm_at)
+                    VALUES (?, ?, ?, ?, ?);
+                    """,
+                    (ck, ac, tracker.s, tracker.baseline_err, tracker.last_alarm_at),
+                )
+                if alarm:
+                    append_ledger(
+                        conn,
+                        kind=LedgerKind.DRIFT_ALARM,
+                        ref_id=f"alarm-{ck}-{ac}",
+                        payload={
+                            "class_key": ck,
+                            "action": ac,
+                            "alarm_at": str(out_row["known_at"]),
+                        },
+                        created_at=str(out_row["known_at"]),
                     )
-                    d_row = cur.fetchone()
-                    tracker = CUSUMTracker(
-                        baseline_err=float(d_row["baseline_err"]) if d_row else 0.03,
-                        initial_s=float(d_row["cusum"]) if d_row else 0.0,
-                        last_alarm_at=d_row["last_alarm_at"] if d_row else None,
-                    )
-                    alarm = tracker.update(
-                        is_error=True, is_undo=True, timestamp=str(out_row["known_at"])
-                    )
-                    cur.execute(
-                        """
-                        INSERT OR REPLACE INTO drift_state (class_key, action, cusum, baseline_err, last_alarm_at)
-                        VALUES (?, ?, ?, ?, ?);
-                        """,
-                        (ck, ac, tracker.s, tracker.baseline_err, tracker.last_alarm_at),
-                    )
-                    if alarm:
-                        append_ledger(
-                            conn,
-                            kind=LedgerKind.DRIFT_ALARM,
-                            ref_id=f"alarm-{ck}-{ac}",
-                            payload={
-                                "class_key": ck,
-                                "action": ac,
-                                "alarm_at": str(out_row["known_at"]),
-                            },
-                            created_at=str(out_row["known_at"]),
-                        )
-                    conn.commit()
+                conn.commit()
 
         elif ev.kind == "RETRAIN":
             as_of_iso = clock.now_iso()
@@ -343,7 +346,8 @@ def run_replay(
                     novelties[fam].fit(redacted_texts)
 
             # Weekly PSI check and habit/chain mining
-            if day_idx % 7 == 0:
+            sim_day_idx = (ev_dt.date() - min_dt.date()).days
+            if sim_day_idx % 7 == 0:
                 for fam in distinct_families:
                     check_family_shift(conn, family=fam, as_of=as_of_iso)
                 mine_habits(conn, as_of=as_of_iso, clock=clock)

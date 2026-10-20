@@ -13,6 +13,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from probation.config import settings
+from probation.core.clock import Clock
 from probation.core.history import HistoryView
 from probation.core.types import Situation
 
@@ -121,6 +122,7 @@ def extract_mail_clues(
     s: Situation,
     hist: HistoryView,
     raw_payload: dict[str, Any] | None = None,
+    user_addresses: list[str] | str | None = None,
 ) -> dict[str, float | str | bool]:
     """Compute all 16 deterministic clues for a mail situation strictly via HistoryView."""
     payload = raw_payload or {}
@@ -147,7 +149,7 @@ def extract_mail_clues(
     try:
         occ_dt = datetime.fromisoformat(s.occurred_at.replace("Z", "+00:00")).astimezone(user_tz)
     except Exception:
-        occ_dt = datetime.now(user_tz)
+        occ_dt = Clock().now(user_tz)
 
     hour_of_day = occ_dt.hour
     weekday = occ_dt.weekday()  # 0=Monday, 6=Sunday
@@ -184,10 +186,17 @@ def extract_mail_clues(
     in_reply_to = payload.get("in_reply_to") or ""
     thread_msgs = 0
     user_sent_in_thread = False
-
-    user_addrs = [normalize_address(a) for a in settings.user_addresses.split(",")]
+    if user_addresses is not None:
+        if isinstance(user_addresses, str):
+            user_addrs = [normalize_address(a) for a in user_addresses.split(",") if a.strip()]
+        else:
+            user_addrs = [normalize_address(a) for a in user_addresses if a.strip()]
+    else:
+        user_addrs = [normalize_address(a) for a in settings.user_addresses.split(",") if a.strip()]
 
     for row in prior_raw_items:
+        if row["id"] == s.raw_item_id:
+            continue
         try:
             p_payload = json.loads(row["payload_json"])
         except Exception:

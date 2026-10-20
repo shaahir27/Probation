@@ -7,9 +7,10 @@ allowing completely deterministic and offline replay and testing.
 
 import json
 import sqlite3
-from datetime import UTC, datetime, timedelta
+from datetime import timedelta
 from pathlib import Path
 
+from probation.core.clock import Clock
 from probation.core.hashing import canonical_json
 from probation.db.access import Role, RoleAccess
 
@@ -36,8 +37,8 @@ def load_web_facts_fixtures(
     entities = data.get("entities", [])
     access = RoleAccess(conn, Role.WEBFACTS)
 
-    now_iso = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
-    future_iso = (datetime.now(UTC) + timedelta(days=365)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    now_iso = Clock().now_iso()
+    future_iso = (Clock().now() + timedelta(days=365)).strftime("%Y-%m-%dT%H:%M:%SZ")
     count = 0
 
     for ent in entities:

@@ -13,6 +13,7 @@ Governed by [`docs/BUILD_LOGGING_PROTOCOL.md`](file:///d:/Desktop/project/Probat
 | Day-1 Spike Scripts and Budget Verification | Phase 0 | [feature_002_spike_scripts.md](phase_00_foundations_spikes/feature_002_spike_scripts.md) | Built | 2026-10-07 |
 | Core Types and Hash-Chained Ledger | Phase 1 | [feature_core_types_ledger.md](phase_01_core_ledger_llm/feature_core_types_ledger.md) | Built | 2026-10-10 |
 | PII Redaction Pipeline and Resilient LLM Client | Phase 1 | [feature_redaction_llm_client.md](phase_01_core_ledger_llm/feature_redaction_llm_client.md) | Built | 2026-10-10 |
+| Nebius Model Alignment and Phase 1 Remediation | Phase 1 | [feature_nebius_alignment_and_engine_fixes.md](phase_01_core_ledger_llm/feature_nebius_alignment_and_engine_fixes.md) | Built | 2026-10-20 |
 | Synthetic World Generator and Habits DSL | Phase 2 | [feature_synthetic_world_generator.md](phase_02_synth_world_importers/feature_synthetic_world_generator.md) | Built | 2026-10-11 |
 | Data Importers and SimWorld Renderers | Phase 2 | [feature_importers_and_simworld.md](phase_02_synth_world_importers/feature_importers_and_simworld.md) | Built | 2026-10-11 |
 | Mail Pack Adapter, Clues & Resolver | Phase 3 | [feature_mail_pack.md](phase_03_mail_calendar_packs/feature_mail_pack.md) | Built | 2026-10-12 |
@@ -41,6 +42,8 @@ Governed by [`docs/BUILD_LOGGING_PROTOCOL.md`](file:///d:/Desktop/project/Probat
 | Reading Triage Pack | Phase 8b | [feature_reading_triage.md](phase_08b_radar_reading_triage/feature_reading_triage.md) | Built | 2026-10-20 |
 | Phase 8b Summary: Radar & Reading Triage | Phase 8b | [phase_08b_summary.md](phase_08b_radar_reading_triage/phase_08b_summary.md) | Built | 2026-10-20 |
 | API Endpoints and Responsive Dashboard | Phase 9 | [feature_api_and_dashboard.md](phase_09_api_dashboard/feature_api_and_dashboard.md) | Built | 2026-10-18 |
+| Phase 2 Remediation: P1 Invariants, Clock Uniformity, Proposal Immutability, and Explicit User Identity | Phase 2 | [feature_phase2_p1_invariants_and_clock.md](phase_02_synth_world_importers/feature_phase2_p1_invariants_and_clock.md) | Built | 2026-10-20 |
+| Phase 3 Remediation: Frontend Production Build, Hygiene, and Performance Optimization | Phase 9 | [feature_phase3_frontend_hygiene_perf.md](phase_09_api_dashboard/feature_phase3_frontend_hygiene_perf.md) | Built | 2026-10-20 |
 
 
 ---

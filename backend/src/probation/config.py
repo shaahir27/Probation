@@ -20,11 +20,11 @@ class Settings(BaseSettings):
     # --- LLM Settings (Nebius Token Factory) ---
     llm_base_url: str = "https://api.tokenfactory.nebius.com/v1"
     llm_api_key: str = ""
-    model_reader: str = "nvidia/nemotron-mini-4b-instruct"
-    model_writer: str = "nvidia/nemotron-4-340b-instruct"
-    model_exam_edits: str = "nvidia/nemotron-mini-4b-instruct"
-    model_wording: str = "nvidia/nemotron-mini-4b-instruct"
-    model_synth: str = "nvidia/nemotron-mini-4b-instruct"
+    model_reader: str = "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B"
+    model_writer: str = "nvidia/nemotron-3-super-120b-a12b"
+    model_exam_edits: str = "nvidia/Nemotron-3-Ultra-550b-a55b"
+    model_wording: str = "nvidia/nemotron-3-super-120b-a12b"
+    model_synth: str = "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B"
     llm_max_concurrency: int = 8
     llm_timeout_s: int = 60
     llm_max_retries: int = 3

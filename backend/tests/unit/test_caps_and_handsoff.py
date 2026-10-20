@@ -131,7 +131,95 @@ def test_t_handsoff_extensions_and_rlo() -> None:
     assert rlo_reason is not None
     assert "right-to-left override" in rlo_reason.lower()
 
-    # 4. Safe files should not be blocked
-    safe_files = ["statement.pdf", "data.csv", "notes.txt", "photo.png", "archive.tar.gz"]
+    # 4. Safe files should not be blocked (including scripts .py, .sh, .pyw)
+    safe_files = [
+        "statement.pdf",
+        "data.csv",
+        "notes.txt",
+        "photo.png",
+        "archive.tar.gz",
+        "solution.py",
+        "run_eval.sh",
+        "tool.pyw",
+    ]
     for safe in safe_files:
         assert is_hands_off(filename=safe) is None, f"Safe file {safe} was falsely blocked!"
+
+
+def test_t_caps_fail_closed_unknown_actions() -> None:
+    """H6 & H8: Invariant check verifies all packs default unknown action caps to 0 (fail closed)."""
+    from probation.core.types import Features, Situation
+    from probation.packs.calendar import CalendarPack
+    from probation.packs.chains import ChainsPack
+    from probation.packs.files import FilesPack
+    from probation.packs.mail import MailPack
+    from probation.packs.radar import RadarPack
+    from probation.packs.reading import ReadingPack
+
+    sit = Situation(
+        id="sit-test",
+        raw_item_id="raw-1",
+        pack="mail",
+        family="email_action",
+        variant="",
+        occurred_at="2026-05-01T10:00:00Z",
+        sender_key="prof@college.edu",
+        content_hash="abc",
+        redacted_text="Test situation",
+        created_at="2026-05-01T10:00:00Z",
+    )
+    feat = Features(
+        situation_id="sit-test",
+        deterministic={},
+        reader_ok=True,
+        reader={},
+        featurizer_version="v1",
+        features_hash="hash-1",
+    )
+
+    # Engine base cap lookup
+    assert get_action_cap("COMPLETELY_UNKNOWN_ACTION") == 0
+
+    # Pack level_cap implementations
+    assert MailPack().level_cap("NONEXISTENT_MAIL_ACTION", sit, feat) == 0
+    assert CalendarPack().level_cap("NONEXISTENT_CAL_ACTION", sit, feat) == 0
+    assert FilesPack().level_cap("NONEXISTENT_FILE_ACTION", sit, feat) == 0
+    assert ChainsPack().level_cap("NONEXISTENT_CHAIN_ACTION", sit, feat) == 0
+    assert RadarPack().level_cap("NONEXISTENT_RADAR_ACTION", sit, feat) == 0
+    assert ReadingPack().level_cap("NONEXISTENT_READING_ACTION", sit, feat) == 0
+
+
+def test_t_otp_word_boundaries() -> None:
+    """P2: Verify word boundary matching prevents false positives for 'otp'."""
+    from probation.packs.mail import MailPack
+    from probation.packs.mail.exam_ops import validate_mail_operator_result
+
+    mail_pack = MailPack()
+
+    # Substrings containing 'otp' inside other words should NOT trigger hands-off
+    safe_texts = [
+        "Please inspect the prototype design before the meeting.",
+        "We are meeting for a hotpot dinner tonight.",
+        "Follow the footpath along the river.",
+        "Check the bootprint evidence from the lab.",
+    ]
+    for text in safe_texts:
+        assert mail_pack.hands_off_text(text) is None, f"False positive on safe text: {text}"
+
+    # Genuine OTP mentions should trigger
+    sensitive_texts = [
+        "Your login OTP is 482910.",
+        "Please enter the one-time OTP sent to your phone.",
+    ]
+    for text in sensitive_texts:
+        assert mail_pack.hands_off_text(text) is not None, f"Failed to detect OTP in: {text}"
+
+    # Exam operator add_personal_info_request validation
+    assert (
+        validate_mail_operator_result("add_personal_info_request", "orig", "Here is the prototype.")
+        is False
+    )
+    assert (
+        validate_mail_operator_result("add_personal_info_request", "orig", "Please send your OTP.")
+        is True
+    )

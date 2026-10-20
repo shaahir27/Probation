@@ -3,6 +3,7 @@
 Authority: docs/CONTRACT.md section 7, section 8 and docs/ENGINE_SPEC.md section 11.
 """
 
+import bisect
 import json
 import math
 import sqlite3
@@ -24,6 +25,18 @@ def _parse_ts(ts: str) -> datetime:
     if dt.tzinfo is None:
         return dt.replace(tzinfo=UTC)
     return dt.astimezone(UTC)
+
+
+def _quantile_bins(ref_nums: list[float], n_bins: int = 10) -> list[float]:
+    """Compute quantile cutoffs from reference distribution (ENGINE_SPEC 11.2)."""
+    sorted_vals = sorted(ref_nums)
+    if not sorted_vals:
+        return []
+    cutoffs: list[float] = []
+    for i in range(1, n_bins):
+        idx = int(len(sorted_vals) * i / n_bins)
+        cutoffs.append(sorted_vals[idx])
+    return sorted(set(cutoffs))
 
 
 class CUSUMTracker:
@@ -167,28 +180,69 @@ def check_family_shift(
     feature_keys = list(sample_ref.keys())[:5]
 
     for key in feature_keys:
-        # Build histogram of values
-        ref_vals: dict[str, int] = {}
-        for r in ref_rows:
-            d = json.loads(r["deterministic_json"])
-            v = str(d.get(key, ""))
-            ref_vals[v] = ref_vals.get(v, 0) + 1
+        sample_val = sample_ref.get(key)
+        is_numeric = isinstance(sample_val, (int, float)) and not isinstance(sample_val, bool)
 
-        cur_vals: dict[str, int] = {}
-        for r in cur_rows:
-            d = json.loads(r["deterministic_json"])
-            v = str(d.get(key, ""))
-            cur_vals[v] = cur_vals.get(v, 0) + 1
+        if is_numeric:
+            ref_nums: list[float] = []
+            for r in ref_rows:
+                d = json.loads(r["deterministic_json"])
+                val = d.get(key)
+                if isinstance(val, (int, float)) and not isinstance(val, bool):
+                    ref_nums.append(float(val))
 
-        all_bins = sorted(set(ref_vals.keys()) | set(cur_vals.keys()))
-        if len(all_bins) < 2:
-            continue
+            cur_nums: list[float] = []
+            for r in cur_rows:
+                d = json.loads(r["deterministic_json"])
+                val = d.get(key)
+                if isinstance(val, (int, float)) and not isinstance(val, bool):
+                    cur_nums.append(float(val))
 
-        ref_dist = [float(ref_vals.get(b, 0)) for b in all_bins]
-        act_dist = [float(cur_vals.get(b, 0)) for b in all_bins]
+            if not ref_nums or not cur_nums:
+                continue
 
-        feat_psi = compute_psi(ref_dist, act_dist)
-        psi_results[key] = feat_psi
+            cutoffs = _quantile_bins(ref_nums, n_bins=10)
+            if not cutoffs:
+                ref_val0 = ref_nums[0]
+                ref_dist = [float(len(ref_nums)), 0.0]
+                act_dist = [
+                    float(sum(1 for x in cur_nums if x == ref_val0)),
+                    float(sum(1 for x in cur_nums if x != ref_val0)),
+                ]
+            else:
+                n_buckets = len(cutoffs) + 1
+                ref_dist = [0.0] * n_buckets
+                act_dist = [0.0] * n_buckets
+                for x in ref_nums:
+                    ref_dist[bisect.bisect_right(cutoffs, x)] += 1.0
+                for x in cur_nums:
+                    act_dist[bisect.bisect_right(cutoffs, x)] += 1.0
+
+            feat_psi = compute_psi(ref_dist, act_dist)
+            psi_results[key] = feat_psi
+        else:
+            # Build histogram of categorical values
+            ref_vals: dict[str, int] = {}
+            for r in ref_rows:
+                d = json.loads(r["deterministic_json"])
+                v = str(d.get(key, ""))
+                ref_vals[v] = ref_vals.get(v, 0) + 1
+
+            cur_vals: dict[str, int] = {}
+            for r in cur_rows:
+                d = json.loads(r["deterministic_json"])
+                v = str(d.get(key, ""))
+                cur_vals[v] = cur_vals.get(v, 0) + 1
+
+            all_bins = sorted(set(ref_vals.keys()) | set(cur_vals.keys()))
+            if len(all_bins) < 2:
+                continue
+
+            ref_dist = [float(ref_vals.get(b, 0)) for b in all_bins]
+            act_dist = [float(cur_vals.get(b, 0)) for b in all_bins]
+
+            feat_psi = compute_psi(ref_dist, act_dist)
+            psi_results[key] = feat_psi
 
     max_psi = max(psi_results.values()) if psi_results else 0.0
     alarm = int(max_psi > psi_alarm_threshold)

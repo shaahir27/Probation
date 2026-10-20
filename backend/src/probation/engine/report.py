@@ -123,6 +123,8 @@ def generate_report_card(
 
     tasks_list: list[dict[str, Any]] = []
     for (ck, act), stats in task_groups.items():
+        if act == "ABSTAIN":
+            continue
         t_eval = stats["same"] + stats["different"]
         if t_eval < 3:
             status = "not_enough_history"

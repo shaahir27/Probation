@@ -4,9 +4,9 @@ Authority: docs/CONTRACT.md section 3 and docs/ENGINE_SPEC.md section 1.
 """
 
 import sqlite3
-from datetime import UTC, datetime
 
 from probation.config import settings
+from probation.core.clock import Clock
 from probation.engine.drift import check_family_shift
 from probation.engine.evidence import aggregate_evidence
 from probation.engine.exam import run_exam
@@ -27,7 +27,7 @@ def run_nightly_review(
     - Recompute derived licence levels and cache (licence_cache).
     - Mine habits with BH FDR correction and chains with sequence mining.
     """
-    now_iso = as_of or datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    now_iso = as_of or Clock().now_iso()
 
     # 1. Aggregate evidence
     stats = aggregate_evidence(conn, as_of=now_iso)
@@ -53,7 +53,7 @@ def run_weekly_shift_checks(
 
     Authority: docs/ENGINE_SPEC.md section 11.2.
     """
-    now_iso = as_of or datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    now_iso = as_of or Clock().now_iso()
     cur = conn.cursor()
     cur.execute("SELECT DISTINCT family FROM situations;")
     families = [str(r[0]) for r in cur.fetchall()]

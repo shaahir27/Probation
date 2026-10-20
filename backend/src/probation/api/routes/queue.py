@@ -7,13 +7,13 @@ Note: API writes strictly to user_responses table only using Role.API.
 import json
 import sqlite3
 import uuid
-from datetime import UTC, datetime
 from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from probation.config import settings
+from probation.core.clock import Clock
 from probation.core.enums import GateDecision
 from probation.db.access import Role, get_role_access
 from probation.db.connection import get_connection
@@ -167,7 +167,7 @@ def respond_queue(proposal_id: str, body: QueueRespondBody) -> dict[str, Any]:
             )
 
         resp_id = f"resp-{uuid.uuid4().hex[:12]}"
-        now_iso = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+        now_iso = Clock().now_iso()
 
         # Strictly use RoleAccess with Role.API (permits user_responses only)
         role_access = get_role_access(conn, Role.API)

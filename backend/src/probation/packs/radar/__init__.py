@@ -191,13 +191,16 @@ class RadarPack(PackAdapter):
         """Apply conditional caps: fee_mentioned, requires_personal_docs, web veto."""
         act_upper = action.upper()
         base_cap = 3 if act_upper == "TRACK" else (2 if act_upper == "DISMISS" else 0)
+        if base_cap == 0:
+            return 0
 
         # 1. Reader flags: fee_mentioned or requires_personal_docs -> cap 1
-        fee_mentioned = False
-        requires_personal_docs = False
         if f is not None and f.reader and isinstance(f.reader, dict):
             fee_mentioned = bool(f.reader.get("fee_mentioned", False))
             requires_personal_docs = bool(f.reader.get("requires_personal_docs", False))
+        else:
+            fee_mentioned = True
+            requires_personal_docs = True
 
         if fee_mentioned or requires_personal_docs:
             return min(base_cap, 1)

@@ -1,9 +1,8 @@
 {
   "_note": "USD per 1M tokens. Replace keys with the exact model names from the Token Factory console.",
+  "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B": {"in": 0.06, "out": 0.24},
+  "nvidia/nemotron-3-super-120b-a12b": {"in": 0.30, "out": 0.90},
+  "nvidia/Nemotron-3-Ultra-550b-a55b": {"in": 1.00, "out": 3.00},
   "nvidia/nemotron-mini-4b-instruct": {"in": 0.06, "out": 0.24},
-  "nvidia/nemotron-4-340b-instruct": {"in": 0.30, "out": 0.90},
-  "nvidia/nemotron-4-340b-reward": {"in": 1.00, "out": 3.00},
-  "REPLACE_WITH_NANO_MODEL_NAME": {"in": 0.06, "out": 0.24},
-  "REPLACE_WITH_SUPER_MODEL_NAME": {"in": 0.30, "out": 0.90},
-  "REPLACE_WITH_ULTRA_MODEL_NAME": {"in": 1.00, "out": 3.00}
+  "nvidia/nemotron-4-340b-instruct": {"in": 0.30, "out": 0.90}
 }

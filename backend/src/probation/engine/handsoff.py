@@ -30,10 +30,7 @@ BLOCKED_EXTENSIONS: Final[set[str]] = {
     ".img",
     ".dll",
     ".sys",
-    ".sh",
     ".pif",
-    ".py",
-    ".pyw",
 }
 
 # Unicode right-to-left override character often used in filename spoofing attacks

@@ -16,6 +16,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from probation.core.clock import Clock
 from probation.core.hashing import canonical_json, det_id
 
 
@@ -53,8 +54,8 @@ def _iso_utc(dt_or_str: Any) -> str:
                     dt = dt.replace(tzinfo=UTC)
                 return dt.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
             except Exception:
-                return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
-    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+                return Clock().now_iso()
+    return Clock().now_iso()
 
 
 def _get_or_create_source(
@@ -65,7 +66,7 @@ def _get_or_create_source(
 ) -> str:
     """Register origin source record and return deterministic source_id."""
     source_id = det_id("source", pack, kind, str(ref))
-    now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    now = Clock().now_iso()
     conn.execute(
         """
         INSERT OR IGNORE INTO sources (id, pack, kind, ref, imported_at)
@@ -98,6 +99,11 @@ def import_mail(
     skipped = 0
 
     cursor = conn.cursor()
+    if user_addrs:
+        cursor.execute(
+            "INSERT OR REPLACE INTO meta (key, value) VALUES ('user_addresses', ?);",
+            (",".join(user_addrs),),
+        )
 
     for msg in mbox:
         msg_id_hdr = msg.get("Message-ID", "")
@@ -205,6 +211,11 @@ def import_calendar(
     imported = 0
     skipped = 0
     cursor = conn.cursor()
+    if user_addrs:
+        cursor.execute(
+            "INSERT OR REPLACE INTO meta (key, value) VALUES ('user_addresses', ?);",
+            (",".join(user_addrs),),
+        )
 
     content = path.read_text(encoding="utf-8", errors="replace")
 
@@ -227,7 +238,7 @@ def import_calendar(
 
         def parse_ics_date(s: str | None) -> str:
             if not s:
-                return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+                return Clock().now_iso()
             s = s.strip()
             if len(s) == 16 and s.endswith("Z"):  # YYYYMMDDTHHMMSSZ
                 try:
@@ -244,13 +255,18 @@ def import_calendar(
         desc = fields.get("DESCRIPTION", "").replace("\\n", "\n")
         organizer = fields.get("ORGANIZER", "").replace("mailto:", "")
 
-        # Extract attendees
+        # Extract attendees and partstat
         attendees: list[str] = []
+        user_partstat: str | None = None
         for line in block.splitlines():
             if line.upper().startswith("ATTENDEE"):
                 parts = line.split(":", 1)
                 if len(parts) == 2:
                     attendees.append(parts[1].replace("mailto:", "").strip())
+                if any(u in line.lower() for u in user_addrs):
+                    for param in line.split(";"):
+                        if param.upper().startswith("PARTSTAT="):
+                            user_partstat = param.split("=", 1)[1].split(":")[0].strip().upper()
 
         is_organizer = any(u in organizer.lower() for u in user_addrs) if user_addrs else False
         item_kind = "cal_event" if is_organizer else "invite"
@@ -264,7 +280,10 @@ def import_calendar(
             "organizer": organizer,
             "attendees": attendees,
             "status": fields.get("STATUS", "CONFIRMED"),
+            "my_status": "NEEDS-ACTION" if not is_organizer else "ACCEPTED",
         }
+        if user_partstat:
+            payload["final_partstat"] = user_partstat
         payload_str = canonical_json(payload)
         content_hash = hashlib.sha256(payload_str.encode("utf-8")).hexdigest()
         raw_id = det_id(source_id, uid)
@@ -319,7 +338,7 @@ def import_files(
 
     for f_info in files_list:
         rel_path = f_info["rel_path"]
-        occurred_at = _iso_utc(f_info.get("mtime", datetime.now(UTC)))
+        occurred_at = _iso_utc(f_info.get("mtime", Clock().now_iso()))
 
         payload = {
             "rel_path": rel_path,
@@ -393,7 +412,7 @@ def import_links(
             if line and not line.startswith("#"):
                 entries.append({"url": line})
 
-    now_iso = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    now_iso = Clock().now_iso()
 
     for entry in entries:
         url = entry.get("url", "").strip()

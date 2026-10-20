@@ -34,7 +34,8 @@ import {
   MOCK_WEB_FACTS,
 } from "./fixtures";
 
-const API_BASE = "http://localhost:8000/api";
+const API_BASE =
+  ((import.meta as unknown as { env?: Record<string, string> }).env?.VITE_API_BASE_URL as string | undefined) || "/api";
 
 export class ApiError extends Error {
   code: string;

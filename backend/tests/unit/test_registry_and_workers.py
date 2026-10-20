@@ -16,6 +16,8 @@ from probation.packs.registry import PackRegistry, registry, validate_pack
 from probation.synth.importers import import_mail
 from probation.workers.brain import extract_features_for_situations
 from probation.workers.ingestor import ingest_situations
+from probation.workers.webfacts import vet_situations_batch
+from tests.stubs.stub_reader import StubReader
 
 
 class DummyInvalidPack:
@@ -115,11 +117,33 @@ def test_ingestor_and_brain_idempotence(tmp_path: Any) -> None:
         assert s_count_2 == 0
 
         # First feature extraction
-        f_count_1 = extract_features_for_situations(conn)
+        stub = StubReader(fixture_dir / "truth.json")
+        f_count_1 = extract_features_for_situations(conn, reader_callable=stub)
         assert f_count_1 > 0
 
         # Second feature extraction: returns 0 new
-        f_count_2 = extract_features_for_situations(conn)
+        f_count_2 = extract_features_for_situations(conn, reader_callable=stub)
         assert f_count_2 == 0
+    finally:
+        conn.close()
+
+
+def test_vet_situations_batch(tmp_path: Any) -> None:
+    """vet_situations_batch vets sender domains for situations into web_facts table."""
+    db_path = tmp_path / "test_vet_batch.db"
+    init_db(db_path)
+    conn = get_connection(db_path)
+    try:
+        fixture_dir = Path(__file__).resolve().parent.parent / "fixtures" / "tiny_synth"
+        mbox_path = fixture_dir / "mailbox.mbox"
+        import_mail(mbox_path, conn, user_addresses=["meena.k@example.ac.in"])
+        ingest_situations(conn)
+
+        vetted = vet_situations_batch(conn)
+        assert vetted > 0
+
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) FROM web_facts;")
+        assert cur.fetchone()[0] > 0
     finally:
         conn.close()

@@ -9,6 +9,7 @@ import sqlite3
 from datetime import UTC, datetime
 from typing import Any
 
+from probation.core.clock import Clock
 from probation.core.enums import LedgerKind
 from probation.core.hashing import canonical_json
 from probation.core.types import Situation
@@ -16,7 +17,7 @@ from probation.db.access import Role, RoleAccess
 from probation.db.ledger import append_ledger
 from probation.packs.base import WorldView
 from probation.packs.calendar.resolver import resolve_calendar_outcome
-from probation.packs.mail.resolver import resolve_mail_outcome
+from probation.packs.mail.resolver import MailResolverIndex, resolve_mail_outcome
 from probation.packs.registry import registry
 
 
@@ -24,13 +25,14 @@ def resolve_outcomes(
     conn: sqlite3.Connection,
     world: WorldView,
     as_of: datetime | str | None = None,
+    user_addresses: list[str] | str | None = None,
 ) -> int:
     """Resolve and record outcomes for unresolved situations up to as_of.
 
     Authority: docs/CONTRACT.md section 3, invariant I-7, and docs/ENGINE_SPEC.md section 1.1.
     """
     if as_of is None:
-        as_of_dt = datetime.now(UTC)
+        as_of_dt = Clock().now()
     elif isinstance(as_of, str):
         as_of_dt = datetime.fromisoformat(as_of.replace("Z", "+00:00"))
         if as_of_dt.tzinfo is None:
@@ -42,6 +44,45 @@ def resolve_outcomes(
 
     access_conn = RoleAccess(conn, Role.RESOLVER)
     cur = conn.cursor()
+
+    # Determine user addresses explicitly
+    if user_addresses is not None:
+        if isinstance(user_addresses, str):
+            effective_user_addrs = [a.strip() for a in user_addresses.split(",") if a.strip()]
+        else:
+            effective_user_addrs = [a.strip() for a in user_addresses if a.strip()]
+    elif getattr(world, "user_addresses", None):
+        world_addrs = world.user_addresses
+        if isinstance(world_addrs, str):
+            effective_user_addrs = [a.strip() for a in world_addrs.split(",") if a.strip()]
+        else:
+            effective_user_addrs = [a.strip() for a in world_addrs if a.strip()]
+    else:
+        try:
+            cur.execute("SELECT value FROM meta WHERE key = 'user_addresses';")
+            meta_row = cur.fetchone()
+            if meta_row and meta_row[0]:
+                effective_user_addrs = [a.strip() for a in str(meta_row[0]).split(",") if a.strip()]
+            else:
+                from probation.config import settings
+
+                effective_user_addrs = [
+                    a.strip() for a in settings.user_addresses.split(",") if a.strip()
+                ]
+        except Exception:
+            from probation.config import settings
+
+            effective_user_addrs = [
+                a.strip() for a in settings.user_addresses.split(",") if a.strip()
+            ]
+
+    # Pre-index messages once for O(1) resolution across the batch
+    mail_index: MailResolverIndex | None = None
+    try:
+        messages = world.get_messages()
+        mail_index = MailResolverIndex(effective_user_addrs, messages)
+    except Exception:
+        mail_index = None
 
     cur.execute(
         """
@@ -80,9 +121,18 @@ def resolve_outcomes(
 
         outcome = None
         if sit.pack == "mail":
-            outcome = resolve_mail_outcome(sit, world, as_of_dt, raw_payload=raw_payload)
+            outcome = resolve_mail_outcome(
+                sit,
+                world,
+                as_of_dt,
+                raw_payload=raw_payload,
+                user_addresses=effective_user_addrs,
+                index=mail_index,
+            )
         elif sit.pack == "calendar":
-            outcome = resolve_calendar_outcome(sit, world, as_of_dt, raw_payload=raw_payload)
+            outcome = resolve_calendar_outcome(
+                sit, world, as_of_dt, raw_payload=raw_payload, user_addresses=effective_user_addrs
+            )
         else:
             try:
                 pack = registry.get(sit.pack)

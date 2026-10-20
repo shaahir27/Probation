@@ -125,10 +125,19 @@ def check_exam_ok(
     )
 
     # Find latest family-shift alarm
-    family = class_key.split("|")[0]
+    pack = class_key.split("|")[0]
+    family_map = {
+        "mail": "email_action",
+        "email": "email_action",
+        "calendar": "invite_rsvp",
+        "cal": "invite_rsvp",
+        "files": "file_destination",
+        "file": "file_destination",
+    }
+    family = family_map.get(pack, pack)
     cur.execute(
-        "SELECT MAX(week_start) FROM family_shift WHERE family = ? AND alarm = 1;",
-        (family,),
+        "SELECT MAX(week_start) FROM family_shift WHERE (family = ? OR family = ?) AND alarm = 1;",
+        (family, pack),
     )
     shift_row = cur.fetchone()
     last_shift_alarm = str(shift_row[0]) if shift_row and shift_row[0] else ""

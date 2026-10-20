@@ -9,12 +9,12 @@ Contract ActionStatus enum: PENDING | HELD | DONE | UNDONE | CANCELLED | FAILED.
 import json
 import sqlite3
 import uuid
-from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
 from probation.config import settings
+from probation.core.clock import Clock
 from probation.db.access import Role, get_role_access
 from probation.db.connection import get_connection
 
@@ -112,7 +112,7 @@ def request_undo(action_id: str) -> dict[str, Any]:
             )
 
         resp_id = f"resp-undo-{uuid.uuid4().hex[:12]}"
-        now_iso = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+        now_iso = Clock().now_iso()
 
         # Write strictly to user_responses using Role.API
         role_access = get_role_access(conn, Role.API)

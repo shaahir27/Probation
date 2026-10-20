@@ -12,13 +12,13 @@ Authority: CONTRACT.md section 9:
 
 import json
 import sqlite3
-from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from probation.config import settings
+from probation.core.clock import Clock
 from probation.core.enums import GateDecision
 from probation.db.connection import get_connection
 from probation.workers.examiner import run_examiner_job
@@ -344,7 +344,7 @@ def run_exam(body: RunExamBody) -> dict[str, Any]:
             "invariance_flip_rate": res.invariance_flip_rate,
             "critical_violations": res.critical_violations,
             "other_violation_rate": res.other_violation_rate,
-            "ran_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "ran_at": Clock().now_iso(),
         }
     finally:
         conn.close()

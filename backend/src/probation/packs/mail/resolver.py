@@ -16,12 +16,53 @@ from probation.packs.mail.clues import normalize_address
 DEFAULT_MAIL_WINDOW_DAYS = 7
 
 
+class MailResolverIndex:
+    """Pre-indexed user-sent messages for high performance O(1) outcome resolution."""
+
+    def __init__(
+        self,
+        user_addrs: list[str],
+        messages: list[dict[str, Any]],
+    ) -> None:
+        self.replies_by_in_reply_to: dict[str, list[tuple[datetime, dict[str, Any]]]] = {}
+        self.user_forwards: list[tuple[datetime, dict[str, Any]]] = []
+
+        norm_addrs = [normalize_address(a) for a in user_addrs if a.strip()]
+
+        for m in messages:
+            m_from = normalize_address(m.get("from_addr") or m.get("from") or "")
+            if not any(u in m_from for u in norm_addrs):
+                continue
+
+            rec_str = m.get("received_at")
+            if not rec_str:
+                continue
+            try:
+                m_time = datetime.fromisoformat(rec_str.replace("Z", "+00:00"))
+                if m_time.tzinfo is None:
+                    m_time = m_time.replace(tzinfo=UTC)
+                else:
+                    m_time = m_time.astimezone(UTC)
+            except Exception:
+                continue
+
+            in_reply = m.get("in_reply_to")
+            if in_reply:
+                self.replies_by_in_reply_to.setdefault(in_reply, []).append((m_time, m))
+
+            m_subj = m.get("subject") or ""
+            if m_subj.lower().startswith("fwd:") or m_subj.lower().startswith("fw:"):
+                self.user_forwards.append((m_time, m))
+
+
 def resolve_mail_outcome(
     s: Situation,
     world: WorldView,
     now: datetime,
     raw_payload: dict[str, Any] | None = None,
     window_days: int | None = None,
+    user_addresses: list[str] | str | None = None,
+    index: MailResolverIndex | None = None,
 ) -> Outcome | None:
     """Resolve observed user action for a mail situation per priority order."""
     if now.tzinfo is None:
@@ -46,55 +87,44 @@ def resolve_mail_outcome(
     msg_id = payload.get("message_id") or ""
     subject = payload.get("subject") or ""
 
-    user_addrs = [normalize_address(a) for a in settings.user_addresses.split(",")]
+    if user_addresses is not None:
+        if isinstance(user_addresses, str):
+            user_addrs = [normalize_address(a) for a in user_addresses.split(",") if a.strip()]
+        else:
+            user_addrs = [normalize_address(a) for a in user_addresses if a.strip()]
+    elif getattr(world, "user_addresses", None):
+        world_addrs = world.user_addresses
+        if isinstance(world_addrs, str):
+            user_addrs = [normalize_address(a) for a in world_addrs.split(",") if a.strip()]
+        else:
+            user_addrs = [normalize_address(a) for a in world_addrs if a.strip()]
+    else:
+        user_addrs = [normalize_address(a) for a in settings.user_addresses.split(",") if a.strip()]
 
-    # Check simulated messages in the world for REPLY or FORWARD
-    all_msgs = world.get_messages()
+    # Use pre-built index or build on the fly
+    mail_index = index or MailResolverIndex(user_addrs, world.get_messages())
 
     reply_msg: dict[str, Any] | None = None
     forward_msg: dict[str, Any] | None = None
 
-    for m in all_msgs:
-        m_from = normalize_address(m.get("from_addr") or m.get("from") or "")
-        is_user_sent = any(u in m_from for u in user_addrs)
-        if not is_user_sent:
-            continue
+    # Check Reply (O(1) lookup on in_reply_to)
+    if msg_id and msg_id in mail_index.replies_by_in_reply_to:
+        best_time: datetime | None = None
+        for m_time, m in mail_index.replies_by_in_reply_to[msg_id]:
+            if occ_dt <= m_time <= window_end and m_time <= now:
+                if best_time is None or m_time < best_time:
+                    best_time = m_time
+                    reply_msg = m
 
-        try:
-            m_time = datetime.fromisoformat(m["received_at"].replace("Z", "+00:00"))
-            if m_time.tzinfo is None:
-                m_time = m_time.replace(tzinfo=UTC)
-            else:
-                m_time = m_time.astimezone(UTC)
-        except Exception:
-            continue
-
-        # Must occur after the situation arrived and within the window
-        if not (occ_dt <= m_time <= window_end):
-            continue
-        # And cannot be known in the future relative to `now`
-        if m_time > now:
-            continue
-
-        m_in_reply = m.get("in_reply_to") or ""
-        m_subj = m.get("subject") or ""
-
-        # Check Reply
-        if msg_id and m_in_reply == msg_id:
-            if reply_msg is None or m_time < datetime.fromisoformat(
-                reply_msg["received_at"].replace("Z", "+00:00")
-            ):
-                reply_msg = m
-
-        # Check Forward
-        is_fwd_subj = m_subj.lower().startswith("fwd:") or m_subj.lower().startswith("fw:")
-        if is_fwd_subj and (
-            msg_id in m.get("body", "") or (subject and subject.lower() in m_subj.lower())
-        ):
-            if forward_msg is None or m_time < datetime.fromisoformat(
-                forward_msg["received_at"].replace("Z", "+00:00")
-            ):
-                forward_msg = m
+    # Check Forward (iterates only over user forward messages, tiny list)
+    best_fwd_time: datetime | None = None
+    for m_time, m in mail_index.user_forwards:
+        if occ_dt <= m_time <= window_end and m_time <= now:
+            m_subj = m.get("subject") or ""
+            if msg_id in m.get("body", "") or (subject and subject.lower() in m_subj.lower()):
+                if best_fwd_time is None or m_time < best_fwd_time:
+                    best_fwd_time = m_time
+                    forward_msg = m
 
     # Rank 1: REPLY
     if reply_msg is not None:

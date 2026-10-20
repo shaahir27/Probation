@@ -18,26 +18,41 @@ def test_t_clock_no_wall_clock_in_engine_modules() -> None:
     """T-CLOCK: Static AST check verifies no direct datetime.now() or time.time() calls in engine."""
     engine_dir = Path(__file__).resolve().parent.parent.parent / "src" / "probation" / "engine"
     core_dir = Path(__file__).resolve().parent.parent.parent / "src" / "probation" / "core"
+    workers_dir = Path(__file__).resolve().parent.parent.parent / "src" / "probation" / "workers"
+    packs_dir = Path(__file__).resolve().parent.parent.parent / "src" / "probation" / "packs"
 
-    # Scan all files under engine/ and core/ (except core/clock.py)
-    files_to_check = list(engine_dir.glob("**/*.py")) + [
-        p for p in core_dir.glob("*.py") if p.name != "clock.py"
-    ]
+    # Scan all files under engine/, core/, workers/, and packs/ (except core/clock.py)
+    files_to_check = (
+        list(engine_dir.glob("**/*.py"))
+        + list(workers_dir.glob("**/*.py"))
+        + list(packs_dir.glob("**/*.py"))
+        + [p for p in core_dir.glob("*.py") if p.name != "clock.py"]
+    )
 
     violations: list[str] = []
     for py_file in files_to_check:
         with open(py_file, encoding="utf-8") as f:
             tree = ast.parse(f.read(), filename=str(py_file))
 
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Call):
-                # Check for datetime.now()
-                if isinstance(node.func, ast.Attribute) and node.func.attr == "now":
-                    violations.append(f"{py_file.name}:{node.lineno} - direct datetime.now() call")
-                # Check for time.time()
-                elif isinstance(node.func, ast.Attribute) and node.func.attr == "time":
-                    if isinstance(node.func.value, ast.Name) and node.func.value.id == "time":
-                        violations.append(f"{py_file.name}:{node.lineno} - direct time.time() call")
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Call):
+                    # Check for direct datetime.now() / dt.now() calls
+                    if isinstance(node.func, ast.Attribute) and node.func.attr == "now":
+                        val = node.func.value
+                        if isinstance(val, ast.Name) and val.id in ("datetime", "dt"):
+                            violations.append(
+                                f"{py_file.name}:{node.lineno} - direct datetime.now() call"
+                            )
+                        elif isinstance(val, ast.Attribute) and val.attr == "datetime":
+                            violations.append(
+                                f"{py_file.name}:{node.lineno} - direct datetime.now() call"
+                            )
+                    # Check for direct time.time() calls
+                    elif isinstance(node.func, ast.Attribute) and node.func.attr == "time":
+                        if isinstance(node.func.value, ast.Name) and node.func.value.id == "time":
+                            violations.append(
+                                f"{py_file.name}:{node.lineno} - direct time.time() call"
+                            )
 
     assert violations == [], (
         f"Found disallowed system clock calls in engine/core modules: {violations}"

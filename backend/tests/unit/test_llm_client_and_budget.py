@@ -220,3 +220,80 @@ def test_t_llm_exposure_log_written(memory_db: sqlite3.Connection) -> None:
     assert row["call_kind"] == "reader"
     assert row["tokens_in"] == 250
     assert row["tokens_out"] == 50
+
+
+def test_t_llm_schema_validation_rejects_missing_field() -> None:
+    """T-LLM: Validates JSON against schema and raises LLMValidationError if required field missing."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "choices": [{"message": {"content": json.dumps({"wrong_field": "val"})}}],
+                "usage": {"prompt_tokens": 50, "completion_tokens": 20},
+            },
+        )
+
+    transport = httpx.MockTransport(handler)
+    client = LLMClient(api_key="test-key", transport=transport)
+
+    schema = {
+        "type": "object",
+        "required": ["intent", "money_involved"],
+        "properties": {
+            "intent": {"type": "string"},
+            "money_involved": {"type": "boolean"},
+        },
+    }
+
+    with pytest.raises(LLMValidationError):
+        client.chat_json(
+            kind="reader",
+            model="nvidia/nemotron-mini-4b-instruct",
+            system="System",
+            user="Email text",
+            schema=schema,
+            cache_parts={"content_hash": "hash_missing_field"},
+        )
+
+
+def test_t_llm_extracts_from_thought_tags_and_markdown() -> None:
+    """T-LLM: Successfully parses JSON wrapped in thinking tags and markdown fences."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        content = (
+            "<think>Analyzing email...</think>\n"
+            "```json\n"
+            '{"intent": "question", "money_involved": false}\n'
+            "```"
+        )
+        return httpx.Response(
+            200,
+            json={
+                "choices": [{"message": {"content": content}}],
+                "usage": {"prompt_tokens": 100, "completion_tokens": 40},
+            },
+        )
+
+    transport = httpx.MockTransport(handler)
+    client = LLMClient(api_key="test-key", transport=transport)
+
+    schema = {
+        "type": "object",
+        "required": ["intent", "money_involved"],
+        "properties": {
+            "intent": {"type": "string"},
+            "money_involved": {"type": "boolean"},
+        },
+    }
+
+    res = client.chat_json(
+        kind="reader",
+        model="nvidia/nemotron-mini-4b-instruct",
+        system="System",
+        user="Email text",
+        schema=schema,
+        cache_parts={"content_hash": "hash_think_md"},
+    )
+    assert res["intent"] == "question"
+    assert res["money_involved"] is False

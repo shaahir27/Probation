@@ -33,7 +33,7 @@ CALENDAR_ACTION_CATALOG = [
     ActionSpec(type="ACCEPT", recallable=False, base_cap=2, loss=10.0),
     ActionSpec(type="DECLINE", recallable=False, base_cap=2, loss=20.0),
     ActionSpec(type="TENTATIVE", recallable=False, base_cap=2, loss=5.0),
-    ActionSpec(type="NO_RESPONSE", recallable=True, base_cap=0, loss=0.0),
+    ActionSpec(type="NO_RESPONSE", recallable=False, base_cap=0, loss=0.0),
     ActionSpec(type="BLOCK_TIME", recallable=True, base_cap=3, loss=3.0),
 ]
 
@@ -57,6 +57,14 @@ class CalendarPack(PackAdapter):
 
     name: str = "calendar"
     families: tuple[str, ...] = ("invite_rsvp",)
+
+    def __init__(self, user_addresses: list[str] | str | None = None) -> None:
+        if isinstance(user_addresses, str):
+            self.user_addresses = [a.strip() for a in user_addresses.split(",") if a.strip()]
+        elif user_addresses is not None:
+            self.user_addresses = list(user_addresses)
+        else:
+            self.user_addresses = None
 
     def iter_situations(self, raw_item: RawItem | dict[str, Any]) -> list[Situation]:
         """Extract atomic situations from an ingested raw record."""
@@ -84,14 +92,20 @@ class CalendarPack(PackAdapter):
 
         organizer = payload.get("organizer", "")
         norm_org = normalize_address(organizer)
-        user_addrs = [normalize_address(a) for a in settings.user_addresses.split(",")]
+        if self.user_addresses is not None:
+            user_addrs = [normalize_address(a) for a in self.user_addresses]
+        else:
+            user_addrs = [normalize_address(a) for a in settings.user_addresses.split(",")]
 
         # Skip if organized by the user
         if any(u in norm_org for u in user_addrs):
             return []
 
         # Check attendee status at arrival was NEEDS-ACTION
-        my_status = str(payload.get("my_status") or payload.get("status", "NEEDS_ACTION")).upper()
+        my_status = str(
+            payload.get("my_status")
+            or ("NEEDS-ACTION" if item_kind == "invite" else payload.get("status", "NEEDS_ACTION"))
+        ).upper()
         if "NEEDS" not in my_status and "ACTION" not in my_status:
             return []
 
@@ -156,18 +170,24 @@ class CalendarPack(PackAdapter):
 
     def level_cap(self, action: str, s: Situation, f: Features) -> int:
         """Apply conditional caps per ENGINE_SPEC section 8.1."""
-        base_cap = 2
+        base_cap = 0
+        found = False
         for spec in CALENDAR_ACTION_CATALOG:
             if spec.type == action:
                 base_cap = spec.base_cap
+                found = True
                 break
+        if not found:
+            return 0
 
         org_tier = str(f.deterministic.get("organizer_tier", "unknown"))
         is_unknown = org_tier == "unknown"
 
-        money_involved = False
         if f.reader and isinstance(f.reader, dict):
             money_involved = bool(f.reader.get("money_involved", False))
+        else:
+            # If reader missing or failed, fail closed
+            money_involved = True
 
         conditional_cap = base_cap
         if is_unknown or money_involved:

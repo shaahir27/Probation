@@ -5,7 +5,7 @@ All system time queries MUST go through this module.
 Direct calls to datetime.now() or time.time() outside this module are forbidden.
 """
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, tzinfo
 
 from probation.core.enums import ClockMode
 
@@ -13,10 +13,21 @@ from probation.core.enums import ClockMode
 class Clock:
     """Monotonic timekeeper supporting settable replay mode and live system time."""
 
-    def __init__(
-        self, mode: ClockMode = ClockMode.REPLAY, initial_time: datetime | None = None
-    ) -> None:
-        self.mode = mode
+    def __init__(self, mode: ClockMode | None = None, initial_time: datetime | None = None) -> None:
+        if mode is None:
+            try:
+                from probation.config import settings
+
+                self.mode = (
+                    ClockMode.LIVE
+                    if getattr(settings, "clock_mode", "replay") == "live"
+                    else ClockMode.REPLAY
+                )
+            except Exception:
+                self.mode = ClockMode.REPLAY
+        else:
+            self.mode = mode
+
         if initial_time is not None:
             self._current_time: datetime = (
                 initial_time if initial_time.tzinfo else initial_time.replace(tzinfo=UTC)
@@ -24,11 +35,22 @@ class Clock:
         else:
             self._current_time = datetime(2026, 1, 1, 0, 0, 0, tzinfo=UTC)
 
-    def now(self) -> datetime:
-        """Return the current clock time as a UTC datetime."""
-        if self.mode == ClockMode.LIVE:
-            return datetime.now(UTC)
-        return self._current_time
+    @classmethod
+    def live(cls) -> "Clock":
+        """Convenience factory returning a Clock in LIVE mode."""
+        return cls(mode=ClockMode.LIVE)
+
+    @classmethod
+    def replay(cls, initial_time: datetime | None = None) -> "Clock":
+        """Convenience factory returning a Clock in REPLAY mode."""
+        return cls(mode=ClockMode.REPLAY, initial_time=initial_time)
+
+    def now(self, tz: tzinfo | None = None) -> datetime:
+        """Return the current clock time as a datetime (UTC by default or converted to tz)."""
+        dt = datetime.now(UTC) if self.mode == ClockMode.LIVE else self._current_time
+        if tz is not None:
+            return dt.astimezone(tz)
+        return dt
 
     def now_iso(self) -> str:
         """Return current time as an ISO-8601 UTC string ending in 'Z'."""

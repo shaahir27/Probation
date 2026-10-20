@@ -140,7 +140,9 @@ def synth_generate(
 ) -> None:
     """Generate synthetic persona history, world database, and hidden truth."""
     if not out:
-        out_dir = f"data/synth/{persona_id}" if size == "full" else "tests/fixtures/tiny_synth"
+        out_dir = (
+            f"data/synth/{persona_id}" if size == "full" else "backend/tests/fixtures/tiny_synth"
+        )
     else:
         out_dir = out
 
@@ -250,14 +252,13 @@ def exam_run(
 
     Authority: docs/ENGINE_SPEC.md section 15.
     """
-    from datetime import UTC, datetime
-
+    from probation.core.clock import Clock
     from probation.engine.licence import find_exam_candidates
     from probation.workers.examiner import run_examiner_job
 
     conn = get_connection(settings.db_path)
     try:
-        now_iso = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+        now_iso = Clock().now_iso()
         results = []
         console.print("[bold cyan]Running examination board (Phase 7)...[/]")
 
@@ -450,6 +451,27 @@ def webfacts_vet(
             table.add_row(f"Source {idx}", f"{src.get('title')} -> {src.get('url')}")
 
         console.print(table)
+    finally:
+        conn.close()
+
+
+@webfacts_app.command("vet-batch")
+def webfacts_vet_batch(
+    as_of: str | None = typer.Option(None, "--as-of", help="Historical cutoff timestamp (ISO)"),
+) -> None:
+    """Vet sender and link entities for situations batch."""
+    from probation.db.connection import apply_schema
+    from probation.workers.webfacts import vet_situations_batch
+
+    conn = get_connection(settings.db_path)
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='web_facts';")
+        if not cur.fetchone():
+            apply_schema(conn)
+
+        count = vet_situations_batch(conn, as_of=as_of)
+        console.print(f"[bold green]Vetted {count} entity domains for situations batch.[/]")
     finally:
         conn.close()
 

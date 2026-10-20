@@ -4,6 +4,7 @@ Authority: docs/PACKS_SPEC.md section 1 and docs/CONTRACT.md section 5.
 """
 
 import json
+import re
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -30,8 +31,8 @@ from probation.packs.mail.resolver import DEFAULT_MAIL_WINDOW_DAYS, resolve_mail
 
 MAIL_ACTION_CATALOG = [
     ActionSpec(type="REPLY", recallable=False, base_cap=2, loss=40.0),
-    ActionSpec(type="FORWARD", recallable=False, base_cap=1, loss=30.0),
-    ActionSpec(type="TRASH", recallable=True, base_cap=2, loss=15.0),
+    ActionSpec(type="FORWARD", recallable=False, base_cap=1, loss=40.0),
+    ActionSpec(type="TRASH", recallable=True, base_cap=2, loss=20.0),
     ActionSpec(type="ARCHIVE", recallable=True, base_cap=3, loss=5.0),
     ActionSpec(type="LEAVE", recallable=True, base_cap=0, loss=0.0),
 ]
@@ -84,6 +85,14 @@ class MailPack(PackAdapter):
     name: str = "mail"
     families: tuple[str, ...] = ("email_action",)
 
+    def __init__(self, user_addresses: list[str] | str | None = None) -> None:
+        if isinstance(user_addresses, str):
+            self.user_addresses = [a.strip() for a in user_addresses.split(",") if a.strip()]
+        elif user_addresses is not None:
+            self.user_addresses = list(user_addresses)
+        else:
+            self.user_addresses = None
+
     def iter_situations(self, raw_item: RawItem | dict[str, Any]) -> list[Situation]:
         """Extract atomic situations from an ingested raw record."""
         if isinstance(raw_item, dict):
@@ -110,7 +119,10 @@ class MailPack(PackAdapter):
 
         from_addr = payload.get("from", "")
         norm_from = normalize_address(from_addr)
-        user_addrs = [normalize_address(a) for a in settings.user_addresses.split(",")]
+        if self.user_addresses is not None:
+            user_addrs = [normalize_address(a) for a in self.user_addresses]
+        else:
+            user_addrs = [normalize_address(a) for a in settings.user_addresses.split(",")]
 
         # Skip if from the user or marked spam/draft
         if any(u in norm_from for u in user_addrs):
@@ -156,7 +168,7 @@ class MailPack(PackAdapter):
                 except Exception:
                     pass
                 break
-        return extract_mail_clues(s, hist, payload)
+        return extract_mail_clues(s, hist, payload, user_addresses=self.user_addresses)
 
     def reader_spec(self) -> ReaderSpec:
         """Prompt descriptor for mail reader."""
@@ -181,20 +193,26 @@ class MailPack(PackAdapter):
 
     def level_cap(self, action: str, s: Situation, f: Features) -> int:
         """Apply conditional caps per ENGINE_SPEC section 8.1."""
-        base_cap = 2
+        base_cap = 0
+        found = False
         for spec in MAIL_ACTION_CATALOG:
             if spec.type == action:
                 base_cap = spec.base_cap
+                found = True
                 break
+        if not found:
+            return 0
 
         sender_tier = str(f.deterministic.get("sender_tier", "unknown"))
         is_unknown = sender_tier == "unknown"
 
-        money_involved = False
-        asks_personal_info = False
         if f.reader and isinstance(f.reader, dict):
             money_involved = bool(f.reader.get("money_involved", False))
             asks_personal_info = bool(f.reader.get("asks_for_personal_info", False))
+        else:
+            # When unsure / missing reader, fail closed (PROMPTS.md section 2)
+            money_involved = True
+            asks_personal_info = True
 
         conditional_cap = base_cap
         if is_unknown or money_involved or asks_personal_info:
@@ -208,7 +226,11 @@ class MailPack(PackAdapter):
     def hands_off_text(self, text: str) -> str | None:
         """Check for strictly forbidden hands-off actions."""
         lower = text.lower()
-        if "password reset" in lower or "otp" in lower or "bank account verification" in lower:
+        if (
+            "password reset" in lower
+            or bool(re.search(r"\botp\b", lower))
+            or "bank account verification" in lower
+        ):
             return "credential_or_security_sensitive"
         return None
 
@@ -232,7 +254,7 @@ class MailPack(PackAdapter):
 
     def resolve_outcome(self, s: Situation, world: WorldView, now: datetime) -> Outcome | None:
         """Resolve observed outcome from SimWorld."""
-        return resolve_mail_outcome(s, world, now)
+        return resolve_mail_outcome(s, world, now, user_addresses=self.user_addresses)
 
     def exam_operators(self) -> list[ExamOperator]:
         """Return perturbation operators for exam board evaluation."""

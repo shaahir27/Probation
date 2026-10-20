@@ -6,12 +6,12 @@ Tracks credit usage, enforces query guards, retries on 429/5xx, and writes audit
 
 import sqlite3
 import time
-from datetime import UTC, datetime
 from typing import Any
 
 import httpx
 
 from probation.config import settings
+from probation.core.clock import Clock
 from probation.core.hashing import canonical_json, det_id
 from probation.db.access import Role, RoleAccess
 from probation.web.query_guard import validate_tavily_query
@@ -41,7 +41,7 @@ class TavilyClient:
 
         try:
             cur = self.conn.cursor()
-            today_prefix = datetime.now(UTC).strftime("%Y-%m-%d")
+            today_prefix = Clock().now().strftime("%Y-%m-%d")
             cur.execute(
                 "SELECT COUNT(*), COALESCE(SUM(credits), 0) FROM tavily_calls WHERE created_at LIKE ?;",
                 (f"{today_prefix}%",),
@@ -54,7 +54,7 @@ class TavilyClient:
                     f"Daily call limit reached ({daily_calls}/{settings.tavily_max_calls_per_day})",
                 )
 
-            month_prefix = datetime.now(UTC).strftime("%Y-%m")
+            month_prefix = Clock().now().strftime("%Y-%m")
             cur.execute(
                 "SELECT COALESCE(SUM(credits), 0) FROM tavily_calls WHERE created_at LIKE ?;",
                 (f"{month_prefix}%",),
@@ -87,7 +87,7 @@ class TavilyClient:
         if self.conn is None:
             return
 
-        now_iso = created_at or datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+        now_iso = created_at or Clock().now_iso()
         call_id = det_id("tavily_call", endpoint, purpose, query_text, now_iso)
         params_json = canonical_json(params)
 
