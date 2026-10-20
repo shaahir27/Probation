@@ -9,6 +9,7 @@ from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from typing import Final
 
+from probation.config import settings
 from probation.core.enums import LedgerKind, LicenceLevel
 from probation.core.types import LicenceView
 from probation.db.ledger import append_ledger
@@ -158,6 +159,34 @@ def check_exam_ok(
     return True
 
 
+def get_latest_passing_exam_id(
+    conn: sqlite3.Connection,
+    class_key: str,
+    action: str,
+    as_of: str,
+    level: int,
+) -> str | None:
+    """Retrieve ID of latest valid passing exam run for (class_key, action)."""
+    cur = conn.cursor()
+    cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='exam_runs';")
+    if cur.fetchone() is None:
+        return None
+
+    query = """
+    SELECT id FROM exam_runs
+    WHERE class_key = ?
+      AND action = ?
+      AND level_tested >= ?
+      AND passed = 1
+      AND finished_at <= ?
+    ORDER BY finished_at DESC
+    LIMIT 1;
+    """
+    cur.execute(query, (class_key, action, level, as_of))
+    row = cur.fetchone()
+    return str(row["id"]) if row else None
+
+
 def derive_and_cache_licences(
     conn: sqlite3.Connection,
     as_of: str,
@@ -233,12 +262,17 @@ def derive_and_cache_licences(
         elif new_level < prev_level:
             reasons.append("demoted")
 
+        # Determine exam_run_id for level >= 2
+        exam_run_id = None
+        if int(new_level.value) >= 2:
+            exam_run_id = get_latest_passing_exam_id(conn, c_key, act, as_of, int(new_level.value))
+
         # Update cache
         cur.execute(
             """
             INSERT OR REPLACE INTO licence_cache
             (class_key, action, level, lower_bound, reasons_json, exam_run_id, computed_at, valid_until)
-            VALUES (?, ?, ?, ?, ?, NULL, ?, ?);
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?);
             """,
             (
                 c_key,
@@ -246,6 +280,7 @@ def derive_and_cache_licences(
                 int(new_level.value),
                 s.lb_strong,
                 json.dumps(reasons),
+                exam_run_id,
                 as_of,
                 valid_until,
             ),
@@ -280,9 +315,70 @@ def derive_and_cache_licences(
             n_all=s.n_all,
             k_all=s.k_all,
             n_recent=s.n_recent,
+            exam_run_id=exam_run_id,
             valid_until=valid_until,
             reasons=reasons,
         )
 
     conn.commit()
     return licences
+
+
+def find_exam_candidates(
+    conn: sqlite3.Connection,
+    as_of: str,
+    max_candidates: int | None = None,
+    strong_min_raw_n: int = STRONG_MIN_RAW_N_DEFAULT,
+    licence_min_recent_n: int = LICENCE_MIN_RECENT_N_DEFAULT,
+    l2_min_lb: float = L2_MIN_LB_DEFAULT,
+    l3_min_lb: float = L3_MIN_LB_DEFAULT,
+) -> list[tuple[str, str, int]]:
+    """Identify (class_key, action, target_level) candidates qualifying numerically without a valid exam pass.
+
+    Authority: docs/ENGINE_SPEC.md section 15.0:
+    At each LICENCE_REVIEW, for every (c, a) whose evidence meets the numeric bar for level 2 (or 3)
+    but has no valid passing exam (section 6.3), queue an exam for the highest level it qualifies for.
+    Start at most EXAM_MAX_PER_DAY per review tick, oldest candidate first.
+    """
+    max_cand = max_candidates if max_candidates is not None else settings.exam_max_per_day
+    cur = conn.cursor()
+
+    cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='class_stats';")
+    if cur.fetchone() is None:
+        return []
+
+    cur.execute(
+        """
+        SELECT class_key, action, n_strong, lb_strong, n_recent
+        FROM class_stats
+        WHERE as_of = ?
+        ORDER BY n_strong DESC;
+        """,
+        (as_of,),
+    )
+    rows = cur.fetchall()
+    candidates: list[tuple[str, str, int]] = []
+
+    for r in rows:
+        c_key = str(r["class_key"])
+        act = str(r["action"])
+        n_strong = int(r["n_strong"])
+        lb_strong = float(r["lb_strong"])
+        n_recent = int(r["n_recent"])
+
+        strong_ok = (n_strong >= strong_min_raw_n) and (n_recent >= licence_min_recent_n)
+        if not strong_ok or lb_strong < l2_min_lb:
+            continue
+
+        target_level = 2
+        rec = is_recallable(act)
+        if lb_strong >= l3_min_lb and rec:
+            target_level = 3
+
+        has_valid_exam = check_exam_ok(conn, c_key, act, as_of, target_level)
+        if not has_valid_exam:
+            candidates.append((c_key, act, target_level))
+            if len(candidates) >= max_cand:
+                break
+
+    return candidates

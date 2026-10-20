@@ -28,6 +28,9 @@ Governed by [`docs/BUILD_LOGGING_PROTOCOL.md`](file:///d:/Desktop/project/Probat
 | Phase 5 Engine Summary | Phase 5 | [phase_05_summary.md](phase_05_evidence_licences_gate_drift/phase_05_summary.md) | Built | 2026-10-16 |
 | Entity Facts Service and Tavily Vetting | Phase 6b | [feature_entity_facts_and_tavily_vetting.md](phase_06b_entity_facts_tavily/feature_entity_facts_and_tavily_vetting.md) | Built | 2026-10-19 |
 | Phase 6b Entity Facts Summary | Phase 6b | [phase_06b_summary.md](phase_06b_entity_facts_tavily/phase_06b_summary.md) | Built | 2026-10-19 |
+| Exam Operators and Validators | Phase 7 | [feature_exam_operators_and_validators.md](phase_07_exam_board/feature_exam_operators_and_validators.md) | Built | 2026-10-19 |
+| Exam Board Engine and Worker | Phase 7 | [feature_exam_board_engine_and_worker.md](phase_07_exam_board/feature_exam_board_engine_and_worker.md) | Built | 2026-10-19 |
+| Phase 7 Exam Board Summary | Phase 7 | [phase_07_summary.md](phase_07_exam_board/phase_07_summary.md) | Built | 2026-10-19 |
 | API Endpoints and Responsive Dashboard | Phase 9 | [feature_api_and_dashboard.md](phase_09_api_dashboard/feature_api_and_dashboard.md) | Built | 2026-10-18 |
 
 

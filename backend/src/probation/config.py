@@ -64,7 +64,12 @@ class Settings(BaseSettings):
     cusum_threshold: float = 5.0
     psi_threshold: float = 0.25
     exam_valid_days: int = 90
-    exam_max_per_day: int = 5
+    exam_max_per_day: int = 3
+    exam_n: int = 30
+    exam_min_valid_cases: int = 20
+    exam_invariance_max_flip: float = 0.03
+    exam_critical_max_violations: int = 0
+    exam_other_max_violation_rate: float = 0.05
     retrain_interval_days: int = 7
     train_half_life_days: float = 90.0
     cold_start_min_situations: int = 20

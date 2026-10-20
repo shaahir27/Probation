@@ -6,9 +6,11 @@ Authority: docs/CONTRACT.md section 3 and docs/ENGINE_SPEC.md section 1.
 import sqlite3
 from datetime import UTC, datetime
 
+from probation.config import settings
 from probation.engine.drift import check_family_shift
 from probation.engine.evidence import aggregate_evidence
-from probation.engine.licence import derive_and_cache_licences
+from probation.engine.exam import run_exam
+from probation.engine.licence import derive_and_cache_licences, find_exam_candidates
 
 
 def run_nightly_review(
@@ -17,8 +19,9 @@ def run_nightly_review(
 ) -> None:
     """Execute nightly review tick (02:00 IST / daily replay tick).
 
-    Authority: docs/ENGINE_SPEC.md section 1:
+    Authority: docs/ENGINE_SPEC.md section 1 & section 15.0:
     - Recompute evidence counts and lower bounds (class_stats).
+    - Queue and evaluate diagnostic exams for candidate classes (capped by EXAM_MAX_PER_DAY).
     - Recompute derived licence levels and cache (licence_cache).
     """
     now_iso = as_of or datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -26,7 +29,12 @@ def run_nightly_review(
     # 1. Aggregate evidence
     stats = aggregate_evidence(conn, as_of=now_iso)
 
-    # 2. Derive and cache licences
+    # 2. Run diagnostic exams for candidates
+    candidates = find_exam_candidates(conn, as_of=now_iso, max_candidates=settings.exam_max_per_day)
+    for c_key, act, lvl in candidates:
+        run_exam(conn, class_key=c_key, action=act, level_tested=lvl, as_of=now_iso)
+
+    # 3. Derive and cache licences
     derive_and_cache_licences(conn, as_of=now_iso, stats=stats)
 
 

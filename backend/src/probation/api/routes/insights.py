@@ -12,7 +12,6 @@ Authority: CONTRACT.md section 9:
 
 import json
 import sqlite3
-import uuid
 from datetime import UTC, datetime
 from typing import Any
 
@@ -22,6 +21,7 @@ from pydantic import BaseModel, Field
 from probation.config import settings
 from probation.core.enums import GateDecision
 from probation.db.connection import get_connection
+from probation.workers.examiner import run_examiner_job
 
 router = APIRouter(prefix="/api", tags=["insights"])
 
@@ -29,6 +29,7 @@ router = APIRouter(prefix="/api", tags=["insights"])
 class RunExamBody(BaseModel):
     class_key: str = Field(..., description="Target class key")
     action: str = Field(..., description="Target action")
+    level: int = Field(default=2, description="Target autonomy level (2 or 3)")
 
 
 def _get_db() -> sqlite3.Connection:
@@ -310,25 +311,24 @@ def run_exam(body: RunExamBody) -> dict[str, Any]:
     """Trigger an exam run for an authorized (class_key, action) pair."""
     conn = _get_db()
     try:
-        # Create an exam_run record
-        run_id = f"exam-{uuid.uuid4().hex[:12]}"
-        now_iso = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
-        cursor = conn.cursor()
-        cursor.execute(
-            """
-            INSERT INTO exam_runs (id, class_key, action, level_tested, started_at, finished_at, n_cases, passed, details_json)
-            VALUES (?, ?, ?, 2, ?, ?, 5, 1, '{}');
-            """,
-            (run_id, body.class_key, body.action, now_iso, now_iso),
+        res = run_examiner_job(
+            conn=conn,
+            class_key=body.class_key,
+            action=body.action,
+            level=body.level,
         )
-        conn.commit()
         return {
             "ok": True,
-            "run_id": run_id,
-            "class_key": body.class_key,
-            "action": body.action,
-            "passed": True,
-            "ran_at": now_iso,
+            "run_id": res.run_id,
+            "class_key": res.class_key,
+            "action": res.action,
+            "level_tested": res.level_tested,
+            "passed": res.passed,
+            "n_cases": res.n_cases,
+            "invariance_flip_rate": res.invariance_flip_rate,
+            "critical_violations": res.critical_violations,
+            "other_violation_rate": res.other_violation_rate,
+            "ran_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         }
     finally:
         conn.close()

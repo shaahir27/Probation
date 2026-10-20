@@ -26,8 +26,9 @@ from probation.engine.baselines import BaselineB0, BaselineB2
 from probation.engine.caps import get_action_loss, is_recallable
 from probation.engine.drift import CUSUMTracker, check_family_shift
 from probation.engine.evidence import aggregate_evidence
+from probation.engine.exam import run_exam
 from probation.engine.gate import compute_audit_draw, decide_gate
-from probation.engine.licence import derive_and_cache_licences
+from probation.engine.licence import derive_and_cache_licences, find_exam_candidates
 from probation.engine.novelty import NoveltyDetector
 from probation.engine.policy import Policy
 from probation.engine.report import generate_report_card
@@ -346,6 +347,27 @@ def run_replay(
         elif ev.kind == "LICENCE_REVIEW":
             day_iso = ev.timestamp
             stats = aggregate_evidence(conn, as_of=day_iso)
+            candidates = find_exam_candidates(
+                conn, as_of=day_iso, max_candidates=settings.exam_max_per_day
+            )
+            for cand_ck, cand_act, cand_lvl in candidates:
+                pack_name = cand_ck.split("|")[0]
+                cand_fam = (
+                    "email_action"
+                    if pack_name in ("mail", "email")
+                    else "invite_rsvp"
+                    if pack_name in ("cal", "calendar")
+                    else "file_destination"
+                )
+                run_exam(
+                    conn,
+                    class_key=cand_ck,
+                    action=cand_act,
+                    level_tested=cand_lvl,
+                    as_of=day_iso,
+                    policy=policies.get(cand_fam),
+                    clock=clock,
+                )
             derive_and_cache_licences(conn, as_of=day_iso, stats=stats)
             executor.process_queue(as_of=day_iso)
 

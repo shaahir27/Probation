@@ -104,7 +104,7 @@ export function InsightsView({
   const handleRunExamClick = async () => {
     setRunningExam(true);
     try {
-      await onRunExam("mail|recruiter|inquiry", "PREPARE_DECLINE_DRAFT");
+      await onRunExam("mail|recruiter|inquiry", "REPLY");
     } finally {
       setRunningExam(false);
     }

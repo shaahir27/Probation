@@ -238,3 +238,7 @@ def redact(
         counts=clean_counts,
         restore_map=restore_map,
     )
+
+
+# Alias for convenience
+redact_text = redact
