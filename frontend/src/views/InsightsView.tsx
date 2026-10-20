@@ -104,7 +104,9 @@ export function InsightsView({
   const handleRunExamClick = async () => {
     setRunningExam(true);
     try {
-      await onRunExam("mail|recruiter|inquiry", "REPLY");
+      const targetClass = exams[0]?.class_key || "mail|other|automated";
+      const targetAction = exams[0]?.action || "ARCHIVE";
+      await onRunExam(targetClass, targetAction);
     } finally {
       setRunningExam(false);
     }

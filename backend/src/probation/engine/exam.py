@@ -195,14 +195,18 @@ def run_exam(
     5. Compute deterministic verdicts: invariance flip rate, critical violations, other rate.
     6. Record exam_runs, exam_cases, and append hash-chained exam_run ledger entry.
     """
+    cur = conn.cursor()
     if clock is not None:
         now_iso = clock.now_iso()
     elif as_of is not None:
         now_iso = as_of
     else:
-        now_iso = Clock(mode=ClockMode.REPLAY).now_iso()
-
-    cur = conn.cursor()
+        cur.execute("SELECT MAX(occurred_at) FROM situations;")
+        max_row = cur.fetchone()
+        if max_row and max_row[0]:
+            now_iso = str(max_row[0])
+        else:
+            now_iso = Clock(mode=ClockMode.REPLAY).now_iso()
     run_id = f"exam-{uuid.uuid4().hex[:12]}"
     pack_name = class_key.split("|")[0]
     ops = _get_pack_operators(pack_name)

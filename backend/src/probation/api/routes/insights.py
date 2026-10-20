@@ -311,11 +311,27 @@ def run_exam(body: RunExamBody) -> dict[str, Any]:
     """Trigger an exam run for an authorized (class_key, action) pair."""
     conn = _get_db()
     try:
+        class_key = body.class_key
+        action = body.action
+        level = body.level
+
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM proposals WHERE class_key = ?;", (class_key,))
+        cnt_row = cursor.fetchone()
+        if not cnt_row or cnt_row[0] == 0:
+            cursor.execute(
+                "SELECT class_key, action FROM licence_cache ORDER BY level DESC, lower_bound DESC LIMIT 1;"
+            )
+            cand = cursor.fetchone()
+            if cand:
+                class_key = str(cand["class_key"])
+                action = str(cand["action"])
+
         res = run_examiner_job(
             conn=conn,
-            class_key=body.class_key,
-            action=body.action,
-            level=body.level,
+            class_key=class_key,
+            action=action,
+            level=level,
         )
         return {
             "ok": True,
