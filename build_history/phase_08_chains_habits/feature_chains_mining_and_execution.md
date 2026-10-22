@@ -70,3 +70,26 @@ def execute_chain_action(action: Action, world: ExecutorIO) -> ExecResult:
 ## 6. Dependencies & Deferred Work
 * **Depends on:** `probation.core.types.Chain`, `probation.synth.world.SimWorld`, `probation.packs.base.ExecutorIO`.
 * **Known issues/deferred:** None.
+
+
+## WP1 repair update - 22 October 2026
+
+### 1. Overview
+Atomic chain proposals and stable chain/resource identity. Scope: docs/CHANGES_IMPLEMENTATION_PLAN.md section 5; CONTRACT remains unchanged.
+
+### 2. Technical rationale
+Chain IDs derive from version, trigger class and follow action, preserving existing IDs. Follow-up situation/proposal/ledger storage shares a transaction and cannot commit a parent. Invalid deadlines no longer invent a block time; unavailable reply drafts fail closed. Created resource IDs derive from the action. Full learned-chain evidence and execution lifecycle remain later work.
+
+### 3. Database schema impact
+No persistent schema/ledger-byte migration or new dependency.
+
+### 4. Core logic and necessary functions
+backend/src/probation/packs/chains/mining.py: mine_chains(..., as_of=None, clock=None). backend/src/probation/packs/chains/proposer.py: create_chain_situations_and_proposals(conn, trigger_sit, trigger_class_key, as_of, reader_features=None). backend/src/probation/packs/chains/executor.py: execute_chain_action(action, world).
+Why/how called: Chain IDs derive from version, trigger class and follow action, preserving existing IDs. Follow-up situation/proposal/ledger storage shares a transaction and cannot commit a parent. Invalid deadlines no longer invent a block time; unavailable reply drafts fail closed. Created resource IDs derive from the action. Full learned-chain evidence and execution lifecycle remain later work.
+
+### 5. Testing and verification
+Test files test_wp1_chain_storage.py, test_chains_habits.py and test_wp1_replay_persistence.py.
+An earlier isolated full checkpoint passed 291 tests plus lint/types; later targeted results are recorded in docs/reports/wp1-progress-2026-10-22.md. Final checks remain required after all edits.
+
+### 6. Dependencies and remaining work
+WP0 committed c92131c; WP1 is in progress. See the progress report for open role/transaction, canonical-payload, clock/identity and handoff requirements. This update is not a WP1 completion claim or live-provider proof.

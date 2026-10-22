@@ -12,13 +12,21 @@ Verifies:
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
 from fastapi.testclient import TestClient
 
 from probation.api.app import app
 from probation.config import settings
+from probation.core.clock import Clock, parse_timestamp
 from probation.db.connection import get_connection, init_db
 
 client = TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def api_context_clock(monkeypatch: pytest.MonkeyPatch) -> None:
+    # User responses follow the synthetic fixture's 10:00 proposals/actions.
+    monkeypatch.setattr(app.state, "clock", Clock.replay(parse_timestamp("2026-03-01T11:00:00Z")))
 
 
 def _seed_sample_db(db_path: Path) -> None:

@@ -22,11 +22,11 @@ from probation.core.types import (
     ReaderSpec,
     Situation,
 )
+from probation.llm.jobs import MailReader
 from probation.llm.redact import redact
 from probation.packs.base import ExecutorIO, PackAdapter, WorldView
 from probation.packs.mail.clues import extract_mail_clues, normalize_address
 from probation.packs.mail.exam_ops import MAIL_EXAM_OPERATORS
-from probation.packs.mail.executor import execute_mail_action, undo_mail_action
 from probation.packs.mail.resolver import DEFAULT_MAIL_WINDOW_DAYS, resolve_mail_outcome
 
 MAIL_ACTION_CATALOG = [
@@ -37,46 +37,7 @@ MAIL_ACTION_CATALOG = [
     ActionSpec(type="LEAVE", recallable=True, base_cap=0, loss=0.0),
 ]
 
-MAIL_READER_SCHEMA = {
-    "type": "object",
-    "additionalProperties": False,
-    "required": [
-        "intent",
-        "asks_me_to_do_something",
-        "has_deadline",
-        "deadline_text",
-        "money_involved",
-        "urgency",
-        "formality",
-        "asks_for_personal_info",
-        "looks_automated",
-    ],
-    "properties": {
-        "intent": {
-            "type": "string",
-            "enum": [
-                "request",
-                "question",
-                "fyi",
-                "newsletter",
-                "receipt",
-                "invite_mention",
-                "social",
-                "sales",
-                "opportunity",
-                "other",
-            ],
-        },
-        "asks_me_to_do_something": {"type": "boolean"},
-        "has_deadline": {"type": "boolean"},
-        "deadline_text": {"type": ["string", "null"], "maxLength": 40},
-        "money_involved": {"type": "boolean"},
-        "urgency": {"type": "integer", "minimum": 0, "maximum": 3},
-        "formality": {"type": "string", "enum": ["casual", "neutral", "formal"]},
-        "asks_for_personal_info": {"type": "boolean"},
-        "looks_automated": {"type": "boolean"},
-    },
-}
+MAIL_READER_SCHEMA = MailReader.model_json_schema()
 
 
 class MailPack(PackAdapter):
@@ -243,10 +204,14 @@ class MailPack(PackAdapter):
 
     def execute(self, a: Action, io: ExecutorIO) -> ExecResult:
         """Execute mail side effect."""
+        from probation.packs.mail.executor import execute_mail_action
+
         return execute_mail_action(a, io)
 
     def undo(self, a: Action, io: ExecutorIO) -> ExecResult:
         """Undo executed mail action."""
+        from probation.packs.mail.executor import undo_mail_action
+
         return undo_mail_action(a, io)
 
     def window(self, s: Situation) -> timedelta:

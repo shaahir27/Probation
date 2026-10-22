@@ -73,3 +73,26 @@ status: "Built"
 ## 6. Dependencies & Deferred Work
 * **Depends on:** `beautifulsoup4`, `urllib.parse`.
 * **Known issues/deferred:** None.
+
+
+## WP1 repair update - 22 October 2026
+
+### 1. Overview
+Shared extractor schemas and caller-owned clocked persistence. Scope: docs/CHANGES_IMPLEMENTATION_PLAN.md section 5; CONTRACT remains unchanged.
+
+### 2. Technical rationale
+Extractors share the explicit job models; quarantine records use the context clock. Extraction TTL starts from the supplied/context fetched instant rather than a separately constructed January clock. Storage helpers do not commit unrelated caller writes. Complete provenance/quarantine/TTL workflow hardening remains WP7.
+
+### 3. Database schema impact
+No persistent schema/ledger-byte migration or new dependency.
+
+### 4. Core logic and necessary functions
+backend/src/probation/links/quarantine.py: model-exported EXTRACT_OPPORTUNITY_SCHEMA/EXTRACT_LINK_SCHEMA and record_quarantine_output(..., now_iso=None). backend/src/probation/links/extract.py: extract_url_content(..., now_iso=None).
+Why/how called: Extractors share the explicit job models; quarantine records use the context clock. Extraction TTL starts from the supplied/context fetched instant rather than a separately constructed January clock. Storage helpers do not commit unrelated caller writes. Complete provenance/quarantine/TTL workflow hardening remains WP7.
+
+### 5. Testing and verification
+Test files test_links_radar_reading.py, test_wp1_validation.py and test_wp1_context.py.
+An earlier isolated full checkpoint passed 291 tests plus lint/types; later targeted results are recorded in docs/reports/wp1-progress-2026-10-22.md. Final checks remain required after all edits.
+
+### 6. Dependencies and remaining work
+WP0 committed c92131c; WP1 is in progress. See the progress report for open role/transaction, canonical-payload, clock/identity and handoff requirements. This update is not a WP1 completion claim or live-provider proof.

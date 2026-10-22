@@ -5,15 +5,17 @@ One trigger situation can generate several chain follow-up situations,
 each with its own immutable proposal and gated independently.
 """
 
-import json
 import sqlite3
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from probation.core.enums import LedgerKind
+from probation.core.actions import InvalidAction, parse_action
+from probation.core.clock import format_timestamp
+from probation.core.enums import GateDecision
 from probation.core.hashing import det_id
 from probation.core.types import Proposal, Situation
-from probation.db.ledger import append_ledger
+from probation.db.access import Role, RoleAccess
+from probation.db.proposals import persist_proposal
 from probation.engine.caps import ACTION_CATALOG, get_action_loss, is_recallable
 from probation.engine.gate import compute_audit_draw, decide_gate
 
@@ -41,7 +43,8 @@ def create_chain_situations_and_proposals(
     - CREATE_TASK: title = trigger subject, due = parsed deadline.
     - REPLY: draft reply proposal.
     """
-    cur = conn.cursor()
+    access = RoleAccess(conn, Role.BRAIN)
+    cur = access.conn.cursor()
 
     # 1. Look for active chains matching this trigger's class key
     cur.execute(
@@ -66,10 +69,14 @@ def create_chain_situations_and_proposals(
     # Parse trigger subject / title
     subject = str(rdr.get("subject") or "Follow-up task")
 
-    trigger_dt = _parse_ts(trigger_sit.occurred_at)
-
     for ch in active_chains:
         follow_act = str(ch["follow_action"])
+        try:
+            parsed = parse_action(follow_act)
+        except InvalidAction:
+            continue
+        if parsed.type not in {"BLOCK_TIME", "CREATE_TASK", "REPLY"}:
+            continue
         chain_class_key = f"chain|{trigger_class_key}|{follow_act}"
 
         # Parameter derivation per PACKS_SPEC section 4.3
@@ -81,11 +88,10 @@ def create_chain_situations_and_proposals(
             try:
                 dl_dt = _parse_ts(str(deadline_str))
                 # Block 1 hour before deadline
-                block_start = (dl_dt - timedelta(hours=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
-                block_end = (dl_dt - timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
-            except Exception:
-                block_start = (trigger_dt + timedelta(days=1)).strftime("%Y-%m-%dT09:00:00Z")
-                block_end = (trigger_dt + timedelta(days=1, hours=1)).strftime("%Y-%m-%dT10:00:00Z")
+                block_start = format_timestamp(dl_dt - timedelta(hours=2))
+                block_end = format_timestamp(dl_dt - timedelta(hours=1))
+            except (ValueError, TypeError):
+                continue
 
             params = {
                 "title": f"Focus: {subject}",
@@ -110,151 +116,100 @@ def create_chain_situations_and_proposals(
         sit_id = det_id("chain", trigger_sit.id, follow_act)
         content_hash = det_id(trigger_sit.content_hash, follow_act)
 
-        # Check if already generated (idempotent)
-        cur.execute("SELECT id FROM situations WHERE id = ?;", (sit_id,))
-        if cur.fetchone() is not None:
-            continue
+        with access.transaction():
+            # Check if already generated (idempotent)
+            cur.execute("SELECT id FROM situations WHERE id = ?;", (sit_id,))
+            if cur.fetchone() is not None:
+                continue
 
-        # Create Situation
-        chain_sit = Situation(
-            id=sit_id,
-            pack="chains",
-            family="chain_followup",
-            variant=follow_act,
-            raw_item_id=trigger_sit.raw_item_id,
-            occurred_at=trigger_sit.occurred_at,
-            sender_key=trigger_sit.sender_key,
-            content_hash=content_hash,
-            redacted_text=trigger_sit.redacted_text,
-            hands_off_reason=trigger_sit.hands_off_reason,
-            created_at=as_of,
-        )
+            # Create Situation
+            chain_sit = Situation(
+                id=sit_id,
+                pack="chains",
+                family="chain_followup",
+                variant=follow_act,
+                raw_item_id=trigger_sit.raw_item_id,
+                occurred_at=trigger_sit.occurred_at,
+                sender_key=trigger_sit.sender_key,
+                content_hash=content_hash,
+                redacted_text=trigger_sit.redacted_text,
+                hands_off_reason=trigger_sit.hands_off_reason,
+                created_at=as_of,
+            )
 
-        cur.execute(
-            """
-            INSERT INTO situations
-            (id, pack, family, raw_item_id, occurred_at, sender_key, content_hash, redacted_text, hands_off_reason, variant, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-            """,
-            (
-                chain_sit.id,
-                chain_sit.pack,
-                chain_sit.family,
-                chain_sit.raw_item_id,
-                chain_sit.occurred_at,
-                chain_sit.sender_key,
-                chain_sit.content_hash,
-                chain_sit.redacted_text,
-                chain_sit.hands_off_reason,
-                chain_sit.variant,
-                as_of,
-            ),
-        )
+            access.insert_chain_situation(chain_sit)
 
-        # Retrieve licence level for chain class key
-        cur.execute(
-            "SELECT level FROM licence_cache WHERE class_key = ? AND action = ?;",
-            (chain_class_key, follow_act),
-        )
-        lic_row = cur.fetchone()
-        licence_level = int(lic_row["level"]) if lic_row else 0
+            # Retrieve licence level for chain class key
+            cur.execute(
+                "SELECT level FROM licence_cache WHERE class_key = ? AND action = ?;",
+                (chain_class_key, follow_act),
+            )
+            lic_row = cur.fetchone()
+            licence_level = int(lic_row["level"]) if lic_row else 0
 
-        spec = ACTION_CATALOG.get(follow_act)
-        cap = spec.base_cap if spec else 1
-        loss = get_action_loss(follow_act)
-        recallable = is_recallable(follow_act)
-        audit_draw = compute_audit_draw(chain_sit.id)
+            spec = ACTION_CATALOG.get(follow_act)
+            cap = spec.base_cap if spec else 1
+            loss = get_action_loss(follow_act)
+            recallable = is_recallable(follow_act)
+            audit_draw = compute_audit_draw(chain_sit.id)
 
-        # Decide Gate
-        p_est = float(ch["k"]) / float(ch["n"])
-        gate_res = decide_gate(
-            action=follow_act,
-            p=p_est,
-            novel=False,
-            licence_level=licence_level,
-            cap=cap,
-            hands_off=chain_sit.hands_off_reason,
-            reader_required=False,
-            reader_ok=True,
-            deterministic_ok=True,
-            loss=loss,
-            attention_cost=1.0,
-            recallable=recallable,
-            audit_draw=audit_draw,
-            budget_ok=True,
-        )
+            # Decide Gate
+            p_est = float(ch["k"]) / float(ch["n"]) if int(ch["n"]) > 0 else 0.0
+            gate_res = decide_gate(
+                action=follow_act,
+                p=p_est,
+                novel=False,
+                licence_level=licence_level,
+                cap=cap,
+                hands_off=chain_sit.hands_off_reason,
+                reader_required=False,
+                reader_ok=True,
+                deterministic_ok=True,
+                loss=loss,
+                attention_cost=1.0,
+                recallable=recallable,
+                audit_draw=audit_draw,
+                budget_ok=True,
+            )
 
-        prop_id = f"prop-{chain_sit.id}"
-        reasons = ["chain_followup", f"mined_chain_lift_{ch['lift']:.1f}"]
-        if gate_res.reason:
-            reasons.append(gate_res.reason)
+            prop_id = f"prop-{chain_sit.id}"
+            reasons = ["chain_followup", f"mined_chain_lift_{ch['lift']:.1f}"]
+            if gate_res.reason:
+                reasons.append(gate_res.reason)
+            final_gate = gate_res.decision
+            if follow_act == "REPLY":
+                final_gate = GateDecision.ASK
+                reasons.append("draft_unavailable")
 
-        seq = append_ledger(
-            conn,
-            kind=LedgerKind.PROPOSAL,
-            ref_id=prop_id,
-            payload={
-                "proposal_id": prop_id,
-                "situation_id": chain_sit.id,
-                "family": chain_sit.family,
-                "class_key": chain_class_key,
-                "action": follow_act,
-                "gate": gate_res.decision.value,
-                "p_max": p_est,
-                "licence_level": licence_level,
-                "params": params,
-                "proposed_at": as_of,
-            },
-            created_at=as_of,
-        )
+            proposal = Proposal(
+                id=prop_id,
+                situation_id=chain_sit.id,
+                family=chain_sit.family,
+                class_key=chain_class_key,
+                action=follow_act,
+                probs={follow_act: p_est, "LEAVE": 1.0 - p_est},
+                p_max=p_est,
+                novel=False,
+                licence_level=licence_level,
+                cap=cap,
+                gate=final_gate,
+                reasons=reasons,
+                params=params,
+                explanation={
+                    "features_hash": "chain",
+                    "trigger_situation_id": trigger_sit.id,
+                    "chain_id": ch["id"],
+                    "k": ch["k"],
+                    "n": ch["n"],
+                    "lift": ch["lift"],
+                },
+                policy_version="v1.0",
+                features_hash="chain",
+                proposed_at=as_of,
+            )
 
-        proposal = Proposal(
-            id=prop_id,
-            situation_id=chain_sit.id,
-            family=chain_sit.family,
-            class_key=chain_class_key,
-            action=follow_act,
-            probs={follow_act: p_est, "LEAVE": 1.0 - p_est},
-            p_max=p_est,
-            novel=False,
-            licence_level=licence_level,
-            cap=cap,
-            gate=gate_res.decision,
-            reasons=reasons,
-            params=params,
-            policy_version="v1.0",
-            features_hash="chain",
-            proposed_at=as_of,
-            ledger_seq=seq,
-        )
-
-        cur.execute(
-            """
-            INSERT INTO proposals
-            (id, situation_id, family, class_key, action, probs_json, p_max, novelty, novel,
-             licence_level, cap, gate, reasons_json, params_json, explanation_json, web_json,
-             policy_version, features_hash, audit_holdout, proposed_at, ledger_seq)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 0.0, 0, ?, ?, ?, ?, ?, '{}', '{}', 'v1.0', 'chain', 0, ?, ?);
-            """,
-            (
-                proposal.id,
-                chain_sit.id,
-                proposal.family,
-                proposal.class_key,
-                proposal.action,
-                json.dumps(proposal.probs),
-                proposal.p_max,
-                proposal.licence_level,
-                proposal.cap,
-                proposal.gate.value,
-                json.dumps(proposal.reasons),
-                json.dumps(proposal.params),
-                as_of,
-                seq,
-            ),
-        )
+            proposal = persist_proposal(access, proposal)
 
         results.append((chain_sit, proposal))
 
-    conn.commit()
     return results

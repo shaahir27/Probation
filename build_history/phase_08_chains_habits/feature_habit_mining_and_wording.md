@@ -62,3 +62,26 @@ def validate_wording_sentence(template: str, candidate: str) -> bool:
 ## 6. Dependencies & Deferred Work
 * **Depends on:** `scipy.stats.fisher_exact`, `scipy.stats.false_discovery_control`, `probation.core.types.Habit`.
 * **Known issues/deferred:** None.
+
+
+## WP1 repair update - 22 October 2026
+
+### 1. Overview
+Stable habit identity and context time. Scope: docs/CHANGES_IMPLEMENTATION_PLAN.md section 5; CONTRACT remains unchanged.
+
+### 2. Technical rationale
+New habit IDs derive from version, family, clue, clue value and full action label. Existing IDs are retained on update. Explicit as_of or the shared context clock replaces an inferred MAX(situation time)/fresh default clock. This does not establish time-correct complete mining or real wording integration; those remain WP8.
+
+### 3. Database schema impact
+No persistent schema/ledger-byte migration or new dependency.
+
+### 4. Core logic and necessary functions
+backend/src/probation/engine/habits.py: mine_habits(conn, as_of=None, llm_client=None, clock=None, ...).
+Why/how called: New habit IDs derive from version, family, clue, clue value and full action label. Existing IDs are retained on update. Explicit as_of or the shared context clock replaces an inferred MAX(situation time)/fresh default clock. This does not establish time-correct complete mining or real wording integration; those remain WP8.
+
+### 5. Testing and verification
+Test files test_chains_habits.py and test_wp1_clock.py; independent replay proof remains in the WP1 completion audit.
+An earlier isolated full checkpoint passed 291 tests plus lint/types; later targeted results are recorded in docs/reports/wp1-progress-2026-10-22.md. Final checks remain required after all edits.
+
+### 6. Dependencies and remaining work
+WP0 committed c92131c; WP1 is in progress. See the progress report for open role/transaction, canonical-payload, clock/identity and handoff requirements. This update is not a WP1 completion claim or live-provider proof.

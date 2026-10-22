@@ -27,18 +27,21 @@ def exam_run(
         "mail", "--pack", "-p", help="Domain pack fallback if class_key omitted"
     ),
     seed: int = typer.Option(42, "--seed", "-s", help="Random seed for sampling"),
+    attempt: int = typer.Option(
+        0, "--attempt", min=0, help="Stable ordinal for a deliberate new exam attempt"
+    ),
 ) -> None:
     """Run examination board on candidate policies.
 
     Authority: docs/ENGINE_SPEC.md section 15.
     """
-    from probation.core.clock import Clock
+    from probation.core.clock import get_clock
     from probation.engine.licence import find_exam_candidates
     from probation.workers.examiner import run_examiner_job
 
     conn = get_connection(settings.db_path)
     try:
-        now_iso = Clock().now_iso()
+        now_iso = get_clock().now_iso()
         results = []
         console.print("[bold cyan]Running examination board (Phase 7)...[/]")
 
@@ -47,7 +50,13 @@ def exam_run(
                 f"[bold cyan]Running diagnostic exam for ({class_key}, {action}) at Level {level}...[/]"
             )
             res = run_examiner_job(
-                conn, class_key=class_key, action=action, level=level, seed=seed, as_of=now_iso
+                conn,
+                class_key=class_key,
+                action=action,
+                level=level,
+                seed=seed,
+                as_of=now_iso,
+                attempt_ordinal=attempt,
             )
             results.append(res)
         else:
@@ -74,6 +83,7 @@ def exam_run(
                     level=level,
                     seed=seed,
                     as_of=now_iso,
+                    attempt_ordinal=attempt,
                 )
                 results.append(res)
             else:
@@ -82,7 +92,13 @@ def exam_run(
                 )
                 for c_key, act, lvl in candidates:
                     res = run_examiner_job(
-                        conn, class_key=c_key, action=act, level=lvl, seed=seed, as_of=now_iso
+                        conn,
+                        class_key=c_key,
+                        action=act,
+                        level=lvl,
+                        seed=seed,
+                        as_of=now_iso,
+                        attempt_ordinal=attempt,
                     )
                     results.append(res)
 

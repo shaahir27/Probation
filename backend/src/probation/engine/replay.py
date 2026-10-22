@@ -16,12 +16,13 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from probation.config import settings
-from probation.core.clock import Clock
-from probation.core.enums import ClockMode, GateDecision, LedgerKind
-from probation.core.hashing import canonical_json
-from probation.core.types import Features, Situation
+from probation.core.clock import Clock, use_clock
+from probation.core.enums import GateDecision, LedgerKind
+from probation.core.history import HistoryView
+from probation.core.types import Features, Proposal, Situation
 from probation.db.access import Role, RoleAccess
 from probation.db.ledger import append_ledger
+from probation.db.proposals import persist_proposal
 from probation.engine.baselines import BaselineB0, BaselineB2
 from probation.engine.caps import get_action_loss, is_recallable
 from probation.engine.drift import CUSUMTracker, check_family_shift
@@ -32,6 +33,7 @@ from probation.engine.habits import mine_habits
 from probation.engine.licence import derive_and_cache_licences, find_exam_candidates
 from probation.engine.novelty import NoveltyDetector
 from probation.engine.policy import Policy
+from probation.engine.proposal_data import proposal_parameters
 from probation.engine.report import generate_report_card
 from probation.packs.base import ExecutorIO, WorldView
 from probation.packs.chains.mining import mine_chains
@@ -81,6 +83,29 @@ def run_replay(
     family: str | None = None,
     until: str | None = None,
     world: WorldView | None = None,
+    reader_callable: Callable[[Situation], tuple[dict[str, Any] | None, bool]] | None = None,
+) -> dict[str, Any]:
+    """Own one clock context for every role participating in this replay."""
+    if clock is None:
+        row = conn.execute(
+            "SELECT MIN(occurred_at COLLATE UTC_TIMESTAMP) FROM situations"
+        ).fetchone()
+        initial = (
+            _parse_utc_dt(str(row[0])).replace(hour=0, minute=0, second=0, microsecond=0)
+            if row and row[0]
+            else None
+        )
+        clock = Clock.replay(initial)
+    with use_clock(clock):
+        return _run_replay(conn, clock, family, until, world, reader_callable)
+
+
+def _run_replay(
+    conn: sqlite3.Connection,
+    clock: Clock,
+    family: str | None = None,
+    until: str | None = None,
+    world: WorldView | None = None,
     reader_callable: (Callable[[Situation], tuple[dict[str, Any] | None, bool]] | None) = None,
 ) -> dict[str, Any]:
     """Execute event-sourced replay over historical raw items up to until.
@@ -91,11 +116,8 @@ def run_replay(
     - Emits immutable proposals with gate=SHADOW (Phase 4).
     - Appends proposal records to the hash-chained ledger.
     """
-    if clock is None:
-        clock = Clock(mode=ClockMode.REPLAY)
-
     # 1. Ensure features are extracted for any unfeaturized situations
-    extract_features_for_situations(conn, reader_callable=reader_callable)
+    extract_features_for_situations(conn, reader_callable=reader_callable, clock=clock)
 
     # 2. Check if outcomes are present; if empty and world provided or available, resolve them
     cur = conn.cursor()
@@ -103,12 +125,12 @@ def run_replay(
     outcomes_count = cur.fetchone()[0]
     if outcomes_count == 0:
         if world is not None:
-            resolve_outcomes(conn, world)
+            resolve_outcomes(conn, world, clock=clock)
         elif settings.world_db_path.exists():
             from probation.synth.world import SimWorld
 
             with SimWorld(settings.world_db_path) as sim_world:
-                resolve_outcomes(conn, sim_world)
+                resolve_outcomes(conn, sim_world, clock=clock)
 
     # 3. Query situations to replay
     query_sit = "SELECT s.* FROM situations s WHERE 1=1"
@@ -117,9 +139,9 @@ def run_replay(
         query_sit += " AND s.family = ?"
         params_sit.append(family)
     if until is not None:
-        query_sit += " AND s.occurred_at <= ?"
+        query_sit += " AND s.occurred_at COLLATE UTC_TIMESTAMP <= ?"
         params_sit.append(until)
-    query_sit += " ORDER BY s.occurred_at ASC;"
+    query_sit += " ORDER BY s.occurred_at COLLATE UTC_TIMESTAMP ASC;"
 
     cur.execute(query_sit, tuple(params_sit))
     sit_rows = cur.fetchall()
@@ -136,9 +158,9 @@ def run_replay(
         query_out += " AND s.family = ?"
         params_out.append(family)
     if until is not None:
-        query_out += " AND o.known_at <= ?"
+        query_out += " AND o.known_at COLLATE UTC_TIMESTAMP <= ?"
         params_out.append(until)
-    query_out += " ORDER BY o.known_at ASC;"
+    query_out += " ORDER BY o.known_at COLLATE UTC_TIMESTAMP ASC;"
 
     cur.execute(query_out, tuple(params_out))
     out_rows = cur.fetchall()
@@ -228,7 +250,7 @@ def run_replay(
 
     brain_access = RoleAccess(conn, Role.BRAIN)
     executor_io: ExecutorIO | None = world if isinstance(world, ExecutorIO) else None
-    executor = Executor(conn, world=executor_io)
+    executor = Executor(conn, world=executor_io, clock=clock)
     web_view = WebFactsView(conn)
 
     # 7. Execute replay loop
@@ -236,8 +258,7 @@ def run_replay(
         ev_dt, _ = ev.sort_key()
 
         # Monotonically advance clock
-        if clock._current_time < ev_dt:
-            clock.set_time(ev_dt)
+        clock.set_time(ev_dt)
 
         if ev.kind == "OUTCOME_KNOWN":
             out_row = ev.payload
@@ -312,11 +333,11 @@ def run_replay(
                     JOIN outcomes o ON s.id = o.situation_id
                     JOIN features f ON s.id = f.situation_id
                     WHERE s.family = ?
-                      AND o.known_at <= ?
+                      AND o.known_at COLLATE UTC_TIMESTAMP <= ?
                       AND o.strength = 'STRONG'
                       AND s.hands_off_reason IS NULL
                       AND f.reader_ok = 1
-                    ORDER BY s.occurred_at ASC;
+                    ORDER BY s.occurred_at COLLATE UTC_TIMESTAMP ASC;
                     """,
                     (fam, as_of_iso),
                 )
@@ -378,6 +399,7 @@ def run_replay(
                     clock=clock,
                 )
             derive_and_cache_licences(conn, as_of=day_iso, stats=stats)
+            conn.commit()
             executor.process_queue(as_of=day_iso)
 
         elif ev.kind == "SITUATION":
@@ -438,7 +460,7 @@ def run_replay(
 
             # Pack caps and class key
             try:
-                pack = registry.get(sit.pack)
+                pack = registry.get_descriptor(sit.pack)
                 feat_obj = Features(
                     situation_id=sit.id,
                     deterministic=det_dict,
@@ -516,29 +538,47 @@ def run_replay(
                 reasons.append(gate_res.reason)
             audit_holdout = 1 if gate_res.audit_holdout else 0
 
-            # Append to immutable hash-chained ledger (Contract I-7)
-            prop_id = f"prop-{sit.id}"
-            seq = append_ledger(
-                conn,
-                kind=LedgerKind.PROPOSAL,
-                ref_id=prop_id,
-                payload={
-                    "proposal_id": prop_id,
-                    "situation_id": sit.id,
-                    "family": fam,
-                    "class_key": c_key,
-                    "action": action,
-                    "gate": gate.value,
-                    "p_max": p_max,
-                    "novel": is_novel,
-                    "policy_version": policies[fam].policy_version,
-                    "features_hash": features_hash,
-                    "proposed_at": sit.occurred_at,
-                },
-                created_at=sit.occurred_at,
+            # Generate/validate all available data before the single persistence unit.
+            params, binding_errors = proposal_parameters(
+                sit,
+                action,
+                HistoryView(conn, as_of=sit.occurred_at),
+                reader_dict,
             )
-
-            # If autonomous execution level, dispatch action to Executor
+            if binding_errors:
+                gate = GateDecision.ASK
+                reasons.extend(binding_errors)
+            prop_id = f"prop-{sit.id}"
+            final_proposal = Proposal(
+                id=prop_id,
+                situation_id=sit.id,
+                family=fam,
+                class_key=c_key,
+                action=action,
+                probs=probs,
+                p_max=p_max,
+                novelty=novelty_dist,
+                novel=is_novel,
+                licence_level=licence_level,
+                cap=cap,
+                gate=gate,
+                reasons=reasons,
+                params=params,
+                explanation={
+                    "features_hash": features_hash,
+                    "policy_version": policies[fam].policy_version,
+                    "evidence_as_of": sit.occurred_at,
+                    "reasons": reasons,
+                },
+                web=web_dict,
+                policy_version=policies[fam].policy_version,
+                features_hash=features_hash,
+                audit_holdout=bool(audit_holdout),
+                proposed_at=sit.occurred_at,
+            )
+            persist_proposal(brain_access, final_proposal)
+            # This replay is the transaction owner. No external consumer precedes this barrier.
+            brain_access.commit()
             if gate in (
                 GateDecision.HOLD_THEN_EXECUTE,
                 GateDecision.EXECUTE_UNDO,
@@ -549,7 +589,7 @@ def run_replay(
                     proposal_id=prop_id,
                     pack=sit.pack,
                     action_type=action,
-                    params={},
+                    params=params,
                     level_required=level_req,
                     recallable=recallable,
                     gate_decision=gate,
@@ -557,41 +597,6 @@ def run_replay(
                 )
                 if world is not None:
                     executor.process_queue(as_of=sit.occurred_at)
-
-            # Insert proposal record
-            brain_access.execute_write(
-                "proposals",
-                """
-                INSERT OR IGNORE INTO proposals
-                (id, situation_id, family, class_key, action, probs_json, p_max, novelty, novel,
-                 licence_level, cap, gate, reasons_json, params_json, explanation_json, web_json,
-                 policy_version, features_hash, audit_holdout, proposed_at, ledger_seq)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-                """,
-                (
-                    prop_id,
-                    sit.id,
-                    fam,
-                    c_key,
-                    action,
-                    canonical_json(probs),
-                    p_max,
-                    novelty_dist,
-                    1 if is_novel else 0,
-                    licence_level,
-                    cap,
-                    gate.value,
-                    canonical_json(reasons),
-                    "{}",
-                    "{}",
-                    canonical_json(web_dict),
-                    policies[fam].policy_version,
-                    features_hash,
-                    audit_holdout,
-                    sit.occurred_at,
-                    seq,
-                ),
-            )
 
             # Trigger chain follow-up situations and proposals for trigger situations
             if sit.pack != "chains":
@@ -628,6 +633,7 @@ def run_replay(
     # Final pass for habits and chains up to replay clock
     mine_habits(conn, as_of=clock.now_iso(), clock=clock)
     mine_chains(conn, as_of=clock.now_iso(), clock=clock)
+    conn.commit()
 
     # 8. Return comprehensive report card
     return generate_report_card(

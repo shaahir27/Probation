@@ -28,7 +28,6 @@ from probation.links.sanitise import sanitise_url
 from probation.packs.base import ExecutorIO, PackAdapter, WorldView
 from probation.packs.reading.clues import extract_reading_clues
 from probation.packs.reading.exam_ops import READING_EXAM_OPERATORS
-from probation.packs.reading.executor import execute_reading_action, undo_reading_action
 from probation.packs.reading.resolver import (
     DEFAULT_READING_WINDOW_DAYS,
     resolve_reading_outcome,
@@ -144,10 +143,14 @@ class ReadingPack(PackAdapter):
 
     def execute(self, a: Action, io: ExecutorIO) -> ExecResult:
         """Execute Reading Triage side-effect into SimWorld library."""
+        from probation.packs.reading.executor import execute_reading_action
+
         return execute_reading_action(a, io)
 
     def undo(self, a: Action, io: ExecutorIO) -> ExecResult:
         """Undo executed Reading Triage action."""
+        from probation.packs.reading.executor import undo_reading_action
+
         return undo_reading_action(a, io)
 
     def window(self, s: Situation) -> timedelta:

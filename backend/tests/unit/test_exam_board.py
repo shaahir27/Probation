@@ -196,6 +196,42 @@ def test_t_exam_cheating_policy_fails(exam_db: sqlite3.Connection) -> None:
     assert res.invariance_flip_rate > settings.exam_invariance_max_flip
 
 
+def test_exam_and_case_ids_match_across_independent_replays(exam_db: sqlite3.Connection) -> None:
+    from probation.db.connection import get_connection
+
+    _populate_test_situations(exam_db, count=25)
+    exam_db.commit()
+    clone = get_connection(":memory:")
+    try:
+        exam_db.backup(clone)
+        kwargs = {
+            "class_key": "mail|recruiter|known",
+            "action": "REPLY",
+            "level_tested": 2,
+            "as_of": "2026-07-01T00:00:00Z",
+            "seed": 7,
+            "policy": SoundPolicy(),
+        }
+        first = run_exam(exam_db, **kwargs)
+        second = run_exam(clone, **kwargs)
+        assert first == second
+        assert first.n_cases >= settings.exam_min_valid_cases
+        first_cases = [
+            tuple(row) for row in exam_db.execute("SELECT * FROM exam_cases ORDER BY id")
+        ]
+        assert first_cases == [
+            tuple(row) for row in clone.execute("SELECT * FROM exam_cases ORDER BY id")
+        ]
+        assert (
+            exam_db.execute("SELECT hash FROM ledger ORDER BY seq DESC LIMIT 1").fetchone()[0]
+            == clone.execute("SELECT hash FROM ledger ORDER BY seq DESC LIMIT 1").fetchone()[0]
+        )
+        assert run_exam(exam_db, **kwargs) == first
+        assert exam_db.execute("SELECT count(*) FROM exam_cases").fetchone()[0] == len(first_cases)
+    finally:
+        clone.close()
+
+
 def test_t_exam_insufficient_cases_fails(exam_db: sqlite3.Connection) -> None:
     """T-EXAM: When fewer than EXAM_MIN_VALID_CASES (20) exist, exam fails with insufficient_cases."""
     # Seed only 10 situations (below minimum 20)

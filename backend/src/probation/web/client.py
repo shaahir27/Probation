@@ -11,7 +11,7 @@ from typing import Any
 import httpx
 
 from probation.config import settings
-from probation.core.clock import Clock
+from probation.core.clock import Clock, elapsed_seconds, get_clock
 from probation.core.hashing import canonical_json, det_id
 from probation.db.access import Role, RoleAccess
 from probation.web.query_guard import validate_tavily_query
@@ -27,12 +27,14 @@ class TavilyClient:
         timeout: float = 10.0,
         max_retries: int = 3,
         conn: sqlite3.Connection | None = None,
+        clock: Clock | None = None,
     ) -> None:
         self.api_key = api_key
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
         self.max_retries = max_retries
         self.conn = conn
+        self.clock = clock or get_clock()
 
     def _check_budget(self) -> tuple[bool, str | None]:
         """Check if daily or monthly Tavily credit/call budget has been reached (Invariant I-25)."""
@@ -41,7 +43,8 @@ class TavilyClient:
 
         try:
             cur = self.conn.cursor()
-            today_prefix = Clock().now().strftime("%Y-%m-%d")
+            now = self.clock.now()
+            today_prefix = now.strftime("%Y-%m-%d")
             cur.execute(
                 "SELECT COUNT(*), COALESCE(SUM(credits), 0) FROM tavily_calls WHERE created_at LIKE ?;",
                 (f"{today_prefix}%",),
@@ -54,7 +57,7 @@ class TavilyClient:
                     f"Daily call limit reached ({daily_calls}/{settings.tavily_max_calls_per_day})",
                 )
 
-            month_prefix = Clock().now().strftime("%Y-%m")
+            month_prefix = now.strftime("%Y-%m")
             cur.execute(
                 "SELECT COALESCE(SUM(credits), 0) FROM tavily_calls WHERE created_at LIKE ?;",
                 (f"{month_prefix}%",),
@@ -69,7 +72,7 @@ class TavilyClient:
 
             return True, None
         except Exception:
-            return True, None
+            return False, "Budget accounting unavailable"
 
     def _log_call(
         self,
@@ -87,7 +90,7 @@ class TavilyClient:
         if self.conn is None:
             return
 
-        now_iso = created_at or Clock().now_iso()
+        now_iso = created_at or self.clock.now_iso()
         call_id = det_id("tavily_call", endpoint, purpose, query_text, now_iso)
         params_json = canonical_json(params)
 
@@ -113,7 +116,6 @@ class TavilyClient:
                     now_iso,
                 ),
             )
-            access.commit()
         except Exception:
             pass
 
@@ -185,7 +187,7 @@ class TavilyClient:
                 "error": "TAVILY_API_KEY not configured",
             }
 
-        start_time = time.perf_counter()
+        start_time = elapsed_seconds()
         req_body = {
             "api_key": self.api_key,
             "query": query,
@@ -199,7 +201,7 @@ class TavilyClient:
             try:
                 with httpx.Client(timeout=self.timeout) as client:
                     resp = client.post(f"{self.base_url}/search", json=req_body)
-                    latency_ms = int((time.perf_counter() - start_time) * 1000)
+                    latency_ms = int((elapsed_seconds() - start_time) * 1000)
 
                     if resp.status_code == 200:
                         data = resp.json()
@@ -248,7 +250,7 @@ class TavilyClient:
                 if attempt < self.max_retries - 1:
                     time.sleep(0.5 * (2**attempt))
                     continue
-                latency_ms = int((time.perf_counter() - start_time) * 1000)
+                latency_ms = int((elapsed_seconds() - start_time) * 1000)
                 self._log_call(
                     endpoint="search",
                     purpose=purpose,
@@ -292,7 +294,7 @@ class TavilyClient:
             }
 
         params = {"urls": [url], "extract_depth": extract_depth}
-        start_time = time.perf_counter()
+        start_time = elapsed_seconds()
 
         try:
             with httpx.Client(timeout=self.timeout) as client:
@@ -300,7 +302,7 @@ class TavilyClient:
                     f"{self.base_url}/extract",
                     json={"api_key": self.api_key, "urls": [url]},
                 )
-                latency_ms = int((time.perf_counter() - start_time) * 1000)
+                latency_ms = int((elapsed_seconds() - start_time) * 1000)
                 if resp.status_code == 200:
                     data = resp.json()
                     credits = float(data.get("usage", {}).get("credits", 1.0))
@@ -339,7 +341,7 @@ class TavilyClient:
                         "error": f"HTTP {resp.status_code}",
                     }
         except Exception as exc:
-            latency_ms = int((time.perf_counter() - start_time) * 1000)
+            latency_ms = int((elapsed_seconds() - start_time) * 1000)
             self._log_call(
                 endpoint="extract",
                 purpose=purpose,

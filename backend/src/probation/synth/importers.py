@@ -16,7 +16,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from probation.core.clock import Clock
+from probation.core.clock import get_clock
 from probation.core.hashing import canonical_json, det_id
 
 
@@ -54,8 +54,8 @@ def _iso_utc(dt_or_str: Any) -> str:
                     dt = dt.replace(tzinfo=UTC)
                 return dt.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
             except Exception:
-                return Clock().now_iso()
-    return Clock().now_iso()
+                return get_clock().now_iso()
+    return get_clock().now_iso()
 
 
 def _get_or_create_source(
@@ -66,7 +66,7 @@ def _get_or_create_source(
 ) -> str:
     """Register origin source record and return deterministic source_id."""
     source_id = det_id("source", pack, kind, str(ref))
-    now = Clock().now_iso()
+    now = get_clock().now_iso()
     conn.execute(
         """
         INSERT OR IGNORE INTO sources (id, pack, kind, ref, imported_at)
@@ -238,7 +238,7 @@ def import_calendar(
 
         def parse_ics_date(s: str | None) -> str:
             if not s:
-                return Clock().now_iso()
+                return get_clock().now_iso()
             s = s.strip()
             if len(s) == 16 and s.endswith("Z"):  # YYYYMMDDTHHMMSSZ
                 try:
@@ -338,7 +338,7 @@ def import_files(
 
     for f_info in files_list:
         rel_path = f_info["rel_path"]
-        occurred_at = _iso_utc(f_info.get("mtime", Clock().now_iso()))
+        occurred_at = _iso_utc(f_info.get("mtime", get_clock().now_iso()))
 
         payload = {
             "rel_path": rel_path,
@@ -412,7 +412,7 @@ def import_links(
             if line and not line.startswith("#"):
                 entries.append({"url": line})
 
-    now_iso = Clock().now_iso()
+    now_iso = get_clock().now_iso()
 
     for entry in entries:
         url = entry.get("url", "").strip()

@@ -83,3 +83,25 @@ status: "Built"
 ## 6. Dependencies & Deferred Work
 * **Depends on:** `probation.links`, `probation.web`, `probation.packs.base`.
 * **Known issues/deferred:** None.
+
+
+## WP1 final verified checkpoint - 22 October 2026
+
+### 1. Overview
+Radar descriptor and schema integration. Scope: docs/CHANGES_IMPLEMENTATION_PLAN.md section 5.
+
+### 2. Technical rationale
+Read/decision paths defer executable modules and use shared strict schemas and scoped time. This does not establish complete Radar connector behavior.
+
+### 3. Database schema impact
+No persistent schema migration or new dependency; historical ledger bytes retained.
+
+### 4. Core logic and necessary functions
+backend/src/probation/packs/radar/__init__.py, clues.py and resolver.py; llm/jobs.py: opportunity reader/extraction and digest models.
+Why/how called: Read/decision paths defer executable modules and use shared strict schemas and scoped time. This does not establish complete Radar connector behavior.
+
+### 5. Testing and verification
+test_wp1_validation.py, test_wp1_execution_authority.py. Final isolated scripts/check.py passed 328 tests, Ruff lint/format, project mypy (130 modules) and strict core/engine mypy (24 modules). Source/snapshot fixture and published-result hashes unchanged.
+
+### 6. Dependencies and remaining work
+WP1 remains incomplete. See docs/reports/wp1-checkpoint-2026-10-22.md for exact gaps and CCR-F; this update supersedes earlier verification counts and any historical no-known-issues statement for this repair. No live provider call or contract amendment.

@@ -63,3 +63,26 @@ def decide_gate(
 ## 6. Dependencies & Deferred Work
 * **Depends on:** `core/enums.py`, `core/types.py`, `config.py`.
 * **Known issues/deferred:** LLM draft generation and draft validation for `REPLY` proposals hook in before final gate confirmation in Phase 7 / Phase 8.
+
+
+## WP1 repair update - 22 October 2026
+
+### 1. Overview
+Canonical action metadata and invalid numeric gate inputs. Scope: docs/CHANGES_IMPLEMENTATION_PLAN.md section 5; CONTRACT remains unchanged.
+
+### 2. Technical rationale
+Policy labels retain case-sensitive parameters; central metadata uses the canonical type. Family and pack membership are checked. Unknown and no-op labels cannot create actions; non-finite/out-of-range gate inputs fail closed. Registry descriptors defer executable adapter imports until the Executor boundary.
+
+### 3. Database schema impact
+No persistent schema/ledger-byte migration or new dependency.
+
+### 4. Core logic and necessary functions
+backend/src/probation/core/actions.py: parse_action(label) -> ParsedAction and FAMILY_ACTIONS. backend/src/probation/engine/caps.py: get_action_cap/get_action_loss/is_recallable. backend/src/probation/engine/gate.py: decide_gate(...). backend/src/probation/workers/executor.py: create_action(...).
+Why/how called: Policy labels retain case-sensitive parameters; central metadata uses the canonical type. Family and pack membership are checked. Unknown and no-op labels cannot create actions; non-finite/out-of-range gate inputs fail closed. Registry descriptors defer executable adapter imports until the Executor boundary.
+
+### 5. Testing and verification
+Test files test_wp1_actions.py, test_caps_and_handsoff.py and existing gate/pack tests (T-CAPS/T-GATE/T-SEC).
+An earlier isolated full checkpoint passed 291 tests plus lint/types; later targeted results are recorded in docs/reports/wp1-progress-2026-10-22.md. Final checks remain required after all edits.
+
+### 6. Dependencies and remaining work
+WP0 committed c92131c; WP1 is in progress. See the progress report for open role/transaction, canonical-payload, clock/identity and handoff requirements. This update is not a WP1 completion claim or live-provider proof.

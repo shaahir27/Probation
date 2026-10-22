@@ -21,7 +21,6 @@ from probation.core.types import (
 )
 from probation.engine.caps import ACTION_CATALOG
 from probation.packs.base import ExecutorIO, WorldView
-from probation.packs.chains.executor import execute_chain_action, undo_chain_action
 
 
 class ChainsPack:
@@ -65,10 +64,14 @@ class ChainsPack:
 
     def execute(self, a: Action, io: ExecutorIO) -> ExecResult:
         """Perform side-effect action."""
+        from probation.packs.chains.executor import execute_chain_action
+
         return execute_chain_action(a, io)
 
     def undo(self, a: Action, io: ExecutorIO) -> ExecResult:
         """Reverse executed side-effect action."""
+        from probation.packs.chains.executor import undo_chain_action
+
         return undo_chain_action(a.undo or {}, io)
 
     def window(self, s: Situation) -> timedelta:

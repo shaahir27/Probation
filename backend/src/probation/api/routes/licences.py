@@ -53,7 +53,7 @@ def get_licences() -> dict[str, Any]:
                 """
                 SELECT * FROM class_stats
                 WHERE class_key = ? AND action = ?
-                ORDER BY as_of DESC LIMIT 1;
+                ORDER BY as_of COLLATE UTC_TIMESTAMP DESC LIMIT 1;
                 """,
                 (ck, act),
             )
@@ -129,7 +129,7 @@ def get_licences() -> dict[str, Any]:
                     {
                         "seq": cr["seq"],
                         "created_at": cr["created_at"],
-                        "old_level": p.get("old_level"),
+                        "old_level": p.get("old_level", p.get("prev_level")),
                         "new_level": p.get("new_level"),
                         "reason": p.get("reason"),
                     }

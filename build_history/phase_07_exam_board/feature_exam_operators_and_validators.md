@@ -50,3 +50,26 @@ def validate_mail_operator_result(operator_name: str, original: dict[str, Any], 
 ## 6. Dependencies & Deferred Work
 * **Depends on:** `llm/client.py` for LLM paraphrase perturbations when configured, with robust deterministic fallback.
 * **Known issues/deferred:** None.
+
+
+## WP1 repair update - 22 October 2026
+
+### 1. Overview
+Deterministic retry identity and atomic exam storage. Scope: docs/CHANGES_IMPLEMENTATION_PLAN.md section 5; CONTRACT remains unchanged.
+
+### 2. Technical rationale
+Exam IDs bind the bounded input rows, operators, settings, requested pair/level/time, seed, policy/model versions and explicit attempt ordinal. Case IDs bind run/base/operator. Retries return stored results. Examiner-owned run/case/ledger writes use one unit of work and preserve a parent transaction. CLI --attempt requests a deliberately distinct attempt. Existing exam realism gaps are not claimed fixed; WP5 remains required.
+
+### 3. Database schema impact
+No persistent schema/ledger-byte migration or new dependency.
+
+### 4. Core logic and necessary functions
+backend/src/probation/engine/exam.py: run_exam(..., clock=None, attempt_ordinal=0). backend/src/probation/engine/exam_storage.py: load_exam(access, run_id), persist_exam(access, result, *, now_iso, model_id, cases). backend/src/probation/workers/examiner.py: run_examiner_job(..., attempt_ordinal=0).
+Why/how called: Exam IDs bind the bounded input rows, operators, settings, requested pair/level/time, seed, policy/model versions and explicit attempt ordinal. Case IDs bind run/base/operator. Retries return stored results. Examiner-owned run/case/ledger writes use one unit of work and preserve a parent transaction. CLI --attempt requests a deliberately distinct attempt. Existing exam realism gaps are not claimed fixed; WP5 remains required.
+
+### 5. Testing and verification
+Test files test_wp1_clock.py, test_wp1_time_boundaries.py, test_exam_board.py and operator tests.
+An earlier isolated full checkpoint passed 291 tests plus lint/types; later targeted results are recorded in docs/reports/wp1-progress-2026-10-22.md. Final checks remain required after all edits.
+
+### 6. Dependencies and remaining work
+WP0 committed c92131c; WP1 is in progress. See the progress report for open role/transaction, canonical-payload, clock/identity and handoff requirements. This update is not a WP1 completion claim or live-provider proof.

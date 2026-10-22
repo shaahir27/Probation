@@ -52,3 +52,25 @@ def run_evaluation(
 ## 6. Dependencies & Deferred Work
 * **Depends on:** `probation.eval.metrics`, `probation.eval.baselines`, `probation.eval.human_study`.
 * **Known issues/deferred:** Full 20-persona evaluation benchmark can be executed with live Nebius/Tavily keys whenever multi-persona dataset generation is triggered (`make synth PERSONA=N`).
+
+
+## WP1 final verified checkpoint - 22 October 2026
+
+### 1. Overview
+Evaluation clock boundary. Scope: docs/CHANGES_IMPLEMENTATION_PLAN.md section 5.
+
+### 2. Technical rationale
+Evaluation uses core Clock for run metadata and the core duration boundary for elapsed timing. Historical published measurements are preserved; corrected full evaluations remain later work.
+
+### 3. Database schema impact
+No persistent schema migration or new dependency; historical ledger bytes retained.
+
+### 4. Core logic and necessary functions
+backend/src/probation/eval/run_eval.py: run_evaluation.
+Why/how called: Evaluation uses core Clock for run metadata and the core duration boundary for elapsed timing. Historical published measurements are preserved; corrected full evaluations remain later work.
+
+### 5. Testing and verification
+test_wp1_clock.py, test_cli_commands.py. Final isolated scripts/check.py passed 328 tests, Ruff lint/format, project mypy (130 modules) and strict core/engine mypy (24 modules). Source/snapshot fixture and published-result hashes unchanged.
+
+### 6. Dependencies and remaining work
+WP1 remains incomplete. See docs/reports/wp1-checkpoint-2026-10-22.md for exact gaps and CCR-F; this update supersedes earlier verification counts and any historical no-known-issues statement for this repair. No live provider call or contract amendment.

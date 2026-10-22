@@ -59,3 +59,48 @@ def verify_ledger(conn: sqlite3.Connection) -> tuple[bool, int | None]: ...
 ## 6. Dependencies & Deferred Work
 * **Depends on:** `core/enums.py`, `core/clock.py`.
 * **Known issues/deferred:** None.
+
+
+## WP1 repair update - 22 October 2026
+
+### 1. Overview
+Ledger, roles and UTC clock foundation. Scope: docs/CHANGES_IMPLEMENTATION_PLAN.md section 5; CONTRACT remains unchanged.
+
+### 2. Technical rationale
+Replay, proposal persistence and other role repositories append without committing their parent; API/CLI consume one ledger snapshot. Entry points scope a single clock; history comparisons use UTC instants. This fixes transaction escape, head allocation, corrupt-head reporting, precision loss and backwards-time handling.
+
+### 3. Database schema impact
+No persistent schema/ledger-byte migration or new dependency.
+
+### 4. Core logic and necessary functions
+backend/src/probation/db/ledger.py: append_ledger(conn, kind, ref_id, payload, created_at) -> int; ledger_snapshot(conn) -> LedgerSnapshot. backend/src/probation/db/access.py: RoleAccess.transaction() and execute_write(table, query, params). backend/src/probation/db/guards.py: statement_guard and read-only capabilities. backend/src/probation/core/clock.py: get_clock(), use_clock(clock), parse_timestamp/format_timestamp and UTC_TIMESTAMP collation.
+Why/how called: Replay, proposal persistence and other role repositories append without committing their parent; API/CLI consume one ledger snapshot. Entry points scope a single clock; history comparisons use UTC instants. This fixes transaction escape, head allocation, corrupt-head reporting, precision loss and backwards-time handling.
+
+### 5. Testing and verification
+test_wp1_storage.py; test_wp1_ledger_views.py; test_wp1_clock.py; test_wp1_time_boundaries.py (T-LEDGER/T-SEC/T-CLOCK/T-ID).
+An earlier isolated full checkpoint passed 291 tests plus lint/types; later targeted results are recorded in docs/reports/wp1-progress-2026-10-22.md. Final checks remain required after all edits.
+
+### 6. Dependencies and remaining work
+WP0 committed c92131c; WP1 is in progress. See the progress report for open role/transaction, canonical-payload, clock/identity and handoff requirements. This update is not a WP1 completion claim or live-provider proof.
+
+
+## WP1 final verified checkpoint - 22 October 2026
+
+### 1. Overview
+Durable action and typed chain storage. Scope: docs/CHANGES_IMPLEMENTATION_PLAN.md section 5.
+
+### 2. Technical rationale
+Executor calls persist_action before effects; chain proposer uses the restricted insertion helper. Savepoints preserve caller rollback, immutable retries preserve completed actions. SQL authorizers guard actual targets, including triggers.
+
+### 3. Database schema impact
+No persistent schema migration or new dependency; historical ledger bytes retained.
+
+### 4. Core logic and necessary functions
+backend/src/probation/db/actions.py: persist_action; db/access.py: insert_chain_situation; db/proposals.py: persist_proposal.
+Why/how called: Executor calls persist_action before effects; chain proposer uses the restricted insertion helper. Savepoints preserve caller rollback, immutable retries preserve completed actions. SQL authorizers guard actual targets, including triggers.
+
+### 5. Testing and verification
+test_wp1_action_storage.py, test_wp1_chain_storage.py, test_wp1_storage.py. Final isolated scripts/check.py passed 328 tests, Ruff lint/format, project mypy (130 modules) and strict core/engine mypy (24 modules). Source/snapshot fixture and published-result hashes unchanged.
+
+### 6. Dependencies and remaining work
+WP1 remains incomplete. See docs/reports/wp1-checkpoint-2026-10-22.md for exact gaps and CCR-F; this update supersedes earlier verification counts and any historical no-known-issues statement for this repair. No live provider call or contract amendment.

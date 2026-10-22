@@ -13,7 +13,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from probation.config import settings
-from probation.core.clock import Clock
+from probation.core.clock import get_clock
 from probation.core.enums import EvidenceStrength
 from probation.core.types import Outcome, Situation
 from probation.packs.base import WorldView
@@ -44,7 +44,7 @@ def resolve_reading_outcome(
         else:
             occurred_dt = occurred_dt.astimezone(UTC)
     except Exception:
-        occurred_dt = Clock().now()
+        occurred_dt = get_clock().now()
 
     window_days = getattr(settings, "reading_window_days", DEFAULT_READING_WINDOW_DAYS)
     window_close_dt = occurred_dt + timedelta(days=window_days)

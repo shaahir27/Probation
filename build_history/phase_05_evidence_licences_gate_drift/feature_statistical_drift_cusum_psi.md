@@ -66,3 +66,25 @@ class CUSUMTracker:
 ## 6. Dependencies & Deferred Work
 * **Depends on:** `db/ledger.py`, `core/enums.py`.
 * **Known issues/deferred:** None.
+
+
+## WP1 final verified checkpoint - 22 October 2026
+
+### 1. Overview
+Examiner transaction ownership checkpoint. Scope: docs/CHANGES_IMPLEMENTATION_PLAN.md section 5.
+
+### 2. Technical rationale
+Family-shift writes use Examiner access and a caller-owned unit of work. Executor/replay drift-state writes and complete alarm-payload canonicalization remain unresolved; no full role-enforcement claim is made.
+
+### 3. Database schema impact
+No persistent schema migration or new dependency; historical ledger bytes retained.
+
+### 4. Core logic and necessary functions
+backend/src/probation/engine/drift.py: check_family_shift; workers/executor.py and engine/replay.py: existing drift integration.
+Why/how called: Family-shift writes use Examiner access and a caller-owned unit of work. Executor/replay drift-state writes and complete alarm-payload canonicalization remain unresolved; no full role-enforcement claim is made.
+
+### 5. Testing and verification
+test_wp1_transaction_owners.py, test_wp1_storage.py. Final isolated scripts/check.py passed 328 tests, Ruff lint/format, project mypy (130 modules) and strict core/engine mypy (24 modules). Source/snapshot fixture and published-result hashes unchanged.
+
+### 6. Dependencies and remaining work
+WP1 remains incomplete. See docs/reports/wp1-checkpoint-2026-10-22.md for exact gaps and CCR-F; this update supersedes earlier verification counts and any historical no-known-issues statement for this repair. No live provider call or contract amendment.

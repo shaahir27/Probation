@@ -6,6 +6,7 @@ Autonomy caps and losses are strictly hard-coded in code and can never be overri
 
 from typing import Final
 
+from probation.core.actions import FAMILY_ACTIONS, InvalidAction, parse_action
 from probation.core.types import ActionSpec
 
 # Attention cost in units of utility (default 1)
@@ -19,8 +20,6 @@ ACTION_CATALOG: Final[dict[str, ActionSpec]] = {
     "REPLY": ActionSpec(type="REPLY", recallable=False, base_cap=2, loss=40.0),
     "FORWARD": ActionSpec(type="FORWARD", recallable=False, base_cap=1, loss=40.0),
     "LEAVE": ActionSpec(type="LEAVE", recallable=False, base_cap=0, loss=0.0),
-    "STAR": ActionSpec(type="STAR", recallable=True, base_cap=3, loss=2.0),
-    "LABEL": ActionSpec(type="LABEL", recallable=True, base_cap=3, loss=2.0),
     # Invite RSVP Family
     "ACCEPT": ActionSpec(type="ACCEPT", recallable=False, base_cap=2, loss=10.0),
     "DECLINE": ActionSpec(type="DECLINE", recallable=False, base_cap=2, loss=20.0),
@@ -53,13 +52,19 @@ ACTION_LOSSES: Final[dict[str, float]] = {name: spec.loss for name, spec in ACTI
 
 def is_recallable(action: str) -> bool:
     """Return True if action is recallable (can be cleanly undone)."""
-    spec = ACTION_CATALOG.get(action.upper())
+    try:
+        spec = ACTION_CATALOG.get(parse_action(action).type)
+    except InvalidAction:
+        return False
     return spec.recallable if spec is not None else False
 
 
 def get_action_loss(action: str) -> float:
     """Return economic loss of a wrong action."""
-    spec = ACTION_CATALOG.get(action.upper())
+    try:
+        spec = ACTION_CATALOG.get(parse_action(action).type)
+    except InvalidAction:
+        return 10.0
     return spec.loss if spec is not None else 10.0
 
 
@@ -89,7 +94,10 @@ def get_conditional_cap(
         return 0
 
     caps: list[int] = [3]
-    act = action.upper()
+    try:
+        act = parse_action(action).type
+    except InvalidAction:
+        return 0
 
     # 1. Mail conditional caps
     if family == "email_action" or sender_tier is not None:
@@ -136,7 +144,13 @@ def get_action_cap(
     if hands_off_reason is not None:
         return 0
 
-    base = BASE_ACTION_CAPS.get(action.upper(), 0)
+    try:
+        parsed = parse_action(action)
+        if family is not None and parsed.type not in FAMILY_ACTIONS.get(family, frozenset()):
+            return 0
+        base = BASE_ACTION_CAPS.get(parsed.type, 0)
+    except InvalidAction:
+        return 0
     cond = get_conditional_cap(
         action=action,
         family=family,
