@@ -60,6 +60,15 @@ class WorldView(Protocol):
         """Retrieve single library entry by URL."""
         ...
 
+    def get_user_actions(
+        self,
+        item_id: str | None = None,
+        as_of: str | None = None,
+        actor: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """Retrieve recorded user actions."""
+        ...
+
 
 @runtime_checkable
 class ExecutorIO(Protocol):

@@ -8,8 +8,9 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from probation.config import settings
-from probation.core.hashing import det_id
+from probation.core.hashing import canonical_situation_id
 from probation.core.history import HistoryView
+from probation.core.identity import normalize_address
 from probation.core.types import (
     Action,
     ActionSpec,
@@ -27,7 +28,6 @@ from probation.packs.base import ExecutorIO, PackAdapter, WorldView
 from probation.packs.calendar.clues import extract_calendar_clues
 from probation.packs.calendar.exam_ops import CALENDAR_EXAM_OPERATORS
 from probation.packs.calendar.resolver import DEFAULT_INVITE_MAX_DAYS, resolve_calendar_outcome
-from probation.packs.mail.clues import normalize_address
 
 CALENDAR_ACTION_CATALOG = [
     ActionSpec(type="ACCEPT", recallable=False, base_cap=2, loss=10.0),
@@ -82,12 +82,15 @@ class CalendarPack(PackAdapter):
         organizer = payload.get("organizer", "")
         norm_org = normalize_address(organizer)
         if self.user_addresses is not None:
-            user_addrs = [normalize_address(a) for a in self.user_addresses]
+            user_addrs = [normalize_address(a) for a in self.user_addresses if a.strip()]
         else:
-            user_addrs = [normalize_address(a) for a in settings.user_addresses.split(",")]
+            user_addrs = [
+                normalize_address(a) for a in settings.user_addresses.split(",") if a.strip()
+            ]
 
         # Skip if organized by the user
-        if any(u in norm_org for u in user_addrs):
+        user_addrs_set = {a for a in user_addrs if a}
+        if norm_org in user_addrs_set:
             return []
 
         # Check attendee status at arrival was NEEDS-ACTION
@@ -105,7 +108,19 @@ class CalendarPack(PackAdapter):
         # Redact before LLM egress (Invariant I-14)
         redacted = redact(full_text, profile="invite")
 
-        situation_id = det_id("sit", raw_id, "invite_rsvp", "")
+        source_ref = (
+            (
+                raw_item.get("source_ref")
+                if isinstance(raw_item, dict)
+                else getattr(raw_item, "source_ref", None)
+            )
+            or payload.get("uid")
+            or raw_id
+        )
+
+        situation_id = canonical_situation_id(
+            "calendar", source_ref, occurred_at, "invite_rsvp", ""
+        )
         hands_off_reason = self.hands_off_text(full_text)
 
         sit = Situation(

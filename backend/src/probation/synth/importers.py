@@ -16,8 +16,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from probation.config import settings
 from probation.core.clock import get_clock
-from probation.core.hashing import canonical_json, det_id
+from probation.core.hashing import canonical_json, canonical_raw_item_id, det_id, normalize_rel_path
+from probation.core.identity import normalize_address
 
 
 @dataclass(frozen=True)
@@ -64,8 +66,16 @@ def _get_or_create_source(
     kind: str,
     ref: str,
 ) -> str:
-    """Register origin source record and return deterministic source_id."""
-    source_id = det_id("source", pack, kind, str(ref))
+    """Register origin source record and return deterministic source_id.
+
+    Authority: docs/CHANGES_IMPLEMENTATION_PLAN.md section 6.1.2.
+    Uses stable relative filename/reference rather than machine-specific absolute path.
+    """
+    ref_path = Path(ref)
+    stable_ref = (
+        ref_path.name if ref_path.suffix or ref_path.is_file() else ref_path.name or "default"
+    )
+    source_id = det_id("source", pack, kind, stable_ref)
     now = get_clock().now_iso()
     conn.execute(
         """
@@ -76,6 +86,63 @@ def _get_or_create_source(
     )
     conn.commit()
     return source_id
+
+
+def _resolve_user_addresses(
+    conn: sqlite3.Connection,
+    source_path: Path,
+    user_addresses: list[str] | None = None,
+) -> list[str]:
+    """Resolve and persist user addresses from explicit args, meta table, persona.json, or settings."""
+    if user_addresses:
+        norm = [normalize_address(a) for a in user_addresses if a.strip()]
+        if norm:
+            conn.execute(
+                "INSERT OR REPLACE INTO meta (key, value) VALUES ('user_addresses', ?);",
+                (",".join(norm),),
+            )
+            conn.commit()
+            return norm
+
+    # Check meta table
+    cursor = conn.cursor()
+    row = cursor.execute("SELECT value FROM meta WHERE key = 'user_addresses'").fetchone()
+    if row and row[0]:
+        val = str(row[0]).strip()
+        addrs = [normalize_address(a) for a in val.split(",") if a.strip()]
+        if addrs:
+            return addrs
+
+    # Check sibling or parent persona.json
+    for candidate in [
+        source_path.parent / "persona.json",
+        source_path.parent.parent / "persona.json",
+    ]:
+        if candidate.exists():
+            try:
+                with open(candidate, encoding="utf-8") as f:
+                    pdata = json.load(f)
+                email_val = pdata.get("email")
+                if email_val:
+                    norm = [normalize_address(email_val)]
+                    conn.execute(
+                        "INSERT OR REPLACE INTO meta (key, value) VALUES ('user_addresses', ?);",
+                        (",".join(norm),),
+                    )
+                    conn.commit()
+                    return norm
+            except Exception:
+                pass
+
+    # Fall back to settings
+    norm = [normalize_address(a) for a in settings.user_addresses.split(",") if a.strip()]
+    if norm:
+        conn.execute(
+            "INSERT OR REPLACE INTO meta (key, value) VALUES ('user_addresses', ?);",
+            (",".join(norm),),
+        )
+        conn.commit()
+    return norm
 
 
 def import_mail(
@@ -92,18 +159,14 @@ def import_mail(
         raise FileNotFoundError(f"Mbox file not found: {path}")
 
     source_id = _get_or_create_source(conn, "mail", "mbox", str(path))
-    user_addrs = [a.lower().strip() for a in (user_addresses or [])]
+    user_addrs = _resolve_user_addresses(conn, path, user_addresses)
+    user_addrs_set = {normalize_address(a) for a in user_addrs if a.strip()}
 
     mbox = mailbox.mbox(str(path))
     imported = 0
     skipped = 0
 
     cursor = conn.cursor()
-    if user_addrs:
-        cursor.execute(
-            "INSERT OR REPLACE INTO meta (key, value) VALUES ('user_addresses', ?);",
-            (",".join(user_addrs),),
-        )
 
     for msg in mbox:
         msg_id_hdr = msg.get("Message-ID", "")
@@ -121,8 +184,8 @@ def import_mail(
             msg_ref = f"<det-{det_id(from_hdr, to_hdr, subject_hdr, occurred_at)}@local>"
 
         # Determine if sent by user
-        sender_clean = from_hdr.lower()
-        is_sent = any(u in sender_clean for u in user_addrs) if user_addrs else False
+        sender_clean = normalize_address(from_hdr)
+        is_sent = sender_clean in user_addrs_set if user_addrs_set else False
         item_kind = "mail_sent" if is_sent else "mail_in"
 
         # Extract body
@@ -206,16 +269,12 @@ def import_calendar(
         raise FileNotFoundError(f"ICS file not found: {path}")
 
     source_id = _get_or_create_source(conn, "calendar", "ics", str(path))
-    user_addrs = [a.lower().strip() for a in (user_addresses or [])]
+    user_addrs = _resolve_user_addresses(conn, path, user_addresses)
+    user_addrs_set = {normalize_address(a) for a in user_addrs if a.strip()}
 
     imported = 0
     skipped = 0
     cursor = conn.cursor()
-    if user_addrs:
-        cursor.execute(
-            "INSERT OR REPLACE INTO meta (key, value) VALUES ('user_addresses', ?);",
-            (",".join(user_addrs),),
-        )
 
     content = path.read_text(encoding="utf-8", errors="replace")
 
@@ -254,6 +313,7 @@ def import_calendar(
         title = fields.get("SUMMARY", "")
         desc = fields.get("DESCRIPTION", "").replace("\\n", "\n")
         organizer = fields.get("ORGANIZER", "").replace("mailto:", "")
+        norm_org = normalize_address(organizer)
 
         # Extract attendees and partstat
         attendees: list[str] = []
@@ -262,13 +322,15 @@ def import_calendar(
             if line.upper().startswith("ATTENDEE"):
                 parts = line.split(":", 1)
                 if len(parts) == 2:
-                    attendees.append(parts[1].replace("mailto:", "").strip())
-                if any(u in line.lower() for u in user_addrs):
-                    for param in line.split(";"):
-                        if param.upper().startswith("PARTSTAT="):
-                            user_partstat = param.split("=", 1)[1].split(":")[0].strip().upper()
+                    raw_att = parts[1].replace("mailto:", "").strip()
+                    att_norm = normalize_address(raw_att)
+                    attendees.append(att_norm)
+                    if att_norm in user_addrs_set:
+                        for param in line.split(";"):
+                            if param.upper().startswith("PARTSTAT="):
+                                user_partstat = param.split("=", 1)[1].split(":")[0].strip().upper()
 
-        is_organizer = any(u in organizer.lower() for u in user_addrs) if user_addrs else False
+        is_organizer = norm_org in user_addrs_set if user_addrs_set else False
         item_kind = "cal_event" if is_organizer else "invite"
 
         payload = {
@@ -286,7 +348,7 @@ def import_calendar(
             payload["final_partstat"] = user_partstat
         payload_str = canonical_json(payload)
         content_hash = hashlib.sha256(payload_str.encode("utf-8")).hexdigest()
-        raw_id = det_id(source_id, uid)
+        raw_id = canonical_raw_item_id(source_id, uid)
 
         try:
             cursor.execute(
@@ -337,7 +399,7 @@ def import_files(
     cursor = conn.cursor()
 
     for f_info in files_list:
-        rel_path = f_info["rel_path"]
+        rel_path = normalize_rel_path(f_info["rel_path"])
         occurred_at = _iso_utc(f_info.get("mtime", get_clock().now_iso()))
 
         payload = {
@@ -351,7 +413,7 @@ def import_files(
         }
         payload_str = canonical_json(payload)
         content_hash = hashlib.sha256(payload_str.encode("utf-8")).hexdigest()
-        raw_id = det_id(source_id, rel_path)
+        raw_id = canonical_raw_item_id(source_id, rel_path)
 
         try:
             cursor.execute(

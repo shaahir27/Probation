@@ -10,7 +10,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from probation.core.hashing import det_id
+from probation.core.hashing import canonical_situation_id, det_id
 from probation.synth.body_pool import BodyPool
 from probation.synth.habits_dsl import PersonaHabits, build_habits_for_persona, evaluate_habit
 from probation.synth.personas import Persona, get_persona
@@ -55,6 +55,7 @@ class SyntheticGenerator:
         all_messages: list[dict[str, Any]] = []
         all_events: list[dict[str, Any]] = []
         all_files: list[dict[str, Any]] = []
+        all_user_actions: list[dict[str, Any]] = []
         truth_records: dict[str, dict[str, Any]] = {}
 
         # 1. Generate Email Activity
@@ -133,12 +134,33 @@ class SyntheticGenerator:
 
             is_censored = day_idx >= (SIMULATION_DAYS - CENSOR_WINDOW_DAYS)
 
-            # Determine labels in world.db based on true action
-            initial_labels = ["INBOX"]
-            if eval_res.final_action == "TRASH":
-                initial_labels = ["TRASH"]
-            elif eval_res.final_action == "ARCHIVE":
-                initial_labels = ["ARCHIVED"]
+            # Export labels reflect final state at simulation end
+            final_labels = ["INBOX"]
+            if not is_censored:
+                if eval_res.final_action == "TRASH":
+                    final_labels = ["TRASH"]
+                    acted_dt = event_dt + timedelta(hours=self.rng.randint(2, 48))
+                    all_user_actions.append(
+                        {
+                            "id": det_id("act", msg_ref, "TRASH"),
+                            "item_id": msg_ref,
+                            "action_type": "TRASH",
+                            "acted_at": acted_dt.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                            "actor": "user",
+                        }
+                    )
+                elif eval_res.final_action == "ARCHIVE":
+                    final_labels = ["ARCHIVED"]
+                    acted_dt = event_dt + timedelta(hours=self.rng.randint(2, 48))
+                    all_user_actions.append(
+                        {
+                            "id": det_id("act", msg_ref, "ARCHIVE"),
+                            "item_id": msg_ref,
+                            "action_type": "ARCHIVE",
+                            "acted_at": acted_dt.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                            "actor": "user",
+                        }
+                    )
 
             msg_record = {
                 "id": det_id("mail_msg", self.persona.email, msg_ref),
@@ -148,7 +170,7 @@ class SyntheticGenerator:
                 "to_addr": f"{self.persona.name} <{self.persona.email}>",
                 "subject": subject,
                 "body": body,
-                "labels": initial_labels,
+                "labels": final_labels,
                 "occurred_at": occurred_at,
                 "in_reply_to": None,
                 "is_automated": is_automated,
@@ -156,7 +178,7 @@ class SyntheticGenerator:
             }
             all_messages.append(msg_record)
 
-            sit_id = det_id("mail", msg_ref, occurred_at, "email_action", "")
+            sit_id = canonical_situation_id("mail", msg_ref, occurred_at, "email_action", "")
             truth_records[sit_id] = {
                 "situation_id": sit_id,
                 "pack": "mail",
@@ -195,6 +217,16 @@ class SyntheticGenerator:
                         "in_reply_to": msg_ref,
                         "is_automated": False,
                         "has_attachment": False,
+                    }
+                )
+                all_user_actions.append(
+                    {
+                        "id": det_id("act", msg_ref, "REPLY"),
+                        "item_id": msg_ref,
+                        "action_type": "REPLY",
+                        "acted_at": reply_dt.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                        "actor": "user",
+                        "details": {"reply_message_id": reply_ref},
                     }
                 )
 
@@ -265,6 +297,18 @@ class SyntheticGenerator:
                 elif eval_res.final_action == "TENTATIVE":
                     my_status = "TENTATIVE"
 
+                rsvp_hours = self.rng.randint(2, min(24, int(max(start_hour, 3))))
+                rsvp_dt = ev_dt - timedelta(hours=rsvp_hours)
+                all_user_actions.append(
+                    {
+                        "id": det_id("act", ev_uid, eval_res.final_action),
+                        "item_id": ev_uid,
+                        "action_type": eval_res.final_action,
+                        "acted_at": rsvp_dt.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                        "actor": "user",
+                    }
+                )
+
             ev_record = {
                 "id": det_id("event", ev_uid),
                 "uid": ev_uid,
@@ -280,7 +324,7 @@ class SyntheticGenerator:
             }
             all_events.append(ev_record)
 
-            sit_id = det_id("calendar", ev_uid, occurred_at, "invite_rsvp", "")
+            sit_id = canonical_situation_id("calendar", ev_uid, occurred_at, "invite_rsvp", "")
             truth_records[sit_id] = {
                 "situation_id": sit_id,
                 "pack": "calendar",
@@ -324,6 +368,23 @@ class SyntheticGenerator:
 
             is_censored = day_idx >= (SIMULATION_DAYS - CENSOR_WINDOW_DAYS)
 
+            if not is_censored and eval_res.final_action.startswith("MOVE_TO_FOLDER:"):
+                dest_f = eval_res.final_action.split(":", 1)[1].strip().strip("/")
+                moved_dt = file_dt + timedelta(hours=self.rng.randint(2, 48))
+                all_user_actions.append(
+                    {
+                        "id": det_id("act", rel_path, "MOVE_TO_FOLDER"),
+                        "item_id": rel_path,
+                        "action_type": "MOVE_TO_FOLDER",
+                        "acted_at": moved_dt.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                        "actor": "user",
+                        "details": {
+                            "destination_folder": dest_f,
+                            "destination_path": f"{dest_f}/{filename}",
+                        },
+                    }
+                )
+
             file_record = {
                 "id": det_id("file", rel_path, occurred_at),
                 "rel_path": rel_path,
@@ -331,10 +392,12 @@ class SyntheticGenerator:
                 "ext": ext,
                 "origin_url": f"https://{origin_site}/downloads/{filename}",
                 "downloaded_at": occurred_at,
+                "final_action": eval_res.final_action,
+                "is_censored": is_censored,
             }
             all_files.append(file_record)
 
-            sit_id = det_id("files", rel_path, occurred_at, "file_destination", "")
+            sit_id = canonical_situation_id("files", rel_path, occurred_at, "file_destination", "")
             truth_records[sit_id] = {
                 "situation_id": sit_id,
                 "pack": "files",
@@ -375,6 +438,11 @@ class SyntheticGenerator:
             world_db_path.unlink()
         with SimWorld(world_db_path) as world:
             for msg in all_messages:
+                init_labels = (
+                    ["INBOX"]
+                    if msg.get("in_reply_to") is None and "SENT" not in msg["labels"]
+                    else msg["labels"]
+                )
                 world.add_message(
                     msg_id=msg["id"],
                     message_id=msg["message_id"],
@@ -383,12 +451,15 @@ class SyntheticGenerator:
                     to_addr=msg["to_addr"],
                     subject=msg["subject"],
                     body=msg["body"],
-                    labels=msg["labels"],
+                    labels=init_labels,
                     received_at=msg["occurred_at"],
                     in_reply_to=msg.get("in_reply_to"),
                     has_attachment=msg.get("has_attachment", False),
                 )
             for ev in all_events:
+                init_status = (
+                    "NEEDS_ACTION" if ev["organizer"] != self.persona.email else "ACCEPTED"
+                )
                 world.add_event(
                     event_id=ev["id"],
                     uid=ev["uid"],
@@ -399,7 +470,7 @@ class SyntheticGenerator:
                     organizer=ev["organizer"],
                     attendees=ev["attendees"],
                     status=ev["status"],
-                    my_status=ev["attendee_status"],
+                    my_status=init_status,
                 )
             for fl in manifest_meta["files"]:
                 world.add_file(
@@ -411,6 +482,15 @@ class SyntheticGenerator:
                     origin_url=fl.get("origin_url", ""),
                     downloaded_at=fl["mtime"],
                     sha256=fl["sha256"],
+                )
+            for act in all_user_actions:
+                world.record_user_action(
+                    action_id=act["id"],
+                    item_id=act["item_id"],
+                    action_type=act["action_type"],
+                    acted_at=act["acted_at"],
+                    actor=act.get("actor", "user"),
+                    details=act.get("details"),
                 )
 
         # Write truth.json (HIDDEN ground truth)

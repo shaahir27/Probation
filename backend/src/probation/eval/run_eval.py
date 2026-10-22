@@ -99,37 +99,18 @@ def run_evaluation(
     except sqlite3.OperationalError:
         pass
 
-    # If proposals table is empty, generate evaluation from situations directly
-    if not proposals:
-        try:
-            cur.execute("SELECT * FROM situations ORDER BY occurred_at ASC;")
-            sits = cur.fetchall()
-            for s in sits:
-                sid = str(s["id"])
-                fam = str(s["family"])
-                true_act = truth_map.get(sid, {}).get("true_action", "REPLY")
-                proposals.append(
-                    {
-                        "id": f"eval-prop-{sid}",
-                        "situation_id": sid,
-                        "family": fam,
-                        "class_key": f"{fam}|default",
-                        "action": true_act,
-                        "probs_json": json.dumps({true_act: 0.95}),
-                        "p_max": 0.95,
-                        "novelty": 0.05,
-                        "novel": 0,
-                        "licence_level": 2,
-                        "cap": 3,
-                        "gate": Gate.EXECUTE_UNDO.value,
-                        "proposed_at": str(s["occurred_at"]),
-                        "redacted_text": str(s["redacted_text"]),
-                        "variant": str(s["variant"]),
-                        "occurred_at": str(s["occurred_at"]),
-                    }
-                )
-        except sqlite3.OperationalError:
-            pass
+    # Strict check: proposals must come from actual engine replay or execution, never fabricated
+    if not proposals and truth_map:
+        # Check if situations exist to warn if replay has not been executed yet
+        cur.execute("SELECT COUNT(*) FROM situations;")
+        sit_cnt = cur.fetchone()[0]
+        if sit_cnt > 0:
+            import logging
+
+            logging.getLogger(__name__).warning(
+                "Evaluation called with %d situations but 0 proposals. Replay must be executed first.",
+                sit_cnt,
+            )
 
     # 2. Compute Probation Engine Metrics
     total_situations = len(proposals)

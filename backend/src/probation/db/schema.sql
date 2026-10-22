@@ -48,6 +48,7 @@ CREATE TABLE situations (
   UNIQUE (raw_item_id, family, variant)
 );
 CREATE INDEX idx_situations_family_time ON situations(family, occurred_at);
+CREATE INDEX IF NOT EXISTS idx_situations_sender_time ON situations(sender_key, occurred_at);
 
 CREATE TABLE features (
   situation_id TEXT PRIMARY KEY REFERENCES situations(id),

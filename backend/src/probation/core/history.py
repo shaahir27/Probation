@@ -6,6 +6,7 @@ It exposes only outcomes and raw items with known_at <= as_of.
 It has no method that can return later data.
 """
 
+import json
 import sqlite3
 from datetime import datetime
 from typing import Any, cast
@@ -144,3 +145,168 @@ class HistoryView:
                 (self.as_of, self.as_of, self.as_of),
             ).fetchall()
         )
+
+    def count_prior_sender_messages(
+        self, sender: str, exclude_situation_id: str | None = None
+    ) -> int:
+        """Count prior situations from this sender with occurred_at <= as_of."""
+        query = "SELECT COUNT(*) FROM situations WHERE sender_key = ? AND occurred_at COLLATE UTC_TIMESTAMP <= ?"
+        params: list[Any] = [sender, self.as_of]
+        if exclude_situation_id:
+            query += " AND id != ?"
+            params.append(exclude_situation_id)
+        cur = self._conn.cursor()
+        cur.execute(query, tuple(params))
+        row = cur.fetchone()
+        return int(row[0]) if row else 0
+
+    def count_prior_sender_replies(
+        self, sender: str, exclude_situation_id: str | None = None
+    ) -> int:
+        """Count prior situations from sender that have a known REPLY outcome at <= as_of."""
+        query = """
+            SELECT COUNT(*)
+            FROM situations s
+            JOIN outcomes o ON s.id = o.situation_id
+            WHERE s.sender_key = ?
+              AND s.occurred_at COLLATE UTC_TIMESTAMP <= ?
+              AND o.known_at COLLATE UTC_TIMESTAMP <= ?
+              AND o.observed_action = 'REPLY'
+        """
+        params: list[Any] = [sender, self.as_of, self.as_of]
+        if exclude_situation_id:
+            query += " AND s.id != ?"
+            params.append(exclude_situation_id)
+        cur = self._conn.cursor()
+        cur.execute(query, tuple(params))
+        row = cur.fetchone()
+        return int(row[0]) if row else 0
+
+    def get_prior_sender_reply_deltas(
+        self, sender: str, exclude_situation_id: str | None = None
+    ) -> list[float]:
+        """Compute reply response deltas (in hours) for prior replied situations from sender."""
+        query = """
+            SELECT s.occurred_at, o.known_at
+            FROM situations s
+            JOIN outcomes o ON s.id = o.situation_id
+            WHERE s.sender_key = ?
+              AND s.occurred_at COLLATE UTC_TIMESTAMP <= ?
+              AND o.known_at COLLATE UTC_TIMESTAMP <= ?
+              AND o.observed_action = 'REPLY'
+        """
+        params: list[Any] = [sender, self.as_of, self.as_of]
+        if exclude_situation_id:
+            query += " AND s.id != ?"
+            params.append(exclude_situation_id)
+        query += " ORDER BY s.occurred_at COLLATE UTC_TIMESTAMP ASC"
+        cur = self._conn.cursor()
+        cur.execute(query, tuple(params))
+        deltas: list[float] = []
+        for r in cur.fetchall():
+            try:
+                t_occ = datetime.fromisoformat(str(r["occurred_at"]).replace("Z", "+00:00"))
+                t_res = datetime.fromisoformat(str(r["known_at"]).replace("Z", "+00:00"))
+                hours = (t_res - t_occ).total_seconds() / 3600.0
+                if hours >= 0:
+                    deltas.append(hours)
+            except Exception:
+                pass
+        return deltas
+
+    def count_prior_sent_to_recipient(self, recipient_email: str) -> int:
+        """Count prior user sent messages directed to a recipient with known_at <= as_of."""
+        query = """
+            SELECT COUNT(*) FROM raw_items
+            WHERE pack = 'mail'
+              AND item_kind = 'mail_sent'
+              AND known_at COLLATE UTC_TIMESTAMP <= ?
+              AND json_extract(payload_json, '$.to') LIKE ?
+        """
+        cur = self._conn.cursor()
+        cur.execute(query, (self.as_of, f"%{recipient_email}%"))
+        row = cur.fetchone()
+        return int(row[0]) if row else 0
+
+    def get_prior_thread_stats(
+        self,
+        msg_id: str,
+        in_reply_to: str,
+        user_addresses: list[str],
+        current_raw_item_id: str | None = None,
+    ) -> tuple[int, bool]:
+        """Compute thread message count and whether user sent in thread prior to as_of."""
+        if not msg_id and not in_reply_to:
+            return 0, False
+        query = """
+            SELECT id, item_kind, payload_json FROM raw_items
+            WHERE pack = 'mail'
+              AND known_at COLLATE UTC_TIMESTAMP <= ?
+              AND (
+                source_ref = ?
+                OR json_extract(payload_json, '$.in_reply_to') = ?
+                OR (json_extract(payload_json, '$.message_id') = ? AND ? != '')
+                OR (json_extract(payload_json, '$.in_reply_to') = ? AND ? != '')
+              )
+        """
+        cur = self._conn.cursor()
+        cur.execute(
+            query,
+            (
+                self.as_of,
+                in_reply_to or "__none__",
+                msg_id or "__none__",
+                in_reply_to or "",
+                in_reply_to or "",
+                in_reply_to or "",
+                in_reply_to or "",
+            ),
+        )
+        thread_msgs = 0
+        user_sent = False
+        norm_user_addrs = [u.lower().strip() for u in user_addresses if u.strip()]
+        for r in cur.fetchall():
+            if current_raw_item_id and r["id"] == current_raw_item_id:
+                continue
+            thread_msgs += 1
+            if r["item_kind"] == "mail_sent":
+                user_sent = True
+            else:
+                try:
+                    p = json.loads(r["payload_json"])
+                    from_addr = str(p.get("from") or p.get("from_addr") or "").lower()
+                    if any(u in from_addr for u in norm_user_addrs):
+                        user_sent = True
+                except Exception:
+                    pass
+        return thread_msgs, user_sent
+
+    def get_prior_files_in_folder(self, folder: str) -> int:
+        """Count prior files moved to or located in folder known at <= as_of."""
+        query = """
+            SELECT COUNT(*) FROM raw_items
+            WHERE pack = 'files'
+              AND known_at COLLATE UTC_TIMESTAMP <= ?
+              AND json_extract(payload_json, '$.rel_path') LIKE ?
+        """
+        cur = self._conn.cursor()
+        cur.execute(query, (self.as_of, f"{folder}/%"))
+        row = cur.fetchone()
+        return int(row[0]) if row else 0
+
+    def get_prior_outcomes(self, family: str | None = None) -> list[sqlite3.Row]:
+        """Fetch prior outcomes known at <= as_of, optionally filtered by family."""
+        query = """
+            SELECT o.*, s.family, s.occurred_at
+            FROM outcomes o
+            JOIN situations s ON o.situation_id = s.id
+            WHERE o.known_at COLLATE UTC_TIMESTAMP <= ?
+        """
+        params: list[Any] = [self.as_of]
+        if family is not None:
+            query += " AND s.family = ?"
+            params.append(family)
+        query += " ORDER BY o.known_at COLLATE UTC_TIMESTAMP ASC"
+        cur = self._conn.cursor()
+        cur.execute(query, tuple(params))
+        return list(cur.fetchall())

@@ -153,9 +153,16 @@ def resolve_mail_outcome(
     if now < window_end:
         return None
 
-    # Retrieve current label state for this message
-    orig_msg = world.get_message(msg_id) if msg_id else None
+    # Retrieve current label state for this message as of now
+    now_iso = now.strftime("%Y-%m-%dT%H:%M:%SZ")
+    orig_msg: dict[str, Any] | None = None
+    if msg_id:
+        try:
+            orig_msg = world.get_message(msg_id, as_of=now_iso)  # type: ignore[call-arg]
+        except TypeError:
+            orig_msg = world.get_message(msg_id)
     labels = orig_msg.get("labels", []) if orig_msg else payload.get("labels", ["INBOX"])
+
     labels_upper = [str(lbl).upper() for lbl in labels]
 
     # Rank 3: TRASH

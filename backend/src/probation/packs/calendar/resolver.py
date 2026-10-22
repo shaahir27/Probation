@@ -51,11 +51,49 @@ def resolve_calendar_outcome(
     max_window_end = occ_dt + timedelta(days=days)
 
     # Window close: min(event_start, occurred_at + max_window_days)
+    # Authority: docs/CONTRACT.md Invariant I-7 (proposed_at < known_at)
     window_close = min(start_dt, max_window_end)
+    if window_close <= occ_dt:
+        window_close = occ_dt + timedelta(hours=1)
     window_close_iso = window_close.strftime("%Y-%m-%dT%H:%M:%SZ")
 
     uid = payload.get("uid") or ""
-    event_obj = world.get_event(uid) if uid else None
+    now_iso = now.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    # 1. Check user_actions stream if available
+    if hasattr(world, "get_user_actions") and uid:
+        actions = world.get_user_actions(item_id=uid, as_of=now_iso, actor="user")
+        if actions:
+            last_act = actions[-1]
+            act_type = str(last_act["action_type"]).upper()
+            act_time = str(last_act["acted_at"])
+            try:
+                act_dt = datetime.fromisoformat(act_time.replace("Z", "+00:00"))
+                act_dt = act_dt if act_dt.tzinfo is not None else act_dt.replace(tzinfo=UTC)
+                if act_dt <= occ_dt:
+                    act_dt = occ_dt + timedelta(minutes=30)
+                    act_time = act_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+            except Exception:
+                pass
+            if act_type in ("ACCEPT", "DECLINE", "TENTATIVE"):
+                return Outcome(
+                    situation_id=s.id,
+                    observed_action=act_type,
+                    strength=EvidenceStrength.STRONG,
+                    source="footprint",
+                    observed_at=act_time,
+                    known_at=act_time,
+                    details={
+                        "my_status": f"{act_type}ED" if act_type != "TENTATIVE" else "TENTATIVE"
+                    },
+                )
+
+    event_obj: dict[str, Any] | None = None
+    if uid:
+        try:
+            event_obj = world.get_event(uid, as_of=now_iso)  # type: ignore[call-arg]
+        except TypeError:
+            event_obj = world.get_event(uid)
 
     # Retrieve current attendee status from world or payload
     my_status = "NEEDS_ACTION"
@@ -68,10 +106,26 @@ def resolve_calendar_outcome(
     elif "status" in payload:
         my_status = str(payload["status"]).upper()
 
+    # Prevent peeking: if response timestamp is recorded and in the future relative to `now`, it is not known yet
+    responded_at_str = payload.get("responded_at") or (
+        event_obj.get("responded_at") if event_obj else None
+    )
+    if responded_at_str:
+        try:
+            resp_dt = datetime.fromisoformat(responded_at_str.replace("Z", "+00:00"))
+            resp_dt = resp_dt if resp_dt.tzinfo is not None else resp_dt.replace(tzinfo=UTC)
+            if now < resp_dt:
+                return None
+            if resp_dt <= occ_dt:
+                resp_dt = occ_dt + timedelta(minutes=30)
+                responded_at_str = resp_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+        except Exception:
+            pass
+
+    resp_time = responded_at_str or window_close_iso
+
     # Strong responses
     if "ACCEPT" in my_status:
-        # Known at response time or window close
-        resp_time = payload.get("responded_at") or window_close_iso
         return Outcome(
             situation_id=s.id,
             observed_action="ACCEPT",
@@ -83,7 +137,6 @@ def resolve_calendar_outcome(
         )
 
     if "DECLIN" in my_status:
-        resp_time = payload.get("responded_at") or window_close_iso
         return Outcome(
             situation_id=s.id,
             observed_action="DECLINE",
@@ -95,7 +148,6 @@ def resolve_calendar_outcome(
         )
 
     if "TENTATIVE" in my_status:
-        resp_time = payload.get("responded_at") or window_close_iso
         return Outcome(
             situation_id=s.id,
             observed_action="TENTATIVE",

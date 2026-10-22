@@ -5,12 +5,14 @@ Tests metric functions against hand-computed golden fixtures matching to 1e-9.
 Tests Baselines B0, B1, B2, B3, human study harness, and evaluation runner orchestration.
 """
 
+import sqlite3
 from pathlib import Path
 
 import pytest
 
 from probation.core.enums import Gate
 from probation.core.types import Situation
+from probation.engine.replay import run_replay
 from probation.eval.baselines import (
     AskAlwaysBaseline,
     GenericRulesBaseline,
@@ -298,10 +300,20 @@ def test_human_study_simulation() -> None:
     assert results["mean_final_agreement"] > 0.0
 
 
-def test_run_eval_orchestrator(tmp_path: Path) -> None:
+def test_run_eval_orchestrator(
+    tmp_path: Path, memory_db: sqlite3.Connection, basic_situation: Situation
+) -> None:
     """Test full evaluation runner orchestration and export."""
-    res = run_evaluation(suite="fast", seed=7)
+    run_replay(memory_db)
+    engine_path = tmp_path / "engine.db"
+    with sqlite3.connect(engine_path) as target:
+        memory_db.backup(target)
+    res = run_evaluation(db_path=engine_path, suite="fast", seed=7)
     assert "metadata" in res
+    assert res["metadata"]["total_situations"] == 1
+    assert (
+        memory_db.execute("SELECT situation_id FROM proposals").fetchone()[0] == basic_situation.id
+    )
     assert "main_comparison" in res
     assert "ablations" in res
     assert "resource_efficiency" in res

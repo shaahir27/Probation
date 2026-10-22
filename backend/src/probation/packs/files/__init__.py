@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from probation.config import settings
-from probation.core.hashing import det_id
+from probation.core.hashing import canonical_situation_id, normalize_rel_path
 from probation.core.history import HistoryView
 from probation.core.types import (
     Action,
@@ -79,7 +79,7 @@ class FilesPack(PackAdapter):
             for w in settings.files_watch_dirs.split(",")
             if w.strip()
         ]
-        norm_rel_path = rel_path.replace("\\", "/").strip("/")
+        norm_rel_path = normalize_rel_path(rel_path)
 
         in_watched = False
         for w in watched_dirs:
@@ -104,8 +104,21 @@ class FilesPack(PackAdapter):
         origin_group = extract_origin_group(origin_url)
         hands_off_reason = is_hands_off(filename=filename)
 
-        situation_id = det_id("sit", raw_id, "file_destination", "")
-        redacted_text = f"Filename: {filename}\nPath: {rel_path}\nOrigin: {origin_url}"
+        source_ref = (
+            (
+                raw_item.get("source_ref")
+                if isinstance(raw_item, dict)
+                else getattr(raw_item, "source_ref", None)
+            )
+            or norm_rel_path
+            or raw_id
+        )
+        source_ref = normalize_rel_path(source_ref)
+
+        situation_id = canonical_situation_id(
+            "files", source_ref, occurred_at, "file_destination", ""
+        )
+        redacted_text = f"Filename: {filename}\nPath: {norm_rel_path}\nOrigin: {origin_url}"
 
         sit = Situation(
             id=situation_id,

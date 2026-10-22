@@ -16,7 +16,7 @@ import sqlite3
 import tempfile
 from pathlib import Path
 
-from probation.db.connection import apply_schema
+from probation.db.connection import apply_schema, get_connection
 from probation.synth.generator import SyntheticGenerator, generate_synthetic_world
 from probation.synth.importers import import_calendar, import_files, import_mail
 from probation.synth.personas import get_default_persona, get_persona, list_personas
@@ -244,4 +244,41 @@ def test_t_id_importer_idempotency() -> None:
         total_raw_after_second = cur.fetchone()[0]
         assert total_raw_after_second == total_raw_after_first
 
+        conn.close()
+
+
+def test_t_synth_truth_join_exactness() -> None:
+    """T-SYNTH: Primary situations join exactly with truth.json with 100% ID alignment."""
+    from probation.workers.ingestor import ingest_situations
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        out_dir = Path(tmp_dir)
+        generate_synthetic_world(persona_id=0, seed=42, size="tiny", out_dir=out_dir)
+
+        conn = get_connection(":memory:")
+        apply_schema(conn)
+
+        import_mail(out_dir / "mailbox.mbox", conn)
+        import_calendar(out_dir / "calendar.ics", conn)
+        import_files(out_dir / "files_manifest.json", conn)
+        ingest_situations(conn)
+
+        with open(out_dir / "truth.json", encoding="utf-8") as f:
+            truth = json.load(f)
+
+        cur = conn.cursor()
+        cur.execute("SELECT id, pack, family, occurred_at FROM situations;")
+        situations = cur.fetchall()
+
+        assert len(situations) > 0
+        matched = 0
+        for s in situations:
+            sid = s["id"]
+            if sid in truth:
+                matched += 1
+                assert truth[sid]["family"] == s["family"]
+
+        assert matched == len(situations), (
+            f"Expected all {len(situations)} situations to match truth.json, matched {matched}"
+        )
         conn.close()

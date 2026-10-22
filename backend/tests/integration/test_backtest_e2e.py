@@ -20,7 +20,6 @@ from probation.engine.replay import run_replay
 from probation.synth.importers import import_calendar, import_mail
 from probation.synth.world import SimWorld
 from probation.workers.ingestor import ingest_situations
-from probation.workers.resolver import resolve_outcomes
 
 
 def _run_full_pipeline(conn: sqlite3.Connection) -> dict[str, str]:
@@ -34,11 +33,9 @@ def _run_full_pipeline(conn: sqlite3.Connection) -> dict[str, str]:
     import_calendar(ics, conn, user_addresses=["meena.k@example.ac.in"])
     ingest_situations(conn)
 
-    with SimWorld(world_db) as world:
-        resolve_outcomes(conn, world)
-
     clock = Clock(mode=ClockMode.REPLAY)
-    report = run_replay(conn, clock=clock)
+    with SimWorld(world_db) as world:
+        report = run_replay(conn, clock=clock, world=world)
     return report
 
 
@@ -120,11 +117,9 @@ def test_t_e2e_family_filtering() -> None:
     import_calendar(fixture_dir / "calendar.ics", conn, user_addresses=["meena.k@example.ac.in"])
     ingest_situations(conn)
 
-    with SimWorld(fixture_dir / "world.db") as world:
-        resolve_outcomes(conn, world)
-
     clock = Clock(mode=ClockMode.REPLAY)
-    report = run_replay(conn, clock=clock, family="email_action")
+    with SimWorld(fixture_dir / "world.db") as world:
+        report = run_replay(conn, clock=clock, family="email_action", world=world)
 
     assert report["family"] == "email_action"
 
@@ -133,4 +128,31 @@ def test_t_e2e_family_filtering() -> None:
     distinct_fams = [r[0] for r in cur.fetchall()]
     assert distinct_fams == ["email_action"], f"Unexpected families emitted: {distinct_fams}"
 
+    conn.close()
+
+
+def test_t_e2e_ledger_chronology() -> None:
+    """T-E2E: Proposal ledger sequence strictly precedes outcome ledger sequence (Invariant I-7)."""
+    conn = get_connection(":memory:")
+    apply_schema(conn)
+    _run_full_pipeline(conn)
+
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT p.situation_id, p.ledger_seq as p_seq, o.ledger_seq as o_seq, p.proposed_at, o.known_at
+        FROM proposals p
+        JOIN outcomes o ON p.situation_id = o.situation_id;
+        """
+    )
+    rows = cur.fetchall()
+    assert len(rows) > 0, "Expected outcomes joined with proposals"
+    for r in rows:
+        assert r["p_seq"] < r["o_seq"], (
+            f"Invariant I-7 violation for {r['situation_id']}: "
+            f"Proposal seq ({r['p_seq']}) not strictly before outcome seq ({r['o_seq']})"
+        )
+        assert r["proposed_at"] <= r["known_at"], (
+            f"Temporal violation for {r['situation_id']}: {r['proposed_at']} > {r['known_at']}"
+        )
     conn.close()
