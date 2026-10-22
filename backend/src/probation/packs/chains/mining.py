@@ -8,14 +8,14 @@ import json
 import math
 import re
 import sqlite3
-import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from probation.config import settings
-from probation.core.clock import Clock
-from probation.core.enums import ClockMode
+from probation.core.clock import Clock, format_timestamp, get_clock
+from probation.core.hashing import det_id
 from probation.core.types import Chain
+from probation.db.access import Role, RoleAccess
 
 _WORD_REGEX = re.compile(r"\b[a-zA-Z]{3,}\b")
 
@@ -67,17 +67,9 @@ def mine_chains(
     5. Keep if n >= 20, k/n >= 0.60, lift >= 1.5.
     6. Persist to chains table.
     """
-    cur = conn.cursor()
-    if as_of is not None:
-        now_iso = as_of
-    elif clock is not None:
-        now_iso = clock.now_iso()
-    else:
-        cur.execute("SELECT MAX(occurred_at) FROM situations;")
-        max_row = cur.fetchone()
-        now_iso = (
-            str(max_row[0]) if max_row and max_row[0] else Clock(mode=ClockMode.REPLAY).now_iso()
-        )
+    access = RoleAccess(conn, Role.EXAMINER)
+    cur = access.conn.cursor()
+    now_iso = format_timestamp(as_of) if as_of is not None else (clock or get_clock()).now_iso()
 
     min_supp = min_support if min_support is not None else settings.chain_min_support
     m_p = min_p if min_p is not None else settings.chain_min_p
@@ -100,9 +92,9 @@ def mine_chains(
         FROM situations s
         JOIN proposals p ON s.id = p.situation_id
         LEFT JOIN raw_items r ON s.raw_item_id = r.id
-        WHERE s.occurred_at <= ?
+        WHERE s.occurred_at COLLATE UTC_TIMESTAMP <= ?
           AND s.family != 'chain_followup'
-        ORDER BY s.occurred_at ASC;
+        ORDER BY s.occurred_at COLLATE UTC_TIMESTAMP ASC;
         """,
         (now_iso,),
     )
@@ -117,8 +109,8 @@ def mine_chains(
         SELECT id, occurred_at, payload_json
         FROM raw_items
         WHERE item_kind = 'mail_sent'
-          AND occurred_at <= ?
-        ORDER BY occurred_at ASC;
+          AND occurred_at COLLATE UTC_TIMESTAMP <= ?
+        ORDER BY occurred_at COLLATE UTC_TIMESTAMP ASC;
         """,
         (now_iso,),
     )
@@ -130,8 +122,8 @@ def mine_chains(
         SELECT id, occurred_at, payload_json
         FROM raw_items
         WHERE item_kind IN ('cal_event', 'invite')
-          AND occurred_at <= ?
-        ORDER BY occurred_at ASC;
+          AND occurred_at COLLATE UTC_TIMESTAMP <= ?
+        ORDER BY occurred_at COLLATE UTC_TIMESTAMP ASC;
         """,
         (now_iso,),
     )
@@ -172,7 +164,7 @@ def mine_chains(
         """
         SELECT DISTINCT SUBSTR(occurred_at, 1, 10)
         FROM raw_items
-        WHERE occurred_at <= ?;
+        WHERE occurred_at COLLATE UTC_TIMESTAMP <= ?;
         """,
         (now_iso,),
     )
@@ -252,8 +244,17 @@ def mine_chains(
             lift = p_cond / base_rate
 
             if p_cond >= m_p and lift >= m_lift:
-                chain_id = f"chain-{uuid.uuid4().hex[:12]}"
-                cur.execute(
+                previous = cur.execute(
+                    "SELECT id FROM chains WHERE trigger_class_key=? AND follow_action=?",
+                    (ck, follow_act),
+                ).fetchone()
+                chain_id = (
+                    str(previous["id"])
+                    if previous
+                    else "chain-" + det_id("chain-v1", ck, follow_act)
+                )
+                access.execute_write(
+                    "chains",
                     """
                     INSERT INTO chains
                     (id, trigger_class_key, follow_action, k, n, base_rate, lift, status, created_at)
@@ -282,5 +283,4 @@ def mine_chains(
                     )
                 )
 
-    conn.commit()
     return mined_chains

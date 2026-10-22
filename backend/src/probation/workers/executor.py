@@ -10,13 +10,17 @@ from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from typing import Any, Final
 
-from probation.core.clock import Clock
+from probation.core.actions import PARAMETER_ACTIONS, InvalidAction, parse_action
+from probation.core.clock import Clock, format_timestamp, get_clock
 from probation.core.enums import ActionStatus, GateDecision, LedgerKind
 from probation.core.hashing import canonical_json
 from probation.core.types import Action, ExecResult
 from probation.db.access import Role, RoleAccess
+from probation.db.actions import persist_action
 from probation.db.ledger import append_ledger
 from probation.engine.drift import CUSUMTracker
+from probation.engine.evidence import aggregate_evidence
+from probation.engine.licence import check_exam_ok, derive_licence_level
 from probation.packs.base import ExecutorIO
 from probation.packs.registry import registry
 
@@ -43,24 +47,35 @@ class Executor:
     ) -> None:
         self.conn = conn
         self.world = world
-        self.clock = clock or Clock()
+        self.clock = clock or get_clock()
         self.role_access = RoleAccess(conn, Role.EXECUTOR)
 
-        # Default licence checker reads from licence_cache
+        # Cached permission is never authority for the newly reachable dispatch path.
         if licence_checker is not None:
             self.licence_checker = licence_checker
         else:
             self.licence_checker = self._default_licence_checker
 
     def _default_licence_checker(self, class_key: str, action: str, as_of: str) -> int:
-        """Read derived licence level from licence_cache."""
-        cur = self.conn.cursor()
-        cur.execute(
-            "SELECT level FROM licence_cache WHERE class_key = ? AND action = ?;",
-            (class_key, action),
-        )
-        row = cur.fetchone()
-        return int(row["level"]) if row else 0
+        """Re-derive from bounded evidence without examiner writes or cache authority."""
+        try:
+            reader = self.role_access.conn
+            stats = aggregate_evidence(reader, as_of=as_of, persist=False).get((class_key, action))
+            if stats is None:
+                return 0
+            return int(
+                derive_licence_level(
+                    action=action,
+                    n_all=stats.n_all,
+                    lb_all=stats.lb_all,
+                    n_strong=stats.n_strong,
+                    lb_strong=stats.lb_strong,
+                    n_recent=stats.n_recent,
+                    exam_ok_fn=lambda level: check_exam_ok(reader, class_key, action, as_of, level),
+                )
+            )
+        except (sqlite3.Error, ValueError, TypeError):
+            return 0
 
     def create_action(
         self,
@@ -74,6 +89,13 @@ class Executor:
         as_of: str,
     ) -> Action:
         """Create and record an action resulting from a gated proposal."""
+        parsed = parse_action(action_type)
+        catalog = registry.get_descriptor(pack).action_catalog()
+        if parsed.is_noop or parsed.type not in {spec.type for spec in catalog}:
+            raise InvalidAction("Action is not an executable member of this pack's catalog")
+        if parsed.type in PARAMETER_ACTIONS and parsed.parameter is None:
+            raise InvalidAction("Executable action requires a nonempty parameter")
+        action_type = parsed.label
         gate_str = (
             gate_decision.value if isinstance(gate_decision, GateDecision) else str(gate_decision)
         )
@@ -81,8 +103,8 @@ class Executor:
 
         if gate_str == GateDecision.HOLD_THEN_EXECUTE.value:
             status = ActionStatus.HELD
-            hold_until: str | None = (as_of_dt + timedelta(minutes=HOLD_MINUTES_DEFAULT)).strftime(
-                "%Y-%m-%dT%H:%M:%SZ"
+            hold_until: str | None = format_timestamp(
+                as_of_dt + timedelta(minutes=HOLD_MINUTES_DEFAULT)
             )
         else:
             status = ActionStatus.PENDING
@@ -104,45 +126,7 @@ class Executor:
             updated_at=as_of,
         )
 
-        cur = self.conn.cursor()
-        cur.execute(
-            """
-            INSERT OR REPLACE INTO actions
-            (id, proposal_id, pack, type, params_json, level_required, recallable, status, hold_until, undo_json, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?);
-            """,
-            (
-                action.id,
-                action.proposal_id,
-                action.pack,
-                action.type,
-                canonical_json(action.params),
-                action.level_required,
-                1 if action.recallable else 0,
-                action.status.value,
-                action.hold_until,
-                action.created_at,
-                action.updated_at,
-            ),
-        )
-
-        append_ledger(
-            self.conn,
-            kind=LedgerKind.ACTION,
-            ref_id=action.id,
-            payload={
-                "action_id": action.id,
-                "proposal_id": action.proposal_id,
-                "pack": action.pack,
-                "type": action.type,
-                "status": action.status.value,
-                "hold_until": action.hold_until,
-                "created_at": action.created_at,
-            },
-            created_at=as_of,
-        )
-        self.conn.commit()
-        return action
+        return persist_action(self.role_access, action)
 
     def process_queue(self, as_of: str | None = None) -> list[ExecResult]:
         """Poll and execute pending and expired held actions.
@@ -153,6 +137,10 @@ class Executor:
         - Calls pack execute() in SimWorld / Live.
         - Stores undo_json and marks action DONE.
         """
+        if self.conn.in_transaction:
+            raise ValueError(
+                "Executor consumption requires committed intent and a clean transaction"
+            )
         now_iso = as_of or self.clock.now_iso()
         cur = self.conn.cursor()
 
@@ -162,8 +150,8 @@ class Executor:
             FROM actions a
             LEFT JOIN proposals p ON a.proposal_id = p.id
             WHERE a.status IN ('PENDING', 'HELD')
-              AND (a.hold_until IS NULL OR a.hold_until <= ?)
-            ORDER BY a.created_at ASC;
+              AND (a.hold_until IS NULL OR a.hold_until COLLATE UTC_TIMESTAMP <= ?)
+            ORDER BY a.created_at COLLATE UTC_TIMESTAMP ASC;
             """,
             (now_iso,),
         )
@@ -194,6 +182,7 @@ class Executor:
                     ref_id=act_id,
                     payload={
                         "action_id": act_id,
+                        "type": act_type,
                         "status": ActionStatus.CANCELLED.value,
                         "reason": "licence_lost",
                         "current_licence": current_licence,
@@ -244,6 +233,8 @@ class Executor:
                     ref_id=act_id,
                     payload={
                         "action_id": act_id,
+                        "type": act_type,
+                        "level_required": level_req,
                         "status": ActionStatus.DONE.value,
                         "executed_at": now_iso,
                     },
@@ -265,6 +256,8 @@ class Executor:
 
         Authority: docs/CONTRACT.md section 8 and docs/ENGINE_SPEC.md section 10.
         """
+        if self.conn.in_transaction:
+            raise ValueError("Executor undo requires committed intent and a clean transaction")
         now_iso = as_of or self.clock.now_iso()
         cur = self.conn.cursor()
 
@@ -348,6 +341,8 @@ class Executor:
             ref_id=action_id,
             payload={
                 "action_id": action_id,
+                "type": act_type,
+                "level_required": int(row["level_required"]),
                 "status": ActionStatus.UNDONE.value,
                 "undone_at": now_iso,
             },
@@ -364,6 +359,7 @@ class Executor:
                 "observed_action": "UNDO",
                 "strength": "STRONG",
                 "source": "undo",
+                "known_at": now_iso,
                 "action_id": action_id,
                 "undone_at": now_iso,
             },
@@ -413,6 +409,8 @@ class Executor:
                 payload={
                     "class_key": class_key,
                     "action": act_type,
+                    "cusum": tracker.s,
+                    "kind": "cusum",
                     "alarm_at": now_iso,
                     "reason": "undo_cusum_alarm",
                 },

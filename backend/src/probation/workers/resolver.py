@@ -9,7 +9,7 @@ import sqlite3
 from datetime import UTC, datetime
 from typing import Any
 
-from probation.core.clock import Clock
+from probation.core.clock import Clock, get_clock
 from probation.core.enums import LedgerKind
 from probation.core.hashing import canonical_json
 from probation.core.types import Situation
@@ -27,13 +27,14 @@ def resolve_outcomes(
     world: WorldView,
     as_of: datetime | str | None = None,
     user_addresses: list[str] | str | None = None,
+    clock: Clock | None = None,
 ) -> int:
     """Resolve and record outcomes for unresolved situations up to as_of.
 
     Authority: docs/CONTRACT.md section 3, invariant I-7, and docs/ENGINE_SPEC.md section 1.1.
     """
     if as_of is None:
-        as_of_dt = Clock().now()
+        as_of_dt = (clock or get_clock()).now()
     elif isinstance(as_of, str):
         as_of_dt = datetime.fromisoformat(as_of.replace("Z", "+00:00"))
         if as_of_dt.tzinfo is None:
@@ -44,7 +45,7 @@ def resolve_outcomes(
         as_of_dt = as_of if as_of.tzinfo is not None else as_of.replace(tzinfo=UTC)
 
     access_conn = RoleAccess(conn, Role.RESOLVER)
-    cur = conn.cursor()
+    cur = access_conn.conn.cursor()
 
     # Determine user addresses explicitly
     if user_addresses is not None:
@@ -88,7 +89,7 @@ def resolve_outcomes(
         LEFT JOIN outcomes o ON s.id = o.situation_id
         LEFT JOIN raw_items r ON s.raw_item_id = r.id
         WHERE o.situation_id IS NULL
-        ORDER BY s.occurred_at ASC;
+        ORDER BY s.occurred_at COLLATE UTC_TIMESTAMP ASC;
         """
     )
     rows = cur.fetchall()
@@ -132,7 +133,7 @@ def resolve_outcomes(
             )
         else:
             try:
-                pack = registry.get(sit.pack)
+                pack = registry.get_descriptor(sit.pack)
                 outcome = pack.resolve_outcome(sit, world, as_of_dt)
             except KeyError:
                 continue
@@ -150,9 +151,7 @@ def resolve_outcomes(
                 "observed_action": outcome.observed_action,
                 "strength": str(outcome.strength),
                 "source": outcome.source,
-                "observed_at": outcome.observed_at,
                 "known_at": outcome.known_at,
-                "details": outcome.details,
             },
             created_at=outcome.known_at,
         )
@@ -178,5 +177,4 @@ def resolve_outcomes(
         )
         count += 1
 
-    access_conn.commit()
     return count

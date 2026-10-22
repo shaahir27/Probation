@@ -6,6 +6,7 @@ Authority: docs/PACKS_SPEC.md section 2.7 and docs/ENGINE_SPEC.md section 15.
 from typing import Any
 
 from probation.core.types import ExamOperator
+from probation.llm.jobs import ExamEdit
 
 CALENDAR_EXAM_OPERATORS = [
     ExamOperator(
@@ -59,14 +60,7 @@ EXAM_SYSTEM_PROMPT = (
     'Output ONLY JSON: {"edited_text": string}.'
 )
 
-EXAM_EDIT_SCHEMA: dict[str, Any] = {
-    "type": "object",
-    "additionalProperties": False,
-    "required": ["edited_text"],
-    "properties": {
-        "edited_text": {"type": "string"},
-    },
-}
+EXAM_EDIT_SCHEMA = ExamEdit.model_json_schema()
 
 
 def apply_calendar_code_operator(

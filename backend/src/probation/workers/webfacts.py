@@ -9,7 +9,7 @@ import sqlite3
 from datetime import datetime, timedelta
 from typing import Any
 
-from probation.core.clock import Clock
+from probation.core.clock import get_clock
 from probation.core.hashing import canonical_json
 from probation.db.access import Role, RoleAccess
 from probation.web.client import TavilyClient
@@ -75,7 +75,7 @@ def vet_entity(
 
     domain_label = extract_domain_label(clean_domain)
     effective_brand = (brand_token or domain_label).strip().lower()
-    now_iso = as_of or Clock().now_iso()
+    now_iso = as_of or get_clock().now_iso()
 
     # 1. Skip personal freemail providers from entity brand vetting
     if is_freemail_domain(clean_domain):
@@ -197,7 +197,7 @@ def _persist_web_facts(
     try:
         now_dt = datetime.fromisoformat(fetched_at.replace("Z", "+00:00"))
     except Exception:
-        now_dt = Clock().now()
+        now_dt = get_clock().now()
 
     # TTL: 30 days for confirmed_official, 7 days otherwise (docs/TAVILY_AND_NEW_PACKS 5.3)
     days = 30 if status == "confirmed_official" else 7
@@ -226,7 +226,6 @@ def _persist_web_facts(
             ttl_until,
         ),
     )
-    access.commit()
 
 
 def vet_situations_batch(
@@ -243,7 +242,7 @@ def vet_situations_batch(
             SELECT id, pack, sender_key, occurred_at
             FROM situations
             WHERE pack IN ('mail', 'calendar')
-            ORDER BY occurred_at ASC;
+            ORDER BY occurred_at COLLATE UTC_TIMESTAMP ASC;
             """
         )
         sit_rows = cur.fetchall()

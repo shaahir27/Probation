@@ -33,6 +33,7 @@ def test_cli_ledger_verify(tmp_path: Path) -> None:
     init_db(test_db)
     conn = get_connection(test_db)
     append_ledger(conn, "action", "ref-1", {"key": "val"}, "2026-03-01T10:00:00Z")
+    conn.commit()  # The fixture, as caller, owns durability; append never commits for it.
     conn.close()
 
     with patch.object(settings, "db_path", test_db):

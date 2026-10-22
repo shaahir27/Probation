@@ -9,16 +9,24 @@ Verifies:
 - Zero outbound network calls from web-facts.
 """
 
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
 from fastapi.testclient import TestClient
 
 from probation.api.app import app
 from probation.config import settings
+from probation.core.clock import Clock
 from probation.db.connection import get_connection, init_db
 
 client = TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def request_clock(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(app.state, "clock", Clock.replay(datetime(2026, 3, 1, 11, tzinfo=UTC)))
 
 
 def _seed_sample_db(db_path: Path) -> None:

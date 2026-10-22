@@ -8,7 +8,6 @@ and never grant permissions (CONTRACT.md invariant I-16).
 import json
 import re
 import sqlite3
-import uuid
 from collections import Counter
 from typing import Any
 
@@ -16,10 +15,10 @@ import numpy as np
 import scipy.stats
 
 from probation.config import settings
-from probation.core.clock import Clock
-from probation.core.enums import ClockMode
-from probation.core.hashing import canonical_json
+from probation.core.clock import Clock, format_timestamp, get_clock
+from probation.core.hashing import canonical_json, det_id
 from probation.core.types import Habit
+from probation.db.access import Role, RoleAccess
 
 _NUMBER_REGEX = re.compile(r"\b\d+(?:\.\d+)?\b")
 
@@ -171,17 +170,9 @@ def mine_habits(
     6. Construct template statement and reword with number validation.
     7. Persist to habits table.
     """
-    cur = conn.cursor()
-    if as_of is not None:
-        now_iso = as_of
-    elif clock is not None:
-        now_iso = clock.now_iso()
-    else:
-        cur.execute("SELECT MAX(occurred_at) FROM situations;")
-        max_row = cur.fetchone()
-        now_iso = (
-            str(max_row[0]) if max_row and max_row[0] else Clock(mode=ClockMode.REPLAY).now_iso()
-        )
+    access = RoleAccess(conn, Role.EXAMINER)
+    cur = access.conn.cursor()
+    now_iso = format_timestamp(as_of) if as_of is not None else (clock or get_clock()).now_iso()
 
     min_supp = min_support if min_support is not None else settings.habit_min_support
     min_l = min_lift if min_lift is not None else settings.habit_min_lift
@@ -201,8 +192,8 @@ def mine_habits(
         JOIN outcomes o ON s.id = o.situation_id
         LEFT JOIN features f ON s.id = f.situation_id
         WHERE o.strength = 'STRONG'
-          AND s.occurred_at <= ?
-        ORDER BY s.occurred_at ASC;
+          AND s.occurred_at COLLATE UTC_TIMESTAMP <= ?
+        ORDER BY s.occurred_at COLLATE UTC_TIMESTAMP ASC;
         """,
         (now_iso,),
     )
@@ -212,13 +203,15 @@ def mine_habits(
 
     # Group by family
     by_family: dict[str, list[dict[str, Any]]] = {}
-    for r in raw_rows:
-        fam = str(r["family"])
-        det = json.loads(r["deterministic_json"]) if r["deterministic_json"] else {}
-        rdr = json.loads(r["reader_json"]) if r["reader_json"] else {}
+    for source_row in raw_rows:
+        fam = str(source_row["family"])
+        det = (
+            json.loads(source_row["deterministic_json"]) if source_row["deterministic_json"] else {}
+        )
+        rdr = json.loads(source_row["reader_json"]) if source_row["reader_json"] else {}
         merged = {**det, **rdr}
-        merged["situation_id"] = str(r["situation_id"])
-        merged["observed_action"] = str(r["observed_action"])
+        merged["situation_id"] = str(source_row["situation_id"])
+        merged["observed_action"] = str(source_row["observed_action"])
         by_family.setdefault(fam, []).append(merged)
 
     all_mined_habits: list[Habit] = []
@@ -337,7 +330,8 @@ def mine_habits(
                         n=cand["n"],
                     )
                     statement = reword_statement(template, llm_client=llm_client, clock=clock)
-                    cur.execute(
+                    access.execute_write(
+                        "habits",
                         """
                         UPDATE habits
                         SET k = ?, n = ?, lift = ?, q_value = ?, statement = ?, examples_json = ?, created_at = ?
@@ -355,7 +349,9 @@ def mine_habits(
                         ),
                     )
                 else:
-                    habit_id = f"habit-{uuid.uuid4().hex[:12]}"
+                    habit_id = "habit-" + det_id(
+                        "habit-v1", cand["family"], cand["clue"], cand["clue_value"], cand["action"]
+                    )
                     template = build_habit_template(
                         family=cand["family"],
                         clue=cand["clue"],
@@ -365,7 +361,8 @@ def mine_habits(
                         n=cand["n"],
                     )
                     statement = reword_statement(template, llm_client=llm_client, clock=clock)
-                    cur.execute(
+                    access.execute_write(
+                        "habits",
                         """
                         INSERT INTO habits
                         (id, family, clue, clue_value, action, k, n, lift, q_value, statement, examples_json, status, created_at)
@@ -405,5 +402,4 @@ def mine_habits(
                     )
                 )
 
-    conn.commit()
     return all_mined_habits

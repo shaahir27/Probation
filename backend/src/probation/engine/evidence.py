@@ -10,6 +10,10 @@ from typing import Any, Final
 
 import scipy.stats
 
+from probation.core.actions import InvalidAction, parse_action
+from probation.db.access import AccessError, Role, RoleAccess
+from probation.db.guards import ReadConnection
+
 EVIDENCE_WINDOW_DAYS_DEFAULT: Final[int] = 180
 RECENT_WINDOW_DAYS_DEFAULT: Final[int] = 30
 POOLING_KAPPA_DEFAULT: Final[float] = 10.0
@@ -75,11 +79,12 @@ def _parse_ts(ts_str: str) -> datetime:
 
 
 def aggregate_evidence(
-    conn: sqlite3.Connection,
+    conn: sqlite3.Connection | ReadConnection,
     as_of: str,
     family: str | None = None,
     evidence_window_days: int = EVIDENCE_WINDOW_DAYS_DEFAULT,
     recent_window_days: int = RECENT_WINDOW_DAYS_DEFAULT,
+    persist: bool = True,
 ) -> dict[tuple[str, str], ClassStats]:
     """Aggregate evidence for (class_key, action) pairs as of specified timestamp.
 
@@ -112,9 +117,9 @@ def aggregate_evidence(
     JOIN outcomes o ON p.situation_id = o.situation_id
     WHERE p.gate IN ('SHADOW', 'SUGGEST', 'ASK')
       AND o.source NOT IN ('undo', 'override')
-      AND p.proposed_at >= ?
-      AND p.proposed_at <= ?
-      AND o.known_at <= ?
+      AND p.proposed_at COLLATE UTC_TIMESTAMP >= ?
+      AND p.proposed_at COLLATE UTC_TIMESTAMP <= ?
+      AND o.known_at COLLATE UTC_TIMESTAMP <= ?
     """
     params: list[Any] = [window_start, as_of, as_of]
     if family is not None:
@@ -130,6 +135,11 @@ def aggregate_evidence(
     for row in rows:
         c_key = str(row["class_key"])
         act = str(row["action"])
+        try:
+            if parse_action(act).is_noop:
+                continue
+        except InvalidAction:
+            continue
         key = (c_key, act)
         if key not in counts:
             counts[key] = {
@@ -156,7 +166,7 @@ def aggregate_evidence(
             if agree:
                 counts[key]["k_strong"] += 1
 
-            if proposed_at >= recent_start:
+            if _parse_ts(proposed_at) >= _parse_ts(recent_start):
                 counts[key]["n_recent"] += 1
 
     # Compute parent strong counts for empirical Bayes pooling
@@ -206,8 +216,14 @@ def aggregate_evidence(
         )
         results[(c_key, act)] = stat
 
+        if not persist:
+            continue
+        if not isinstance(conn, sqlite3.Connection):
+            raise AccessError("A read-only evidence query cannot persist class statistics")
+
         # Insert into class_stats table if table exists
-        cur.execute(
+        RoleAccess(conn, Role.EXAMINER).execute_write(
+            "class_stats",
             """
             INSERT OR REPLACE INTO class_stats
             (class_key, action, as_of, n_strong, k_strong, n_all, k_all, n_recent, lb_strong, lb_all)
@@ -227,5 +243,4 @@ def aggregate_evidence(
             ),
         )
 
-    conn.commit()
     return results

@@ -5,8 +5,11 @@ Authority: docs/CONTRACT.md section 4, invariants I-7, I-8, and docs/DATA_MODEL.
 
 import hashlib
 import json
+import math
 from datetime import UTC, datetime
 from typing import Any
+
+from probation.core.clock import format_timestamp
 
 GENESIS = "0" * 64
 
@@ -14,13 +17,15 @@ GENESIS = "0" * 64
 def _normalise(obj: Any) -> Any:
     """Normalize floats to 6 decimal places, datetimes to ISO-8601 UTC 'Z', and dicts recursively."""
     if isinstance(obj, float):
+        if not math.isfinite(obj):
+            raise ValueError("Canonical JSON rejects non-finite numbers")
         return round(obj, 6)
     elif isinstance(obj, datetime):
         if obj.tzinfo is None:
             obj = obj.replace(tzinfo=UTC)
         else:
             obj = obj.astimezone(UTC)
-        return obj.strftime("%Y-%m-%dT%H:%M:%SZ")
+        return format_timestamp(obj)
     elif isinstance(obj, dict):
         return {str(k): _normalise(v) for k, v in obj.items()}
     elif isinstance(obj, (list, tuple)):
@@ -44,7 +49,7 @@ def canonical_json(obj: Any) -> str:
             return json.dumps(
                 _normalise(parsed), sort_keys=True, separators=(",", ":"), ensure_ascii=False
             )
-        except Exception:
+        except json.JSONDecodeError:
             return obj
     return json.dumps(_normalise(obj), sort_keys=True, separators=(",", ":"), ensure_ascii=False)
 

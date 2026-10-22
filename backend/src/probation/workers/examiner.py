@@ -22,6 +22,7 @@ def run_examiner_job(
     seed: int = 42,
     llm_client: Any = None,
     clock: Clock | None = None,
+    attempt_ordinal: int = 0,
 ) -> ExamRunResult:
     """Execute a single diagnostic exam run using Role.EXAMINER database boundaries."""
     access_conn = RoleAccess(conn, Role.EXAMINER)
@@ -39,6 +40,7 @@ def run_examiner_job(
         seed=seed,
         llm_client=llm_client,
         clock=clock,
+        attempt_ordinal=attempt_ordinal,
     )
 
 

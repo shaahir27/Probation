@@ -381,6 +381,17 @@ Using deterministic IDs makes ingestion and replay idempotent.
 
 ## 3. Timestamps and "known_at"
 
+- WP1 representation: new context-clock timestamps use UTC `Z`, retaining six
+  fractional digits when microseconds are nonzero and the legacy whole-second form
+  otherwise. Inputs with more than six fractional digits are rejected rather than
+  truncated. Existing payload strings and ledger hashes are not rewritten.
+- Compare instants, not ISO spelling. `core/clock.py` parses offsets and legacy naive
+  UTC strings; connection/bootstrap helpers register `UTC_TIMESTAMP` collation.
+  Repaired SQL cutoffs/orderings use that collation, including aggregate time heads.
+  A raw SQLite connection must be configured before using these queries.
+- A same-instant event does not satisfy strict I-7. Precision preserves real ordering;
+  it does not authorize manufacturing a later footprint timestamp. Response/outcome
+  event ownership and the complete replay event chronology remain separately gated.
 - `occurred_at`: when the thing happened (mail received, invite sent, file created).
 - `known_at` (raw items): when the system could first know the record. Usually equal to `occurred_at`.
 - `known_at` (outcomes): when the outcome could first be observed. For a reply it is the reply's send time. For a window-close weak outcome it is `occurred_at + window`.
@@ -419,6 +430,14 @@ Ledger payload shapes:
 | `exam_run` | `{exam_run_id, class_key, action, level_tested, passed}` |
 | `drift_alarm` | `{class_key, action, cusum, kind}` |
 | `audit_draw` | `{situation_id, draw, fraction, selected}` |
+
+New class alarms use `kind='cusum'`. Family-level alarms use the distinct payload
+`{family, kind:'family_shift', max_psi, psi_scores, week_start}` because a family
+alarm has no individual class/action pair. Historical family payloads may contain
+`alarm_type:'FAMILY_SHIFT'` instead; historical CUSUM payloads may omit `kind`/`cusum`.
+Ledger APIs return those historical payloads unchanged. Readers must not rewrite
+stored payloads or hashes to normalize their spelling. New resolver outcome payloads
+use only the compact fields above; details remain in the outcomes table.
 
 ---
 

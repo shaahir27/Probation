@@ -62,7 +62,7 @@ def get_item_detail(proposal_id: str) -> dict[str, Any]:
             """
             SELECT * FROM class_stats
             WHERE class_key = ? AND action = ?
-            ORDER BY as_of DESC LIMIT 1;
+            ORDER BY as_of COLLATE UTC_TIMESTAMP DESC LIMIT 1;
             """,
             (row["class_key"], row["action"]),
         )

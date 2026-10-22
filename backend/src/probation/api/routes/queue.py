@@ -12,8 +12,8 @@ from typing import Any, Literal
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
+from probation.api.event_time import response_time
 from probation.config import settings
-from probation.core.clock import Clock
 from probation.core.enums import GateDecision
 from probation.db.access import Role, get_role_access
 from probation.db.connection import get_connection
@@ -59,7 +59,7 @@ def get_queue() -> dict[str, Any]:
             LEFT JOIN user_responses ur ON p.id = ur.proposal_id
             WHERE p.gate IN (?, ?)
               AND ur.id IS NULL
-            ORDER BY p.proposed_at ASC;
+            ORDER BY p.proposed_at COLLATE UTC_TIMESTAMP ASC;
             """,
             (GateDecision.ASK.value, GateDecision.SUGGEST.value),
         )
@@ -144,8 +144,9 @@ def respond_queue(proposal_id: str, body: QueueRespondBody) -> dict[str, Any]:
     try:
         cursor = conn.cursor()
         # Verify proposal exists
-        cursor.execute("SELECT id FROM proposals WHERE id = ?;", (proposal_id,))
-        if not cursor.fetchone():
+        cursor.execute("SELECT id, proposed_at FROM proposals WHERE id = ?;", (proposal_id,))
+        proposal = cursor.fetchone()
+        if not proposal:
             raise HTTPException(status_code=404, detail=f"Proposal '{proposal_id}' not found")
 
         # Check if already answered
@@ -167,7 +168,7 @@ def respond_queue(proposal_id: str, body: QueueRespondBody) -> dict[str, Any]:
             )
 
         resp_id = f"resp-{uuid.uuid4().hex[:12]}"
-        now_iso = Clock().now_iso()
+        now_iso = response_time(str(proposal["proposed_at"]))
 
         # Strictly use RoleAccess with Role.API (permits user_responses only)
         role_access = get_role_access(conn, Role.API)

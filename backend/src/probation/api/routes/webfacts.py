@@ -46,7 +46,7 @@ def get_web_facts() -> dict[str, Any]:
             """
             SELECT id, endpoint, query_text, credits, ok, latency_ms, created_at
             FROM tavily_calls
-            ORDER BY created_at DESC LIMIT 50;
+            ORDER BY created_at COLLATE UTC_TIMESTAMP DESC LIMIT 50;
             """
         )
         call_rows = cursor.fetchall()
@@ -73,7 +73,7 @@ def get_web_facts() -> dict[str, Any]:
             """
             SELECT entity_key, status, facts_json, sources_json, fetched_at
             FROM web_facts
-            ORDER BY fetched_at DESC LIMIT 50;
+            ORDER BY fetched_at COLLATE UTC_TIMESTAMP DESC LIMIT 50;
             """
         )
         entity_rows = cursor.fetchall()

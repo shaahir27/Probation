@@ -11,7 +11,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Final
 
 from probation.core.enums import LedgerKind
-from probation.db.ledger import append_ledger
+from probation.db.access import Role, RoleAccess
 
 CUSUM_ALLOWANCE_DEFAULT: Final[float] = 0.02
 CUSUM_ALARM_DEFAULT: Final[float] = 5.0
@@ -143,132 +143,133 @@ def check_family_shift(
     ref_end = (as_of_dt - timedelta(days=30)).strftime("%Y-%m-%dT%H:%M:%SZ")
     cur_end = as_of
 
-    cur = conn.cursor()
+    access = RoleAccess(conn, Role.EXAMINER)
+    with access.transaction():
+        cur = access.conn.cursor()
 
-    # Query reference features
-    cur.execute(
-        """
-        SELECT f.deterministic_json, f.reader_json
-        FROM situations s
-        JOIN features f ON s.id = f.situation_id
-        WHERE s.family = ? AND s.occurred_at >= ? AND s.occurred_at < ?;
-        """,
-        (family, ref_start, ref_end),
-    )
-    ref_rows = cur.fetchall()
+        # Query reference features
+        cur.execute(
+            """
+            SELECT f.deterministic_json, f.reader_json
+            FROM situations s
+            JOIN features f ON s.id = f.situation_id
+            WHERE s.family = ? AND s.occurred_at COLLATE UTC_TIMESTAMP >= ? AND s.occurred_at COLLATE UTC_TIMESTAMP < ?;
+            """,
+            (family, ref_start, ref_end),
+        )
+        ref_rows = cur.fetchall()
 
-    # Query current features
-    cur.execute(
-        """
-        SELECT f.deterministic_json, f.reader_json
-        FROM situations s
-        JOIN features f ON s.id = f.situation_id
-        WHERE s.family = ? AND s.occurred_at >= ? AND s.occurred_at <= ?;
-        """,
-        (family, ref_end, cur_end),
-    )
-    cur_rows = cur.fetchall()
+        # Query current features
+        cur.execute(
+            """
+            SELECT f.deterministic_json, f.reader_json
+            FROM situations s
+            JOIN features f ON s.id = f.situation_id
+            WHERE s.family = ? AND s.occurred_at COLLATE UTC_TIMESTAMP >= ? AND s.occurred_at COLLATE UTC_TIMESTAMP <= ?;
+            """,
+            (family, ref_end, cur_end),
+        )
+        cur_rows = cur.fetchall()
 
-    if len(ref_rows) < 20 or len(cur_rows) < 10:
-        return False
+        if len(ref_rows) < 20 or len(cur_rows) < 10:
+            return False
 
-    # Extract common categorical/numeric keys
-    psi_results: dict[str, float] = {}
+        # Extract common categorical/numeric keys
+        psi_results: dict[str, float] = {}
 
-    # Sample top feature distributions
-    sample_ref = json.loads(ref_rows[0]["deterministic_json"])
-    feature_keys = list(sample_ref.keys())[:5]
+        # Sample top feature distributions
+        sample_ref = json.loads(ref_rows[0]["deterministic_json"])
+        feature_keys = list(sample_ref.keys())[:5]
 
-    for key in feature_keys:
-        sample_val = sample_ref.get(key)
-        is_numeric = isinstance(sample_val, (int, float)) and not isinstance(sample_val, bool)
+        for key in feature_keys:
+            sample_val = sample_ref.get(key)
+            is_numeric = isinstance(sample_val, (int, float)) and not isinstance(sample_val, bool)
 
-        if is_numeric:
-            ref_nums: list[float] = []
-            for r in ref_rows:
-                d = json.loads(r["deterministic_json"])
-                val = d.get(key)
-                if isinstance(val, (int, float)) and not isinstance(val, bool):
-                    ref_nums.append(float(val))
+            if is_numeric:
+                ref_nums: list[float] = []
+                for r in ref_rows:
+                    d = json.loads(r["deterministic_json"])
+                    val = d.get(key)
+                    if isinstance(val, (int, float)) and not isinstance(val, bool):
+                        ref_nums.append(float(val))
 
-            cur_nums: list[float] = []
-            for r in cur_rows:
-                d = json.loads(r["deterministic_json"])
-                val = d.get(key)
-                if isinstance(val, (int, float)) and not isinstance(val, bool):
-                    cur_nums.append(float(val))
+                cur_nums: list[float] = []
+                for r in cur_rows:
+                    d = json.loads(r["deterministic_json"])
+                    val = d.get(key)
+                    if isinstance(val, (int, float)) and not isinstance(val, bool):
+                        cur_nums.append(float(val))
 
-            if not ref_nums or not cur_nums:
-                continue
+                if not ref_nums or not cur_nums:
+                    continue
 
-            cutoffs = _quantile_bins(ref_nums, n_bins=10)
-            if not cutoffs:
-                ref_val0 = ref_nums[0]
-                ref_dist = [float(len(ref_nums)), 0.0]
-                act_dist = [
-                    float(sum(1 for x in cur_nums if x == ref_val0)),
-                    float(sum(1 for x in cur_nums if x != ref_val0)),
-                ]
+                cutoffs = _quantile_bins(ref_nums, n_bins=10)
+                if not cutoffs:
+                    ref_val0 = ref_nums[0]
+                    ref_dist = [float(len(ref_nums)), 0.0]
+                    act_dist = [
+                        float(sum(1 for x in cur_nums if x == ref_val0)),
+                        float(sum(1 for x in cur_nums if x != ref_val0)),
+                    ]
+                else:
+                    n_buckets = len(cutoffs) + 1
+                    ref_dist = [0.0] * n_buckets
+                    act_dist = [0.0] * n_buckets
+                    for x in ref_nums:
+                        ref_dist[bisect.bisect_right(cutoffs, x)] += 1.0
+                    for x in cur_nums:
+                        act_dist[bisect.bisect_right(cutoffs, x)] += 1.0
+
+                feat_psi = compute_psi(ref_dist, act_dist)
+                psi_results[key] = feat_psi
             else:
-                n_buckets = len(cutoffs) + 1
-                ref_dist = [0.0] * n_buckets
-                act_dist = [0.0] * n_buckets
-                for x in ref_nums:
-                    ref_dist[bisect.bisect_right(cutoffs, x)] += 1.0
-                for x in cur_nums:
-                    act_dist[bisect.bisect_right(cutoffs, x)] += 1.0
+                # Build histogram of categorical values
+                ref_vals: dict[str, int] = {}
+                for r in ref_rows:
+                    d = json.loads(r["deterministic_json"])
+                    v = str(d.get(key, ""))
+                    ref_vals[v] = ref_vals.get(v, 0) + 1
 
-            feat_psi = compute_psi(ref_dist, act_dist)
-            psi_results[key] = feat_psi
-        else:
-            # Build histogram of categorical values
-            ref_vals: dict[str, int] = {}
-            for r in ref_rows:
-                d = json.loads(r["deterministic_json"])
-                v = str(d.get(key, ""))
-                ref_vals[v] = ref_vals.get(v, 0) + 1
+                cur_vals: dict[str, int] = {}
+                for r in cur_rows:
+                    d = json.loads(r["deterministic_json"])
+                    v = str(d.get(key, ""))
+                    cur_vals[v] = cur_vals.get(v, 0) + 1
 
-            cur_vals: dict[str, int] = {}
-            for r in cur_rows:
-                d = json.loads(r["deterministic_json"])
-                v = str(d.get(key, ""))
-                cur_vals[v] = cur_vals.get(v, 0) + 1
+                all_bins = sorted(set(ref_vals.keys()) | set(cur_vals.keys()))
+                if len(all_bins) < 2:
+                    continue
 
-            all_bins = sorted(set(ref_vals.keys()) | set(cur_vals.keys()))
-            if len(all_bins) < 2:
-                continue
+                ref_dist = [float(ref_vals.get(b, 0)) for b in all_bins]
+                act_dist = [float(cur_vals.get(b, 0)) for b in all_bins]
 
-            ref_dist = [float(ref_vals.get(b, 0)) for b in all_bins]
-            act_dist = [float(cur_vals.get(b, 0)) for b in all_bins]
+                feat_psi = compute_psi(ref_dist, act_dist)
+                psi_results[key] = feat_psi
 
-            feat_psi = compute_psi(ref_dist, act_dist)
-            psi_results[key] = feat_psi
+        max_psi = max(psi_results.values()) if psi_results else 0.0
+        alarm = int(max_psi > psi_alarm_threshold)
 
-    max_psi = max(psi_results.values()) if psi_results else 0.0
-    alarm = int(max_psi > psi_alarm_threshold)
-
-    cur.execute(
-        """
-        INSERT OR REPLACE INTO family_shift (family, week_start, psi_json, alarm)
-        VALUES (?, ?, ?, ?);
-        """,
-        (family, as_of, json.dumps(psi_results), alarm),
-    )
-
-    if alarm == 1:
-        append_ledger(
-            conn,
-            kind=LedgerKind.DRIFT_ALARM,
-            ref_id=f"shift-{family}-{as_of}",
-            payload={
-                "family": family,
-                "alarm_type": "FAMILY_SHIFT",
-                "max_psi": max_psi,
-                "psi_scores": psi_results,
-                "week_start": as_of,
-            },
-            created_at=as_of,
+        access.execute_write(
+            "family_shift",
+            """
+            INSERT OR REPLACE INTO family_shift (family, week_start, psi_json, alarm)
+            VALUES (?, ?, ?, ?);
+            """,
+            (family, as_of, json.dumps(psi_results), alarm),
         )
 
-    conn.commit()
-    return bool(alarm)
+        if alarm == 1:
+            access.append_ledger(
+                kind=LedgerKind.DRIFT_ALARM,
+                ref_id=f"shift-{family}-{as_of}",
+                payload={
+                    "family": family,
+                    "kind": "family_shift",
+                    "max_psi": max_psi,
+                    "psi_scores": psi_results,
+                    "week_start": as_of,
+                },
+                created_at=as_of,
+            )
+
+        return bool(alarm)

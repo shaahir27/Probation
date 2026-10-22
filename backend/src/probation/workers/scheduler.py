@@ -6,7 +6,8 @@ Authority: docs/CONTRACT.md section 3 and docs/ENGINE_SPEC.md section 1.
 import sqlite3
 
 from probation.config import settings
-from probation.core.clock import Clock
+from probation.core.clock import Clock, get_clock, use_clock
+from probation.db.access import Role, RoleAccess
 from probation.engine.drift import check_family_shift
 from probation.engine.evidence import aggregate_evidence
 from probation.engine.exam import run_exam
@@ -18,6 +19,7 @@ from probation.packs.chains.mining import mine_chains
 def run_nightly_review(
     conn: sqlite3.Connection,
     as_of: str | None = None,
+    clock: Clock | None = None,
 ) -> None:
     """Execute nightly review tick (02:00 IST / daily replay tick).
 
@@ -27,36 +29,45 @@ def run_nightly_review(
     - Recompute derived licence levels and cache (licence_cache).
     - Mine habits with BH FDR correction and chains with sequence mining.
     """
-    now_iso = as_of or Clock().now_iso()
+    clk = clock or get_clock()
+    access = RoleAccess(conn, Role.EXAMINER)
+    with use_clock(clk), access.transaction():
+        now_iso = as_of or clk.now_iso()
 
-    # 1. Aggregate evidence
-    stats = aggregate_evidence(conn, as_of=now_iso)
+        # 1. Aggregate evidence
+        stats = aggregate_evidence(conn, as_of=now_iso)
 
-    # 2. Run diagnostic exams for candidates
-    candidates = find_exam_candidates(conn, as_of=now_iso, max_candidates=settings.exam_max_per_day)
-    for c_key, act, lvl in candidates:
-        run_exam(conn, class_key=c_key, action=act, level_tested=lvl, as_of=now_iso)
+        # 2. Run diagnostic exams for candidates
+        candidates = find_exam_candidates(
+            conn, as_of=now_iso, max_candidates=settings.exam_max_per_day
+        )
+        for c_key, act, lvl in candidates:
+            run_exam(conn, class_key=c_key, action=act, level_tested=lvl, as_of=now_iso)
 
-    # 3. Derive and cache licences
-    derive_and_cache_licences(conn, as_of=now_iso, stats=stats)
+        # 3. Derive and cache licences
+        derive_and_cache_licences(conn, as_of=now_iso, stats=stats)
 
-    # 4. Mine habits and chains
-    mine_habits(conn, as_of=now_iso)
-    mine_chains(conn, as_of=now_iso)
+        # 4. Mine habits and chains
+        mine_habits(conn, as_of=now_iso)
+        mine_chains(conn, as_of=now_iso)
 
 
 def run_weekly_shift_checks(
     conn: sqlite3.Connection,
     as_of: str | None = None,
+    clock: Clock | None = None,
 ) -> None:
     """Execute weekly feature drift checks (PSI) per family.
 
     Authority: docs/ENGINE_SPEC.md section 11.2.
     """
-    now_iso = as_of or Clock().now_iso()
-    cur = conn.cursor()
-    cur.execute("SELECT DISTINCT family FROM situations;")
-    families = [str(r[0]) for r in cur.fetchall()]
+    clk = clock or get_clock()
+    access = RoleAccess(conn, Role.EXAMINER)
+    with use_clock(clk), access.transaction():
+        now_iso = as_of or clk.now_iso()
+        cur = access.conn.cursor()
+        cur.execute("SELECT DISTINCT family FROM situations;")
+        families = [str(r[0]) for r in cur.fetchall()]
 
-    for fam in families:
-        check_family_shift(conn, family=fam, as_of=now_iso)
+        for fam in families:
+            check_family_shift(conn, family=fam, as_of=now_iso)

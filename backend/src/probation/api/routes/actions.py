@@ -13,8 +13,8 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
+from probation.api.event_time import response_time
 from probation.config import settings
-from probation.core.clock import Clock
 from probation.db.access import Role, get_role_access
 from probation.db.connection import get_connection
 
@@ -45,7 +45,7 @@ def get_actions() -> dict[str, Any]:
             FROM actions a
             LEFT JOIN proposals p ON a.proposal_id = p.id
             LEFT JOIN situations s ON p.situation_id = s.id
-            ORDER BY a.created_at DESC;
+            ORDER BY a.created_at COLLATE UTC_TIMESTAMP DESC;
             """
         )
         rows = cursor.fetchall()
@@ -91,7 +91,8 @@ def request_undo(action_id: str) -> dict[str, Any]:
     try:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT id, proposal_id, status, recallable FROM actions WHERE id = ?;",
+            """SELECT a.id, a.proposal_id, a.status, a.recallable, a.created_at, p.proposed_at
+               FROM actions a JOIN proposals p ON p.id = a.proposal_id WHERE a.id = ?;""",
             (action_id,),
         )
         row = cursor.fetchone()
@@ -112,7 +113,7 @@ def request_undo(action_id: str) -> dict[str, Any]:
             )
 
         resp_id = f"resp-undo-{uuid.uuid4().hex[:12]}"
-        now_iso = Clock().now_iso()
+        now_iso = response_time(str(row["proposed_at"]), str(row["created_at"]))
 
         # Write strictly to user_responses using Role.API
         role_access = get_role_access(conn, Role.API)

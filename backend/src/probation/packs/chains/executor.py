@@ -4,9 +4,9 @@ Authority: docs/PACKS_SPEC.md section 4.5 and docs/CONTRACT.md section 8.
 BLOCK_TIME and CREATE_TASK are recallable. Undo deletes the created event or task.
 """
 
-import uuid
 from typing import Any
 
+from probation.core.hashing import det_id
 from probation.core.types import Action, ExecResult
 from probation.packs.base import ExecutorIO
 
@@ -26,7 +26,7 @@ def execute_chain_action(action: Action, world: ExecutorIO) -> ExecResult:
         title = str(params.get("title") or "Focus Block")
         start_time = str(params.get("start") or action.created_at)
         end_time = str(params.get("end") or action.created_at)
-        uid = f"block-{uuid.uuid4().hex[:12]}"
+        uid = "block-" + det_id(action.id, "BLOCK_TIME")
 
         if hasattr(world, "add_event"):
             world.add_event(
@@ -56,7 +56,7 @@ def execute_chain_action(action: Action, world: ExecutorIO) -> ExecResult:
     elif act_type == "CREATE_TASK":
         title = str(params.get("title") or "Task")
         due = params.get("due")
-        task_id = f"task-{uuid.uuid4().hex[:12]}"
+        task_id = "task-" + det_id(action.id, "CREATE_TASK")
 
         if hasattr(world, "add_task"):
             world.add_task(
@@ -80,7 +80,7 @@ def execute_chain_action(action: Action, world: ExecutorIO) -> ExecResult:
 
     elif act_type == "REPLY":
         # Reply draft
-        msg_id = f"draft-{uuid.uuid4().hex[:12]}"
+        msg_id = "draft-" + det_id(action.id, "REPLY")
         template = str(params.get("template") or "Draft Reply")
 
         if hasattr(world, "add_message"):

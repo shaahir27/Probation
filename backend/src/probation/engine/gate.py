@@ -4,6 +4,7 @@ Authority: docs/CONTRACT.md invariant I-3, I-20 and docs/ENGINE_SPEC.md section 
 """
 
 import hashlib
+import math
 from dataclasses import dataclass
 from typing import Final
 
@@ -66,6 +67,24 @@ def decide_gate(
     # 1. Fail closed on budget, reader failure, or fact conflict
     if not budget_ok or not deterministic_ok or (reader_required and not reader_ok):
         return GateResult(decision=GateDecision.ASK, reason="fail_closed")
+    if (
+        type(p) not in {int, float}
+        or not math.isfinite(p)
+        or not 0 <= p <= 1
+        or type(licence_level) is not int
+        or not 0 <= licence_level <= 3
+        or type(cap) is not int
+        or not 0 <= cap <= 3
+        or not all(
+            type(value) in {int, float} and math.isfinite(value)
+            for value in (loss, attention_cost, audit_draw, audit_fraction)
+        )
+        or loss < 0
+        or attention_cost < 0
+        or not 0 <= audit_draw < 1
+        or not 0 <= audit_fraction <= 1
+    ):
+        return GateResult(decision=GateDecision.ASK, reason="invalid_gate_input")
 
     # 2. Safety hands-off block
     if hands_off is not None:

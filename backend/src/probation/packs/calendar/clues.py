@@ -10,7 +10,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from probation.config import settings
-from probation.core.clock import Clock
+from probation.core.clock import get_clock
 from probation.core.history import HistoryView
 from probation.core.types import Situation
 from probation.packs.mail.clues import normalize_address
@@ -50,7 +50,7 @@ def extract_calendar_clues(
     try:
         start_dt = datetime.fromisoformat(start_str.replace("Z", "+00:00")).astimezone(user_tz)
     except Exception:
-        start_dt = Clock().now(user_tz)
+        start_dt = get_clock().now(user_tz)
 
     try:
         end_dt = datetime.fromisoformat(end_str.replace("Z", "+00:00")).astimezone(user_tz)

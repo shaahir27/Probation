@@ -109,6 +109,35 @@ Tick each when done and record the result in the "Result" column.
 
 ## 5. Change log
 
+WP1 implementation decisions, 22 October 2026 (work remains in progress):
+
+- DOC-A follows the approved remediation plan and the existing draft foreign key:
+  generate/validate in memory, then ledger -> proposal -> draft in one unit of work,
+  commit before dispatch. ENGINE_SPEC 7.1 is corrected; CONTRACT is unchanged.
+- Strict job models and generic schema support share installed Pydantic. Unsupported
+  constraints fail before HTTP. See `docs/LLM_SCHEMA_SUPPORT.md`; no new dependency.
+  Exam-edit/synthesis transport bounds are explicit in jobs.py and are not claims
+  of provider support or model quality.
+- Runtime roles/clients share an injected clock via `use_clock`; a standalone entry
+  point shares the process clock. API middleware scopes the application's clock.
+  `elapsed_seconds()` is allowed only for transport-duration instrumentation inside
+  the core clock boundary. Evaluation artifact generation may use `Clock.live()` for
+  its metadata date; that value does not become replay evidence or a gate input.
+- UTC timestamps retain microseconds. Legacy strings remain unchanged and repaired
+  SQL uses instant collation. Unsupported sub-microsecond precision is rejected.
+  No artificial one-second offset is introduced to satisfy I-7.
+- Exam retries use semantic IDs and return the stored run. A deliberate new attempt
+  uses an explicit stable ordinal (`probation exam run --attempt N`), not a UUID.
+  Habit/chain identity names the relationship, while evidence counts can be refreshed.
+- New family-shift ledger entries use `kind='family_shift'`; old `alarm_type` payloads
+  remain unchanged/readable. Resolver details stay in outcome storage, outside the
+  compact ledger payload. Strict text output rejects coercion of non-string cache
+  or provider values. Static clock checks now cover literal dynamic imports,
+  indirect attribute calls and callable aliases as well as ordinary imports.
+- WP1 application role closure remains pending CCR-F; the concrete administrative
+  command proposal is in `docs/reports/wp1-checkpoint-2026-10-22.md`. No role allowlist
+  was broadened and no contract amendment is inferred from branch-recovery approval.
+
 | Date | Change | By |
 |---|---|---|
 | 22 Oct 2026 | WP0 approved implementation: portable isolated checks, safe CLI outputs/import/serve forms, strict core/engine typing and optional owner-identity capability. No dependency installation, live calls or contract amendment. Historical evaluation/spike claims qualified; original metrics preserved. | Coding agent |

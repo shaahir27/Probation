@@ -16,7 +16,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 from probation.config import settings
-from probation.core.clock import Clock
+from probation.core.clock import format_timestamp, get_clock, parse_timestamp
 from probation.core.hashing import det_id
 from probation.db.access import Role, RoleAccess
 from probation.links.sanitise import sanitise_url
@@ -89,7 +89,7 @@ def extract_url_content(
         cached = cur.fetchone()
     except sqlite3.OperationalError:
         cached = None
-    now_ts = now_iso or Clock().now_iso()
+    now_ts = now_iso or get_clock().now_iso()
 
     if cached and cached["ok"]:
         return {
@@ -122,7 +122,7 @@ def extract_url_content(
 
     extraction_id = det_id("extraction", clean_url, extract_depth, query_hash)
     ttl_days = getattr(settings, "extract_ttl_days", 30)
-    ttl_until = (Clock().now() + timedelta(days=ttl_days)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    ttl_until = format_timestamp(parse_timestamp(now_ts) + timedelta(days=ttl_days))
 
     # Store in extractions
     try:
@@ -146,7 +146,6 @@ def extract_url_content(
                 ttl_until,
             ),
         )
-        role_access.commit()
     except Exception:
         pass
 
