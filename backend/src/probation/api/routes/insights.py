@@ -15,21 +15,18 @@ import sqlite3
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field
 
+from probation.api.db import connect_api as get_connection
 from probation.config import settings
 from probation.core.clock import get_clock
 from probation.core.enums import GateDecision
-from probation.db.connection import get_connection
-from probation.workers.examiner import run_examiner_job
+from probation.db.access import Role, RoleAccess
+from probation.db.commands import DenyHabit, RunExam, command_record, enqueue_command
 
 router = APIRouter(prefix="/api", tags=["insights"])
 
 
-class RunExamBody(BaseModel):
-    class_key: str = Field(..., description="Target class key")
-    action: str = Field(..., description="Target action")
-    level: int = Field(default=2, description="Target autonomy level (2 or 3)")
+RunExamBody = RunExam
 
 
 def _get_db() -> sqlite3.Connection:
@@ -188,19 +185,17 @@ def get_habits() -> dict[str, Any]:
         conn.close()
 
 
-@router.post("/habits/{habit_id}/deny")
+@router.post("/habits/{habit_id}/deny", status_code=202)
 def deny_habit(habit_id: str) -> dict[str, Any]:
-    """Deny / disable a mined habit."""
+    """Accept an immutable request; only Examiner changes the habit."""
     conn = _get_db()
     try:
-        cursor = conn.cursor()
-        cursor.execute("SELECT id FROM habits WHERE id = ?;", (habit_id,))
-        if not cursor.fetchone():
-            raise HTTPException(status_code=404, detail=f"Habit '{habit_id}' not found")
-
-        cursor.execute("UPDATE habits SET status = 'denied' WHERE id = ?;", (habit_id,))
-        conn.commit()
-        return {"ok": True, "habit_id": habit_id, "denied": True}
+        command = enqueue_command(
+            RoleAccess(conn, Role.API), DenyHabit(habit_id=habit_id), get_clock().now_iso()
+        )
+        return {"ok": True, "command": command}
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail="Habit not found") from exc
     finally:
         conn.close()
 
@@ -306,45 +301,26 @@ def get_exams() -> dict[str, Any]:
         conn.close()
 
 
-@router.post("/exams/run")
+@router.post("/exams/run", status_code=202)
 def run_exam(body: RunExamBody) -> dict[str, Any]:
-    """Trigger an exam run for an authorized (class_key, action) pair."""
+    """Queue the exact requested pair; never silently substitute another class."""
     conn = _get_db()
     try:
-        class_key = body.class_key
-        action = body.action
-        level = body.level
+        command = enqueue_command(RoleAccess(conn, Role.API), body, get_clock().now_iso())
+        return {"ok": True, "command": command}
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail="Exact exam pair not found") from exc
+    finally:
+        conn.close()
 
-        cursor = conn.cursor()
-        cursor.execute("SELECT COUNT(*) FROM proposals WHERE class_key = ?;", (class_key,))
-        cnt_row = cursor.fetchone()
-        if not cnt_row or cnt_row[0] == 0:
-            cursor.execute(
-                "SELECT class_key, action FROM licence_cache ORDER BY level DESC, lower_bound DESC LIMIT 1;"
-            )
-            cand = cursor.fetchone()
-            if cand:
-                class_key = str(cand["class_key"])
-                action = str(cand["action"])
 
-        res = run_examiner_job(
-            conn=conn,
-            class_key=class_key,
-            action=action,
-            level=level,
-        )
-        return {
-            "ok": True,
-            "run_id": res.run_id,
-            "class_key": res.class_key,
-            "action": res.action,
-            "level_tested": res.level_tested,
-            "passed": res.passed,
-            "n_cases": res.n_cases,
-            "invariance_flip_rate": res.invariance_flip_rate,
-            "critical_violations": res.critical_violations,
-            "other_violation_rate": res.other_violation_rate,
-            "ran_at": get_clock().now_iso(),
-        }
+@router.get("/commands/{command_id}")
+def get_command(command_id: str) -> dict[str, Any]:
+    conn = _get_db()
+    try:
+        row = conn.execute("SELECT * FROM admin_commands WHERE id=?", (command_id,)).fetchone()
+        if row is None:
+            raise HTTPException(status_code=404, detail="Command not found")
+        return {"command": command_record(row)}
     finally:
         conn.close()

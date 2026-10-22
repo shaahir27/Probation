@@ -14,6 +14,8 @@ from probation.engine.exam import run_exam
 from probation.engine.habits import mine_habits
 from probation.engine.licence import derive_and_cache_licences, find_exam_candidates
 from probation.packs.chains.mining import mine_chains
+from probation.workers.admin import process_admin_commands
+from probation.workers.drift import review_outcome_events
 
 
 def run_nightly_review(
@@ -31,6 +33,9 @@ def run_nightly_review(
     """
     clk = clock or get_clock()
     access = RoleAccess(conn, Role.EXAMINER)
+    with use_clock(clk):
+        review_outcome_events(conn, as_of=as_of or clk.now_iso())
+        process_admin_commands(conn, clock=clk)
     with use_clock(clk), access.transaction():
         now_iso = as_of or clk.now_iso()
 

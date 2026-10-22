@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from probation.api.db import connect_api as get_connection
 from probation.api.routes import (
     actions,
     boards,
@@ -18,7 +19,6 @@ from probation.api.routes import (
 )
 from probation.config import settings
 from probation.core.clock import get_clock, use_clock
-from probation.db.connection import get_connection
 from probation.db.ledger import ledger_snapshot
 
 app = FastAPI(

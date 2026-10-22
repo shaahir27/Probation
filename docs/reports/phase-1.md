@@ -4,6 +4,9 @@
 > requirement are in [wp1-checkpoint-2026-10-22.md](wp1-checkpoint-2026-10-22.md).
 > This historical phase report does not establish completion of WP1 remediation.
 
+> Final WP1 remediation handoff after the user's CCR-F approval:
+> [wp1-closure-2026-10-22.md](wp1-closure-2026-10-22.md).
+
 **Branch:** `phase-1-core-db-ledger`  
 **Phase:** 1 — Core, Database, Ledger, LLM Client, Redaction  
 

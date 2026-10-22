@@ -17,15 +17,14 @@ from typing import Any
 
 from probation.config import settings
 from probation.core.clock import Clock, use_clock
-from probation.core.enums import GateDecision, LedgerKind
+from probation.core.enums import GateDecision
 from probation.core.history import HistoryView
 from probation.core.types import Features, Proposal, Situation
 from probation.db.access import Role, RoleAccess
-from probation.db.ledger import append_ledger
 from probation.db.proposals import persist_proposal
 from probation.engine.baselines import BaselineB0, BaselineB2
 from probation.engine.caps import get_action_loss, is_recallable
-from probation.engine.drift import CUSUMTracker, check_family_shift
+from probation.engine.drift import check_family_shift
 from probation.engine.evidence import aggregate_evidence
 from probation.engine.exam import run_exam
 from probation.engine.gate import compute_audit_draw, decide_gate
@@ -41,6 +40,7 @@ from probation.packs.chains.proposer import create_chain_situations_and_proposal
 from probation.packs.registry import registry
 from probation.web.view import WebFactsView
 from probation.workers.brain import extract_features_for_situations
+from probation.workers.drift import review_outcome_events
 from probation.workers.executor import Executor
 from probation.workers.resolver import resolve_outcomes
 
@@ -268,54 +268,8 @@ def _run_replay(
                 if fam in b0_baselines:
                     b0_baselines[fam].update(obs_act)
 
-            # Update CUSUM drift tracker per (c, a) (ENGINE_SPEC.md section 11.1)
-            # x_t = 1 if disagreement else 0 (evidence items AND undo/override events)
-            cur.execute(
-                "SELECT class_key, action FROM proposals WHERE situation_id = ?;",
-                (str(out_row["situation_id"]),),
-            )
-            p_row = cur.fetchone()
-            if p_row:
-                ck = str(p_row["class_key"])
-                ac = str(p_row["action"])
-                is_undo = str(out_row["source"]) in ("undo", "override")
-                is_disagreement = (ac != obs_act) or is_undo
-
-                cur.execute(
-                    "SELECT * FROM drift_state WHERE class_key = ? AND action = ?;",
-                    (ck, ac),
-                )
-                d_row = cur.fetchone()
-                tracker = CUSUMTracker(
-                    baseline_err=float(d_row["baseline_err"]) if d_row else 0.03,
-                    initial_s=float(d_row["cusum"]) if d_row else 0.0,
-                    last_alarm_at=d_row["last_alarm_at"] if d_row else None,
-                )
-                alarm = tracker.update(
-                    is_error=is_disagreement, is_undo=is_undo, timestamp=str(out_row["known_at"])
-                )
-                cur.execute(
-                    """
-                    INSERT OR REPLACE INTO drift_state (class_key, action, cusum, baseline_err, last_alarm_at)
-                    VALUES (?, ?, ?, ?, ?);
-                    """,
-                    (ck, ac, tracker.s, tracker.baseline_err, tracker.last_alarm_at),
-                )
-                if alarm:
-                    append_ledger(
-                        conn,
-                        kind=LedgerKind.DRIFT_ALARM,
-                        ref_id=f"alarm-{ck}-{ac}",
-                        payload={
-                            "class_key": ck,
-                            "action": ac,
-                            "cusum": tracker.s,
-                            "kind": "cusum",
-                            "alarm_at": str(out_row["known_at"]),
-                        },
-                        created_at=str(out_row["known_at"]),
-                    )
-                conn.commit()
+            review_outcome_events(conn, as_of=str(out_row["known_at"]))
+            conn.commit()
 
         elif ev.kind == "RETRAIN":
             as_of_iso = clock.now_iso()

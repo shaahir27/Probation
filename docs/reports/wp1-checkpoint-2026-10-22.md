@@ -1,5 +1,8 @@
 # WP1 verified checkpoint
 
+> Historical checkpoint. The user subsequently approved CCR-F. The final implementation,
+> acceptance evidence and numbered audit are in [wp1-closure-2026-10-22.md](wp1-closure-2026-10-22.md).
+
 Date: 22 October 2026. Branch: `phase-1-wp1-trusted-foundation`.
 Worktree: `D:/Desktop/project/Probation/data/wp0_wp1/worktree`.
 Status: **WP1 remains incomplete**, pending role ownership closure (5.2.3).

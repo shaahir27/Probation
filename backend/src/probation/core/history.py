@@ -11,12 +11,13 @@ from datetime import datetime
 from typing import Any, cast
 
 from probation.core.clock import format_timestamp
+from probation.db.guards import ReadConnection
 
 
 class HistoryView:
     """Read-only database view bounded temporally by timestamp cutoff `as_of`."""
 
-    def __init__(self, conn: sqlite3.Connection, as_of: str | datetime) -> None:
+    def __init__(self, conn: sqlite3.Connection | ReadConnection, as_of: str | datetime) -> None:
         self._conn = conn
         self._as_of = format_timestamp(as_of)
 
@@ -126,3 +127,20 @@ class HistoryView:
         cursor = self._conn.cursor()
         cursor.execute(query, tuple(params))
         return list(cursor.fetchall())
+
+    def get_unreviewed_outcome_events(self) -> list[sqlite3.Row]:
+        """Immutable operational outcome events, bounded by event and proposal time."""
+        return list(
+            self._conn.execute(
+                """SELECT l.seq,l.payload_json,l.created_at,p.class_key,p.action
+            FROM ledger l JOIN proposals p
+              ON p.situation_id=json_extract(l.payload_json,'$.situation_id')
+            WHERE l.kind='outcome' AND l.created_at COLLATE UTC_TIMESTAMP <= ?
+              AND COALESCE(json_extract(l.payload_json,'$.known_at'),
+                  json_extract(l.payload_json,'$.undone_at'),l.created_at) COLLATE UTC_TIMESTAMP <= ?
+              AND p.proposed_at COLLATE UTC_TIMESTAMP <= ?
+              AND NOT EXISTS (SELECT 1 FROM drift_receipts r WHERE r.event_seq=l.seq)
+            ORDER BY l.created_at COLLATE UTC_TIMESTAMP,l.seq""",
+                (self.as_of, self.as_of, self.as_of),
+            ).fetchall()
+        )

@@ -3,6 +3,7 @@ import { Sparkles } from "lucide-react";
 import { apiClient } from "./api/client";
 import {
   ActionItem,
+  AdminCommand,
   ChainItem,
   ExamRunItem,
   HabitItem,
@@ -41,6 +42,7 @@ export default function App() {
   // Loading & Error States
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [adminCommands, setAdminCommands] = useState<AdminCommand[]>([]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -118,8 +120,34 @@ export default function App() {
     loadData();
   }, [loadData]);
 
+  useEffect(() => {
+    const pending = adminCommands.filter((command) => command.status === "PENDING");
+    if (previewMode || pending.length === 0) return;
+    let active = true;
+    let busy = false;
+    const timer = window.setInterval(async () => {
+      if (busy) return;
+      busy = true;
+      try {
+        const results = await Promise.all(pending.map((command) => apiClient.getCommand(command.id)));
+        if (!active) return;
+        if (results.some((result) => result.command.status !== "PENDING")) {
+          const [habitData, examData] = await Promise.all([apiClient.getHabits(), apiClient.getExams()]);
+          if (active) { setHabits(habitData.habits); setExams(examData.runs); }
+        }
+        if (active) setAdminCommands((current) => current.map((command) => results.find((result) => result.command.id === command.id)?.command || command));
+      } catch {
+        if (active) setError("Could not check the request status. The request may still be pending.");
+      } finally {
+        busy = false;
+      }
+    }, 2000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [adminCommands, previewMode]);
+
   const handleTogglePreview = () => {
     const next = !previewMode;
+    setAdminCommands([]);
     setPreviewMode(next);
     apiClient.setPreviewMode(next);
   };
@@ -142,14 +170,16 @@ export default function App() {
   };
 
   const handleDenyHabit = async (habitId: string) => {
-    await apiClient.denyHabit(habitId);
-    setHabits((prev) =>
-      prev.map((h) => (h.id === habitId ? { ...h, status: "denied", denied: true } : h))
-    );
+    const response = await apiClient.denyHabit(habitId);
+    setAdminCommands((current) => [...current.filter((command) => command.id !== response.command.id), response.command]);
+    if (response.command.status === "SUCCEEDED") {
+      setHabits((prev) => prev.map((h) => h.id === habitId ? { ...h, status: "denied", denied: true } : h));
+    }
   };
 
   const handleRunExam = async (classKey: string, action: string) => {
-    await apiClient.runExam(classKey, action);
+    const response = await apiClient.runExam(classKey, action);
+    setAdminCommands((current) => [...current.filter((command) => command.id !== response.command.id), response.command]);
     const updated = await apiClient.getExams();
     setExams(updated.runs || []);
   };
@@ -213,6 +243,13 @@ export default function App() {
 
         {/* Core View Container */}
         <main className="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          {adminCommands.length > 0 && (
+            <div role="status" aria-live="polite" className="mb-4 rounded-xl border border-line bg-surface p-4 text-sm">
+              {adminCommands.some((command) => command.status === "PENDING") ? "Your request is queued. Waiting for review."
+                : adminCommands.some((command) => command.status === "FAILED") ? "A request failed. Its changes were not confirmed."
+                : "Your request completed."}
+            </div>
+          )}
           {error && (
             <div className="mb-6">
               <ErrorBanner message={error} onRetry={loadData} />

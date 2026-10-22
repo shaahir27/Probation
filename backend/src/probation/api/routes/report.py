@@ -9,8 +9,8 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
 
+from probation.api.db import connect_api as get_connection
 from probation.config import settings
-from probation.db.connection import get_connection
 from probation.engine.report import generate_report_card
 
 router = APIRouter(prefix="/api", tags=["report"])

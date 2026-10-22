@@ -140,6 +140,7 @@ WP1 implementation decisions, 22 October 2026 (work remains in progress):
 
 | Date | Change | By |
 |---|---|---|
+| 22 Oct 2026 | User approved the recommended typed administrative command queue and directed completion of WP1. CCR-F/D6 is resolved for this slice: API may INSERT validated pending `admin_commands`; Examiner may complete their status/results and exclusively append `drift_receipts`. API cannot UPDATE/DELETE commands or mutate Examiner tables. Executor emits its existing immutable correction ledger event and cannot write drift state; pending review inhibits execution. This records the user's explicit ruling over the older API-only-`user_responses` row and synchronous admin endpoint wording. CONTRACT.md itself remains untouched as required. D1/D2 outcome projection, live credentials, authentication/deployment and later decisions are not approved by this ruling. | User approval, recorded by coding agent |
 | 22 Oct 2026 | WP0 approved implementation: portable isolated checks, safe CLI outputs/import/serve forms, strict core/engine typing and optional owner-identity capability. No dependency installation, live calls or contract amendment. Historical evaluation/spike claims qualified; original metrics preserved. | Coding agent |
 | 3 Oct 2026 | Initial docs set created | |
 | 4 Oct 2026 | Tavily entity-facts service, Radar and Reading packs added (`TAVILY_AND_NEW_PACKS.md`, CCR-1) | |

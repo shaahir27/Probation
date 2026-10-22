@@ -12,11 +12,11 @@ from typing import Any, Literal
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
+from probation.api.db import connect_api as get_connection
 from probation.api.event_time import response_time
 from probation.config import settings
 from probation.core.enums import GateDecision
 from probation.db.access import Role, get_role_access
-from probation.db.connection import get_connection
 
 router = APIRouter(prefix="/api", tags=["queue"])
 

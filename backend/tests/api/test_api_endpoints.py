@@ -260,8 +260,15 @@ def test_insights_endpoints(tmp_path: Path) -> None:
 
         # Deny Habit
         res_hd = client.post("/api/habits/hab-1/deny")
-        assert res_hd.status_code == 200
-        assert res_hd.json()["denied"] is True
+        assert res_hd.status_code == 202
+        command_id = res_hd.json()["command"]["id"]
+        assert res_hd.json()["command"]["status"] == "PENDING"
+        assert client.get(f"/api/commands/{command_id}").json()["command"]["status"] == "PENDING"
+        with get_connection(test_db) as observer:
+            assert (
+                observer.execute("SELECT status FROM habits WHERE id='hab-1'").fetchone()[0]
+                == "active"
+            )
 
         # Chains
         res_c = client.get("/api/chains")
@@ -275,8 +282,17 @@ def test_insights_endpoints(tmp_path: Path) -> None:
 
         # Run Exam
         res_er = client.post("/api/exams/run", json={"class_key": "mail|known", "action": "REPLY"})
-        assert res_er.status_code == 200
+        assert res_er.status_code == 202
         assert res_er.json()["ok"] is True
+        with get_connection(test_db) as examiner:
+            from probation.workers.admin import process_admin_commands
+
+            process_admin_commands(examiner, clock=app.state.clock)
+            assert (
+                examiner.execute("SELECT status FROM habits WHERE id='hab-1'").fetchone()[0]
+                == "denied"
+            )
+        assert client.get(f"/api/commands/{command_id}").json()["command"]["status"] == "SUCCEEDED"
 
 
 def test_boards_endpoint(tmp_path: Path) -> None:

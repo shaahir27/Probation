@@ -1,5 +1,14 @@
 # ENGINE_SPEC
 
+> WP1 ownership addendum (user-approved CCR-F, 22 October 2026): API enqueues typed
+> administrative requests; Examiner applies them. Examiner consumes bounded immutable
+> outcome ledger events into append-only drift receipts/state/alarms. Executor never
+> updates drift state and waits when its pair has unreviewed events. Review occurs
+> before nightly derivation and via `probation examiner-tick`; replay invokes the same
+> Examiner-owned operation. See `docs/reports/wp1-closure-2026-10-22.md` and
+> `docs/DECISIONS_AND_OPEN_QUESTIONS.md`. Full WP6 correction projection and remote
+> reconciliation remain later work; no outcome-storage amendment is inferred here.
+
 Exact algorithms, formulas and default numbers. Authority: below `CONTRACT.md` and above `SYSTEM_DESIGN.md`.
 Every number is a named constant in `config.py` (section 12 lists the defaults). Numbers marked *(assumption)* are starting values to tune on the evaluation.
 

@@ -48,6 +48,8 @@ ROLE_ALLOWED_WRITE_TABLES: dict[Role, frozenset[str]] = {
             "llm_cache",
             "exposure_log",
             "ledger",
+            "admin_commands",
+            "drift_receipts",
         }
     ),
     Role.WEBFACTS: frozenset(
@@ -62,7 +64,7 @@ ROLE_ALLOWED_WRITE_TABLES: dict[Role, frozenset[str]] = {
         }
     ),
     Role.EXECUTOR: frozenset({"actions", "outcomes", "ledger"}),
-    Role.API: frozenset({"user_responses"}),
+    Role.API: frozenset({"user_responses", "admin_commands"}),
 }
 
 
@@ -95,12 +97,16 @@ class RoleAccess:
         """Execute write query after permission verification."""
         if self.role == Role.BRAIN and table == "situations":
             raise AccessError("Brain situation writes require the typed chain repository")
+        if self.role == Role.EXECUTOR and table == "outcomes":
+            raise AccessError("Executor outcome writes require the typed undo repository")
         return self._execute_write(table, query, params)
 
     def _execute_write(self, table: str, query: str, params: tuple[Any, ...] = ()) -> ReadCursor:
         self.verify_write(table)
         cursor = self._connection.cursor()
-        with statement_guard(self._connection, self.allowed_tables, target=table):
+        with statement_guard(
+            self._connection, self.allowed_tables, target=table, role=self.role.value
+        ):
             cursor.execute(query, params)
         return ReadCursor(self._connection, cursor)
 
@@ -110,9 +116,13 @@ class RoleAccess:
         """Execute batch write query after permission verification."""
         if self.role == Role.BRAIN and table == "situations":
             raise AccessError("Brain situation writes require the typed chain repository")
+        if self.role == Role.EXECUTOR and table == "outcomes":
+            raise AccessError("Executor outcome writes require the typed undo repository")
         self.verify_write(table)
         cursor = self._connection.cursor()
-        with statement_guard(self._connection, self.allowed_tables, target=table):
+        with statement_guard(
+            self._connection, self.allowed_tables, target=table, role=self.role.value
+        ):
             cursor.executemany(query, seq_of_params)
         return ReadCursor(self._connection, cursor)
 
@@ -148,6 +158,25 @@ class RoleAccess:
         """Commit transaction."""
         self._connection.commit()
 
+    def store_undo_outcome(self, action_id: str, known_at: str, ledger_seq: int) -> None:
+        """Executor may record only a correction for its actually undone action."""
+        if self.role != Role.EXECUTOR:
+            raise AccessError("Undo outcome storage requires Executor")
+        row = self.conn.execute(
+            """SELECT p.situation_id FROM actions a JOIN proposals p
+            ON p.id=a.proposal_id WHERE a.id=? AND a.status='UNDONE'""",
+            (action_id,),
+        ).fetchone()
+        if row is None:
+            raise AccessError("Undo outcome requires an UNDONE action")
+        self._execute_write(
+            "outcomes",
+            """INSERT OR REPLACE INTO outcomes
+            (situation_id,observed_action,strength,source,observed_at,known_at,details_json,ledger_seq)
+            VALUES (?,'UNDO','STRONG','undo',?,?,'{}',?)""",
+            (row["situation_id"], known_at, known_at, ledger_seq),
+        )
+
     def append_ledger(
         self, kind: str, ref_id: str, payload: dict[str, Any], created_at: str
     ) -> int:
@@ -155,7 +184,9 @@ class RoleAccess:
         from probation.db.ledger import append_ledger
 
         self.verify_write("ledger")
-        with statement_guard(self._connection, self.allowed_tables, target="ledger"):
+        with statement_guard(
+            self._connection, self.allowed_tables, target="ledger", role=self.role.value
+        ):
             return append_ledger(self._connection, kind, ref_id, payload, created_at)
 
     @contextmanager

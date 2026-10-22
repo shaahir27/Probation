@@ -1,5 +1,11 @@
 # USER_FLOW
 
+> Approved WP1 administrative requests: habit denial and manual exam requests return
+> HTTP 202 with a command ID/status. The dashboard shows queued/pending, polls that
+> command, and refreshes actual habits/exams after completion. It does not mark a habit
+> denied or an exam completed solely because a request was accepted. FAILED remains
+> visible. Preview uses isolated synthetic results and never polls a live command.
+
 What the user sees and does, screen by screen, and what the system does behind each step. Authority: below `CONTRACT.md` (the API in CONTRACT section 9 is the only source of data for the dashboard).
 
 Used by: the dashboard builder (Phase 9), the demo script (`DEMO_AND_SUBMISSION.md`), and anyone checking that the product makes sense to a non-technical person.
