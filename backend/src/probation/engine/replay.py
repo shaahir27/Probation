@@ -17,9 +17,9 @@ from typing import Any
 
 from probation.config import settings
 from probation.core.clock import Clock
-from probation.core.enums import ClockMode, GateDecision, LedgerKind
+from probation.core.enums import GateDecision, LedgerKind
 from probation.core.hashing import canonical_json
-from probation.core.types import Features, Situation
+from probation.core.types import Features, Outcome, Situation
 from probation.db.access import Role, RoleAccess
 from probation.db.ledger import append_ledger
 from probation.engine.baselines import BaselineB0, BaselineB2
@@ -34,13 +34,15 @@ from probation.engine.novelty import NoveltyDetector
 from probation.engine.policy import Policy
 from probation.engine.report import generate_report_card
 from probation.packs.base import ExecutorIO, WorldView
+from probation.packs.calendar.resolver import resolve_calendar_outcome
 from probation.packs.chains.mining import mine_chains
 from probation.packs.chains.proposer import create_chain_situations_and_proposals
+from probation.packs.identity import world_user_addresses
+from probation.packs.mail.resolver import MailResolverIndex, resolve_mail_outcome
 from probation.packs.registry import registry
 from probation.web.view import WebFactsView
 from probation.workers.brain import extract_features_for_situations
 from probation.workers.executor import Executor
-from probation.workers.resolver import resolve_outcomes
 
 PRIORITY_OUTCOME_KNOWN = 0
 PRIORITY_LICENCE_REVIEW = 1
@@ -92,25 +94,12 @@ def run_replay(
     - Appends proposal records to the hash-chained ledger.
     """
     if clock is None:
-        clock = Clock(mode=ClockMode.REPLAY)
+        clock = Clock()
 
     # 1. Ensure features are extracted for any unfeaturized situations
     extract_features_for_situations(conn, reader_callable=reader_callable)
 
-    # 2. Check if outcomes are present; if empty and world provided or available, resolve them
-    cur = conn.cursor()
-    cur.execute("SELECT COUNT(*) FROM outcomes;")
-    outcomes_count = cur.fetchone()[0]
-    if outcomes_count == 0:
-        if world is not None:
-            resolve_outcomes(conn, world)
-        elif settings.world_db_path.exists():
-            from probation.synth.world import SimWorld
-
-            with SimWorld(settings.world_db_path) as sim_world:
-                resolve_outcomes(conn, sim_world)
-
-    # 3. Query situations to replay
+    # 2. Query situations to replay
     query_sit = "SELECT s.* FROM situations s WHERE 1=1"
     params_sit: list[Any] = []
     if family is not None:
@@ -121,33 +110,21 @@ def run_replay(
         params_sit.append(until)
     query_sit += " ORDER BY s.occurred_at ASC;"
 
+    cur = conn.cursor()
     cur.execute(query_sit, tuple(params_sit))
     sit_rows = cur.fetchall()
 
     if not sit_rows:
         return generate_report_card(conn, family=family, as_of=until)
 
-    # 4. Query outcomes
-    query_out = (
-        "SELECT o.*, s.family FROM outcomes o JOIN situations s ON o.situation_id = s.id WHERE 1=1"
-    )
-    params_out: list[Any] = []
-    if family is not None:
-        query_out += " AND s.family = ?"
-        params_out.append(family)
-    if until is not None:
-        query_out += " AND o.known_at <= ?"
-        params_out.append(until)
-    query_out += " ORDER BY o.known_at ASC;"
+    # 3. Check for existing outcomes or dynamically stage from world (Invariant I-7)
+    cur.execute("SELECT COUNT(*) FROM outcomes;")
+    outcomes_count = cur.fetchone()[0]
 
-    cur.execute(query_out, tuple(params_out))
-    out_rows = cur.fetchall()
-
-    # 5. Build timeline events
     events: list[ReplayEvent] = []
+    timestamps: list[str] = []
 
     # Situation events
-    timestamps: list[str] = []
     for s_row in sit_rows:
         occ = str(s_row["occurred_at"])
         timestamps.append(occ)
@@ -160,18 +137,139 @@ def run_replay(
             )
         )
 
-    # Outcome events
-    for o_row in out_rows:
-        known = str(o_row["known_at"])
-        timestamps.append(known)
-        events.append(
-            ReplayEvent(
-                timestamp=known,
-                priority=PRIORITY_OUTCOME_KNOWN,
-                kind="OUTCOME_KNOWN",
-                payload=o_row,
+    if outcomes_count > 0:
+        # Pre-existing outcomes in database
+        query_out = "SELECT o.*, s.family FROM outcomes o JOIN situations s ON o.situation_id = s.id WHERE 1=1"
+        params_out: list[Any] = []
+        if family is not None:
+            query_out += " AND s.family = ?"
+            params_out.append(family)
+        if until is not None:
+            query_out += " AND o.known_at <= ?"
+            params_out.append(until)
+        query_out += " ORDER BY o.known_at ASC;"
+
+        cur.execute(query_out, tuple(params_out))
+        out_rows = cur.fetchall()
+        for o_row in out_rows:
+            known = str(o_row["known_at"])
+            timestamps.append(known)
+            events.append(
+                ReplayEvent(
+                    timestamp=known,
+                    priority=PRIORITY_OUTCOME_KNOWN,
+                    kind="OUTCOME_KNOWN",
+                    payload=o_row,
+                )
             )
-        )
+    else:
+        # Stage outcomes dynamically from world without writing to DB or ledger yet
+        sim_world_instance: Any | None = None
+        target_world: WorldView | None = world
+        if target_world is None and settings.world_db_path.exists():
+            from probation.synth.world import SimWorld
+
+            sim_world_instance = SimWorld(settings.world_db_path)
+            target_world = sim_world_instance
+
+        if target_world is not None:
+            cur.execute(
+                """
+                SELECT s.*, r.payload_json
+                FROM situations s
+                LEFT JOIN raw_items r ON s.raw_item_id = r.id
+                ORDER BY s.occurred_at ASC;
+                """
+            )
+            sit_for_out = cur.fetchall()
+
+            # Pre-index messages for high-speed resolution
+            try:
+                if (w_addrs := world_user_addresses(target_world)) is not None:
+                    eff_addrs = w_addrs
+                else:
+                    cur.execute("SELECT value FROM meta WHERE key = 'user_addresses';")
+                    m_row = cur.fetchone()
+                    eff_addrs = (
+                        [a.strip() for a in str(m_row[0]).split(",") if a.strip()]
+                        if m_row
+                        else [a.strip() for a in settings.user_addresses.split(",") if a.strip()]
+                    )
+                mail_index = MailResolverIndex(eff_addrs, target_world.get_messages())
+            except Exception:
+                eff_addrs = [a.strip() for a in settings.user_addresses.split(",") if a.strip()]
+                mail_index = None
+
+            eval_dt = datetime(2099, 1, 1, tzinfo=UTC)
+            if until is not None:
+                try:
+                    eval_dt = _parse_utc_dt(until)
+                except Exception:
+                    pass
+
+            for s_row in sit_for_out:
+                if family is not None and str(s_row["family"]) != family:
+                    continue
+                sit = Situation(
+                    id=s_row["id"],
+                    raw_item_id=s_row["raw_item_id"],
+                    pack=s_row["pack"],
+                    family=s_row["family"],
+                    variant=s_row["variant"],
+                    occurred_at=s_row["occurred_at"],
+                    sender_key=s_row["sender_key"],
+                    content_hash=s_row["content_hash"],
+                    redacted_text=s_row["redacted_text"],
+                    hands_off_reason=s_row["hands_off_reason"],
+                    created_at=s_row["created_at"],
+                )
+                raw_payload: dict[str, Any] | None = None
+                if s_row["payload_json"]:
+                    try:
+                        raw_payload = json.loads(s_row["payload_json"])
+                    except Exception:
+                        pass
+
+                out_obj: Outcome | None = None
+                if sit.pack == "mail":
+                    out_obj = resolve_mail_outcome(
+                        sit,
+                        target_world,
+                        eval_dt,
+                        raw_payload=raw_payload,
+                        user_addresses=eff_addrs,
+                        index=mail_index,
+                    )
+                elif sit.pack == "calendar":
+                    out_obj = resolve_calendar_outcome(
+                        sit,
+                        target_world,
+                        eval_dt,
+                        raw_payload=raw_payload,
+                        user_addresses=eff_addrs,
+                    )
+                else:
+                    try:
+                        p_adapter = registry.get(sit.pack)
+                        out_obj = p_adapter.resolve_outcome(sit, target_world, eval_dt)
+                    except KeyError:
+                        continue
+
+                if out_obj is not None:
+                    if until is not None and out_obj.known_at > until:
+                        continue
+                    timestamps.append(out_obj.known_at)
+                    events.append(
+                        ReplayEvent(
+                            timestamp=out_obj.known_at,
+                            priority=PRIORITY_OUTCOME_KNOWN,
+                            kind="OUTCOME_KNOWN",
+                            payload=out_obj,
+                        )
+                    )
+
+            if sim_world_instance is not None:
+                sim_world_instance.close()
 
     # Date range for LICENCE_REVIEW and RETRAIN ticks
     dt_list = [_parse_utc_dt(ts) for ts in timestamps]
@@ -227,6 +325,7 @@ def run_replay(
     b2_predictions: dict[str, str] = {}
 
     brain_access = RoleAccess(conn, Role.BRAIN)
+    resolver_access = RoleAccess(conn, Role.RESOLVER)
     executor_io: ExecutorIO | None = world if isinstance(world, ExecutorIO) else None
     executor = Executor(conn, world=executor_io)
     web_view = WebFactsView(conn)
@@ -240,10 +339,68 @@ def run_replay(
             clock.set_time(ev_dt)
 
         if ev.kind == "OUTCOME_KNOWN":
-            out_row = ev.payload
-            fam = str(out_row["family"])
-            obs_act = str(out_row["observed_action"])
-            if str(out_row["strength"]) == "STRONG":
+            payload = ev.payload
+            if isinstance(payload, Outcome):
+                sit_id = payload.situation_id
+                obs_act = payload.observed_action
+                strength = str(payload.strength)
+                known_at = payload.known_at
+                source = payload.source
+                observed_at = payload.observed_at
+                details = payload.details
+
+                cur.execute("SELECT family FROM situations WHERE id = ?;", (sit_id,))
+                s_fam_row = cur.fetchone()
+                fam = str(s_fam_row["family"]) if s_fam_row else ""
+
+                # Write to ledger first, then table (Contract I-7)
+                cur.execute("SELECT ledger_seq FROM outcomes WHERE situation_id = ?;", (sit_id,))
+                existing_out = cur.fetchone()
+                if not existing_out:
+                    seq = append_ledger(
+                        conn,
+                        kind=LedgerKind.OUTCOME,
+                        ref_id=sit_id,
+                        payload={
+                            "situation_id": sit_id,
+                            "observed_action": obs_act,
+                            "strength": strength,
+                            "source": source,
+                            "observed_at": observed_at,
+                            "known_at": known_at,
+                            "details": details,
+                        },
+                        created_at=known_at,
+                    )
+                    resolver_access.execute_write(
+                        "outcomes",
+                        """
+                        INSERT OR IGNORE INTO outcomes
+                        (situation_id, observed_action, strength, source, observed_at, known_at, details_json, ledger_seq)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+                        """,
+                        (
+                            sit_id,
+                            obs_act,
+                            strength,
+                            source,
+                            observed_at,
+                            known_at,
+                            canonical_json(details),
+                            seq,
+                        ),
+                    )
+                    conn.commit()
+            else:
+                out_row = payload
+                fam = str(out_row["family"])
+                obs_act = str(out_row["observed_action"])
+                strength = str(out_row["strength"])
+                known_at = str(out_row["known_at"])
+                source = str(out_row["source"])
+                sit_id = str(out_row["situation_id"])
+
+            if strength == "STRONG":
                 if fam in b0_baselines:
                     b0_baselines[fam].update(obs_act)
 
@@ -251,13 +408,13 @@ def run_replay(
             # x_t = 1 if disagreement else 0 (evidence items AND undo/override events)
             cur.execute(
                 "SELECT class_key, action FROM proposals WHERE situation_id = ?;",
-                (str(out_row["situation_id"]),),
+                (sit_id,),
             )
             p_row = cur.fetchone()
             if p_row:
                 ck = str(p_row["class_key"])
                 ac = str(p_row["action"])
-                is_undo = str(out_row["source"]) in ("undo", "override")
+                is_undo = source in ("undo", "override")
                 is_disagreement = (ac != obs_act) or is_undo
 
                 cur.execute(
@@ -271,7 +428,7 @@ def run_replay(
                     last_alarm_at=d_row["last_alarm_at"] if d_row else None,
                 )
                 alarm = tracker.update(
-                    is_error=is_disagreement, is_undo=is_undo, timestamp=str(out_row["known_at"])
+                    is_error=is_disagreement, is_undo=is_undo, timestamp=known_at
                 )
                 cur.execute(
                     """
@@ -288,9 +445,9 @@ def run_replay(
                         payload={
                             "class_key": ck,
                             "action": ac,
-                            "alarm_at": str(out_row["known_at"]),
+                            "alarm_at": known_at,
                         },
-                        created_at=str(out_row["known_at"]),
+                        created_at=known_at,
                     )
                 conn.commit()
 

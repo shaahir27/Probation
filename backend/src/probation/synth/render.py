@@ -129,8 +129,18 @@ def render_files(
     manifest_entries: list[dict[str, Any]] = []
 
     for file_info in files:
-        rel_path = file_info["rel_path"].replace("\\", "/")
-        target_path = root_path / rel_path
+        initial_rel_path = file_info["rel_path"].replace("\\", "/").strip("/")
+        final_action = file_info.get("final_action", "LEAVE")
+        is_censored = file_info.get("is_censored", False)
+
+        # If user moved the file and action is uncensored, place it in destination folder
+        if final_action.startswith("MOVE_TO_FOLDER:") and not is_censored:
+            dest_folder = final_action.split(":", 1)[1].strip().strip("/")
+            rendered_rel_path = f"{dest_folder}/{file_info['filename']}".replace("\\", "/")
+        else:
+            rendered_rel_path = initial_rel_path
+
+        target_path = root_path / rendered_rel_path
         target_path.parent.mkdir(parents=True, exist_ok=True)
 
         # Write deterministic dummy content
@@ -155,7 +165,8 @@ def render_files(
 
         manifest_entries.append(
             {
-                "rel_path": rel_path,
+                "rel_path": initial_rel_path,
+                "rendered_path": rendered_rel_path,
                 "filename": file_info["filename"],
                 "ext": file_info.get("ext", target_path.suffix.lstrip(".")),
                 "size_bytes": len(content),

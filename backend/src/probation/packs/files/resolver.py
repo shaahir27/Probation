@@ -62,19 +62,64 @@ def resolve_files_outcome(
         if d.strip()
     ]
 
-    # Check observed location if provided in payload (simulation or fixture)
+    # 1. Check user_actions stream if available
+    if hasattr(world, "get_user_actions"):
+        now_iso = _iso_str(now_utc)
+        actions = world.get_user_actions(item_id=rel_path_str, as_of=now_iso, actor="user")
+        if not actions and Path(rel_path_str).name:
+            actions = world.get_user_actions(
+                item_id=Path(rel_path_str).name, as_of=now_iso, actor="user"
+            )
+        if actions:
+            last_act = actions[-1]
+            act_type = str(last_act["action_type"])
+            act_time = str(last_act["acted_at"])
+            if act_type.startswith("MOVE_TO_FOLDER:"):
+                return Outcome(
+                    situation_id=s.id,
+                    observed_action=act_type,
+                    strength=EvidenceStrength.STRONG,
+                    known_at=act_time,
+                )
+            elif act_type == "DELETE":
+                return Outcome(
+                    situation_id=s.id,
+                    observed_action="DELETE",
+                    strength=EvidenceStrength.STRONG,
+                    known_at=act_time,
+                )
+
+    # 2. Check observed location if provided in payload (simulation or fixture)
     observed_action = p.get("observed_action") or p.get("final_action")
     if observed_action:
         act = str(observed_action)
         if act == "DELETE":
+            del_time_str = p.get("deleted_at")
+            if del_time_str:
+                try:
+                    d_dt = datetime.fromisoformat(del_time_str.replace("Z", "+00:00"))
+                    d_dt = d_dt if d_dt.tzinfo is not None else d_dt.replace(tzinfo=UTC)
+                    if now_utc < d_dt:
+                        return None
+                except Exception:
+                    pass
+            known_at = del_time_str if del_time_str else _iso_str(window_close_dt)
             return Outcome(
                 situation_id=s.id,
                 observed_action="DELETE",
                 strength=EvidenceStrength.STRONG,
-                known_at=_iso_str(window_close_dt),
+                known_at=known_at,
             )
         elif act.startswith("MOVE_TO_FOLDER:"):
             move_time_str = p.get("moved_at")
+            if move_time_str:
+                try:
+                    m_dt = datetime.fromisoformat(move_time_str.replace("Z", "+00:00"))
+                    m_dt = m_dt if m_dt.tzinfo is not None else m_dt.replace(tzinfo=UTC)
+                    if now_utc < m_dt:
+                        return None
+                except Exception:
+                    pass
             known_at = move_time_str if move_time_str else _iso_str(window_close_dt)
             return Outcome(
                 situation_id=s.id,
@@ -92,7 +137,10 @@ def resolve_files_outcome(
                 )
             return None
 
-    # Check physical filesystem if path exists
+    # 3. Check physical filesystem only after window close to avoid future leakage
+    if now_utc < window_close_dt:
+        return None
+
     filename = Path(rel_path_str).name
     current_found_rel_folder: str | None = None
     file_found_anywhere = False
@@ -130,14 +178,10 @@ def resolve_files_outcome(
             known_at=_iso_str(window_close_dt),
         )
 
-    # If file is still in watched directory: resolved as LEAVE only at window close
-    if now_utc >= window_close_dt:
-        return Outcome(
-            situation_id=s.id,
-            observed_action="LEAVE",
-            strength=EvidenceStrength.WEAK,
-            known_at=_iso_str(window_close_dt),
-        )
-
-    # Window still open and no strong move observed yet
-    return None
+    # If file is still in watched directory: resolved as LEAVE at window close
+    return Outcome(
+        situation_id=s.id,
+        observed_action="LEAVE",
+        strength=EvidenceStrength.WEAK,
+        known_at=_iso_str(window_close_dt),
+    )

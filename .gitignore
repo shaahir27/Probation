@@ -40,6 +40,8 @@ frontend/.turbo/
 Thumbs.db
 .vscode/
 .idea/
+.codex/
+graphify-out/
 
 # Local construction records (existing tracked records need separate reviewed cleanup)
 /build_history/

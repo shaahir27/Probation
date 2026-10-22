@@ -90,6 +90,17 @@ CREATE TABLE IF NOT EXISTS library (
     updated_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_library_col ON library(collection);
+
+CREATE TABLE IF NOT EXISTS user_actions (
+    id TEXT PRIMARY KEY,
+    item_id TEXT NOT NULL,
+    action_type TEXT NOT NULL,
+    acted_at TEXT NOT NULL,
+    actor TEXT NOT NULL DEFAULT 'user',
+    details_json TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS idx_actions_acted ON user_actions(acted_at);
+CREATE INDEX IF NOT EXISTS idx_actions_item ON user_actions(item_id);
 """
 
 
@@ -157,30 +168,60 @@ class SimWorld:
         )
         self.conn.commit()
 
-    def get_messages(self, label: str | None = None) -> list[dict[str, Any]]:
-        """Retrieve messages, optionally filtering by label."""
+    def get_messages(
+        self, label: str | None = None, as_of: str | None = None
+    ) -> list[dict[str, Any]]:
+        """Retrieve messages, optionally filtering by label and projecting state as of a timestamp."""
         cur = self.conn.cursor()
         cur.execute("SELECT * FROM messages ORDER BY received_at ASC")
         rows = cur.fetchall()
         results: list[dict[str, Any]] = []
         for r in rows:
             d = dict(r)
-            labels = json.loads(d["labels"])
+            labels = list(json.loads(d["labels"]))
+            if as_of is not None:
+                labels = self._project_message_labels(d["message_id"], labels, as_of)
             d["labels"] = labels
             if label is None or label in labels:
                 results.append(d)
         return results
 
-    def get_message(self, message_id: str) -> dict[str, Any] | None:
-        """Retrieve single message by Message-ID."""
+    def get_message(self, message_id: str, as_of: str | None = None) -> dict[str, Any] | None:
+        """Retrieve single message by Message-ID, optionally projected as of a timestamp."""
         cur = self.conn.cursor()
         cur.execute("SELECT * FROM messages WHERE message_id = ?", (message_id,))
         row = cur.fetchone()
         if not row:
             return None
         d = dict(row)
-        d["labels"] = json.loads(d["labels"])
+        labels = list(json.loads(d["labels"]))
+        if as_of is not None:
+            labels = self._project_message_labels(message_id, labels, as_of)
+        d["labels"] = labels
         return d
+
+    def _project_message_labels(
+        self, message_id: str, current_labels: list[str], as_of: str
+    ) -> list[str]:
+        """Project message labels as of a specific timestamp based on recorded actions."""
+        cur = self.conn.cursor()
+        cur.execute(
+            "SELECT action_type, acted_at FROM user_actions WHERE item_id = ? AND acted_at <= ? ORDER BY acted_at ASC",
+            (message_id, as_of),
+        )
+        actions = cur.fetchall()
+        if not actions:
+            return ["INBOX"]
+        labels = {"INBOX"}
+        for act in actions:
+            atype = act["action_type"]
+            if atype == "TRASH":
+                labels.discard("INBOX")
+                labels.add("TRASH")
+            elif atype == "ARCHIVE":
+                labels.discard("INBOX")
+                labels.add("ARCHIVED")
+        return sorted(labels)
 
     def update_message_labels(
         self,
@@ -240,8 +281,8 @@ class SimWorld:
         )
         self.conn.commit()
 
-    def get_events(self) -> list[dict[str, Any]]:
-        """Retrieve all calendar events."""
+    def get_events(self, as_of: str | None = None) -> list[dict[str, Any]]:
+        """Retrieve all calendar events, optionally projected as of timestamp."""
         cur = self.conn.cursor()
         cur.execute("SELECT * FROM events ORDER BY start_time ASC")
         rows = cur.fetchall()
@@ -249,11 +290,15 @@ class SimWorld:
         for r in rows:
             d = dict(r)
             d["attendees"] = json.loads(d["attendees"])
+            if as_of is not None:
+                d["my_status"] = self._project_event_status(
+                    d["uid"], d.get("my_status", "NEEDS_ACTION"), as_of
+                )
             results.append(d)
         return results
 
-    def get_event(self, uid: str) -> dict[str, Any] | None:
-        """Get event by UID."""
+    def get_event(self, uid: str, as_of: str | None = None) -> dict[str, Any] | None:
+        """Get event by UID, optionally projected as of timestamp."""
         cur = self.conn.cursor()
         cur.execute("SELECT * FROM events WHERE uid = ?", (uid,))
         row = cur.fetchone()
@@ -261,7 +306,26 @@ class SimWorld:
             return None
         d = dict(row)
         d["attendees"] = json.loads(d["attendees"])
+        if as_of is not None:
+            d["my_status"] = self._project_event_status(
+                uid, d.get("my_status", "NEEDS_ACTION"), as_of
+            )
         return d
+
+    def _project_event_status(self, uid: str, current_status: str, as_of: str) -> str:
+        """Project attendee response status as of timestamp."""
+        cur = self.conn.cursor()
+        cur.execute(
+            "SELECT action_type FROM user_actions WHERE item_id = ? AND acted_at <= ? ORDER BY acted_at ASC",
+            (uid, as_of),
+        )
+        actions = cur.fetchall()
+        if not actions:
+            return "NEEDS_ACTION"
+        last_action = actions[-1]["action_type"]
+        if last_action in ("ACCEPT", "DECLINE", "TENTATIVE"):
+            return f"{last_action}ED" if last_action != "TENTATIVE" else "TENTATIVE"
+        return "NEEDS_ACTION"
 
     def update_rsvp(self, uid: str, rsvp_status: str) -> None:
         """Update user attendee response status (ACCEPTED, DECLINED, TENTATIVE)."""
@@ -300,11 +364,86 @@ class SimWorld:
         )
         self.conn.commit()
 
-    def get_files(self) -> list[dict[str, Any]]:
-        """Retrieve all file catalog entries."""
+    def get_files(self, as_of: str | None = None) -> list[dict[str, Any]]:
+        """Retrieve all file catalog entries, optionally projected as of timestamp."""
         cur = self.conn.cursor()
         cur.execute("SELECT * FROM files ORDER BY downloaded_at ASC")
-        return [dict(r) for r in cur.fetchall()]
+        results: list[dict[str, Any]] = []
+        for r in cur.fetchall():
+            d = dict(r)
+            if as_of is not None:
+                cur.execute(
+                    "SELECT action_type, details_json FROM user_actions WHERE item_id = ? AND acted_at <= ? ORDER BY acted_at ASC",
+                    (d["path"], as_of),
+                )
+                act = cur.fetchone()
+                if act:
+                    try:
+                        det = json.loads(act["details_json"])
+                        dest = det.get("destination_path")
+                        if dest:
+                            d["path"] = dest
+                    except Exception:
+                        pass
+            results.append(d)
+        return results
+
+    # --- User and System Action Stream ---
+
+    def record_user_action(
+        self,
+        action_id: str,
+        item_id: str,
+        action_type: str,
+        acted_at: str,
+        actor: str = "user",
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        """Record a dated user or system action in world.db.
+
+        Authority: docs/CHANGES_IMPLEMENTATION_PLAN.md section 6.2.1, 6.2.5.
+        """
+        details_str = json.dumps(details or {})
+        self.conn.execute(
+            """
+            INSERT OR REPLACE INTO user_actions
+            (id, item_id, action_type, acted_at, actor, details_json)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (action_id, item_id, action_type, acted_at, actor, details_str),
+        )
+        self.conn.commit()
+
+    def get_user_actions(
+        self,
+        item_id: str | None = None,
+        as_of: str | None = None,
+        actor: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """Retrieve recorded actions with optional filtering."""
+        query = "SELECT * FROM user_actions WHERE 1=1"
+        params: list[Any] = []
+        if item_id:
+            query += " AND item_id = ?"
+            params.append(item_id)
+        if as_of:
+            query += " AND acted_at <= ?"
+            params.append(as_of)
+        if actor:
+            query += " AND actor = ?"
+            params.append(actor)
+        query += " ORDER BY acted_at ASC"
+        cur = self.conn.cursor()
+        cur.execute(query, tuple(params))
+        res: list[dict[str, Any]] = []
+        for r in cur.fetchall():
+            d = dict(r)
+            try:
+                d["details"] = json.loads(d["details_json"])
+            except Exception:
+                d["details"] = {}
+            res.append(d)
+        return res
 
     # --- Task Operations ---
 

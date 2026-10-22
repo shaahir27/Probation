@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from probation.config import settings
-from probation.core.hashing import det_id
+from probation.core.hashing import canonical_situation_id
 from probation.core.history import HistoryView
 from probation.core.types import (
     Action,
@@ -121,12 +121,15 @@ class MailPack(PackAdapter):
         from_addr = payload.get("from", "")
         norm_from = normalize_address(from_addr)
         if self.user_addresses is not None:
-            user_addrs = [normalize_address(a) for a in self.user_addresses]
+            user_addrs = [normalize_address(a) for a in self.user_addresses if a.strip()]
         else:
-            user_addrs = [normalize_address(a) for a in settings.user_addresses.split(",")]
+            user_addrs = [
+                normalize_address(a) for a in settings.user_addresses.split(",") if a.strip()
+            ]
 
         # Skip if from the user or marked spam/draft
-        if any(u in norm_from for u in user_addrs):
+        user_addrs_set = {a for a in user_addrs if a}
+        if norm_from in user_addrs_set:
             return []
         labels = [str(lbl).upper() for lbl in payload.get("labels", [])]
         if "SPAM" in labels or "DRAFT" in labels:
@@ -139,7 +142,17 @@ class MailPack(PackAdapter):
         # Redact before LLM egress (Invariant I-14)
         redacted = redact(full_text, profile="mail")
 
-        situation_id = det_id("sit", raw_id, "email_action", "")
+        source_ref = (
+            (
+                raw_item.get("source_ref")
+                if isinstance(raw_item, dict)
+                else getattr(raw_item, "source_ref", None)
+            )
+            or payload.get("message_id")
+            or raw_id
+        )
+
+        situation_id = canonical_situation_id("mail", source_ref, occurred_at, "email_action", "")
         hands_off_reason = self.hands_off_text(full_text)
 
         sit = Situation(

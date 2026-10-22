@@ -58,6 +58,38 @@ def det_id(*parts: str) -> str:
     return hashlib.sha256(joined.encode("utf-8")).hexdigest()[:32]
 
 
+def normalize_rel_path(path_str: str) -> str:
+    """Normalize relative path separators to forward slashes for cross-platform stability."""
+    return str(path_str).replace("\\", "/").strip().strip("/")
+
+
+def canonical_situation_id(
+    pack: str,
+    source_ref: str,
+    occurred_at: str,
+    family: str,
+    variant: str = "",
+) -> str:
+    """Canonical situation ID formula per docs/DATA_MODEL.md section 2.
+
+    det_id(pack, source_ref, occurred_at, family, variant)
+    """
+    norm_pack = str(pack).strip()
+    norm_ref = normalize_rel_path(source_ref) if pack == "files" else str(source_ref).strip()
+    norm_occ = str(occurred_at).strip()
+    norm_fam = str(family).strip()
+    norm_var = str(variant or "").strip()
+    return det_id(norm_pack, norm_ref, norm_occ, norm_fam, norm_var)
+
+
+def canonical_raw_item_id(source_id: str, source_ref: str) -> str:
+    """Canonical raw item ID formula per docs/DATA_MODEL.md section 2.
+
+    det_id(source_id, source_ref)
+    """
+    return det_id(str(source_id).strip(), str(source_ref).strip())
+
+
 def ledger_hash(prev_hash: str, kind: str, ref_id: str, payload: dict[str, Any] | str) -> str:
     """Compute SHA-256 hash for a tamper-evident ledger entry.
 
