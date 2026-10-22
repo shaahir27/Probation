@@ -7,17 +7,17 @@ Verdicts are computed strictly by deterministic code, never by an LLM.
 import json
 import random
 import sqlite3
-import uuid
-from dataclasses import dataclass, field
 from typing import Any
 
 from probation.config import settings
-from probation.core.clock import Clock
-from probation.core.enums import ClockMode, GateDecision, LedgerKind
-from probation.core.hashing import canonical_json
+from probation.core.clock import Clock, format_timestamp, get_clock
+from probation.core.enums import GateDecision
+from probation.core.hashing import canonical_json, det_id
 from probation.core.types import ExamOperator
-from probation.db.ledger import append_ledger
+from probation.db.access import Role, RoleAccess
 from probation.engine.caps import BASE_ACTION_CAPS, get_action_loss, is_recallable
+from probation.engine.exam_storage import ExamRunResult as ExamRunResult
+from probation.engine.exam_storage import load_exam, persist_exam
 from probation.engine.gate import compute_audit_draw, decide_gate
 from probation.engine.policy import Policy
 from probation.llm.redact import redact_text
@@ -54,22 +54,6 @@ def autonomy_rank(decision: GateDecision | str) -> int:
     elif d in ("EXECUTE_SILENT", "EXECUTE_IMMEDIATELY"):
         return 3
     return 0
-
-
-@dataclass(frozen=True, slots=True)
-class ExamRunResult:
-    """Structured result of an examination board run."""
-
-    run_id: str
-    class_key: str
-    action: str
-    level_tested: int
-    passed: bool
-    n_cases: int
-    invariance_flip_rate: float | None
-    critical_violations: int
-    other_violation_rate: float | None
-    details: dict[str, Any] = field(default_factory=dict)
 
 
 def evaluate_exam_run(
@@ -184,6 +168,7 @@ def run_exam(
     llm_client: Any = None,
     model_id: str | None = None,
     clock: Clock | None = None,
+    attempt_ordinal: int = 0,
 ) -> ExamRunResult:
     """Execute counterfactual examination for a (class_key, action) pair.
 
@@ -195,19 +180,11 @@ def run_exam(
     5. Compute deterministic verdicts: invariance flip rate, critical violations, other rate.
     6. Record exam_runs, exam_cases, and append hash-chained exam_run ledger entry.
     """
-    cur = conn.cursor()
-    if clock is not None:
-        now_iso = clock.now_iso()
-    elif as_of is not None:
-        now_iso = as_of
-    else:
-        cur.execute("SELECT MAX(occurred_at) FROM situations;")
-        max_row = cur.fetchone()
-        if max_row and max_row[0]:
-            now_iso = str(max_row[0])
-        else:
-            now_iso = Clock(mode=ClockMode.REPLAY).now_iso()
-    run_id = f"exam-{uuid.uuid4().hex[:12]}"
+    if type(attempt_ordinal) is not int or attempt_ordinal < 0:
+        raise ValueError("Exam attempt ordinal must be a nonnegative integer")
+    access = RoleAccess(conn, Role.EXAMINER)
+    cur = access.conn.cursor()
+    now_iso = format_timestamp(as_of) if as_of is not None else (clock or get_clock()).now_iso()
     pack_name = class_key.split("|")[0]
     ops = _get_pack_operators(pack_name)
 
@@ -220,12 +197,44 @@ def run_exam(
         FROM situations s
         JOIN outcomes o ON s.id = o.situation_id
         LEFT JOIN raw_items r ON s.raw_item_id = r.id
-        WHERE s.occurred_at <= ?
-        ORDER BY s.occurred_at ASC;
+        WHERE s.occurred_at COLLATE UTC_TIMESTAMP <= ?
+          AND o.known_at COLLATE UTC_TIMESTAMP <= ?
+          AND (r.known_at IS NULL OR r.known_at COLLATE UTC_TIMESTAMP <= ?)
+        ORDER BY s.occurred_at COLLATE UTC_TIMESTAMP ASC, s.id;
         """,
-        (now_iso,),
+        (now_iso, now_iso, now_iso),
     )
     all_situations = cur.fetchall()
+    input_fingerprint = canonical_json(
+        {
+            "rows": [dict(row) for row in all_situations],
+            "operators": [op.model_dump() for op in ops],
+            "exam_n": settings.exam_n,
+            "minimum": settings.exam_min_valid_cases,
+            "flip_limit": settings.exam_invariance_max_flip,
+            "critical_limit": settings.exam_critical_max_violations,
+            "other_limit": settings.exam_other_max_violation_rate,
+            "audit_seed": settings.audit_seed,
+            "audit_fraction": settings.audit_fraction,
+        }
+    )
+    policy_version = str(getattr(policy, "policy_version", type(policy).__qualname__))
+    edit_model = model_id or settings.model_exam_edits
+    run_id = "exam-" + det_id(
+        "exam-v2",
+        class_key,
+        action,
+        str(level_tested),
+        now_iso,
+        str(seed),
+        policy_version,
+        edit_model,
+        input_fingerprint,
+        str(attempt_ordinal),
+    )
+    existing = load_exam(access, run_id)
+    if existing is not None:
+        return existing
 
     # Stratify by month (YYYY-MM)
     by_month: dict[str, list[Any]] = {}
@@ -299,46 +308,7 @@ def run_exam(
             "min_required": settings.exam_min_valid_cases,
             "total_sampled": len(sampled_rows),
         }
-        cur.execute(
-            """
-            INSERT INTO exam_runs
-            (id, class_key, action, level_tested, started_at, finished_at, n_cases,
-             invariance_flip_rate, directional_violations_critical, directional_violation_rate_other,
-             passed, edit_model_id, details_json)
-            VALUES (?, ?, ?, ?, ?, ?, ?, NULL, 0, NULL, 0, ?, ?);
-            """,
-            (
-                run_id,
-                class_key,
-                action,
-                level_tested,
-                now_iso,
-                now_iso,
-                len(valid_bases),
-                model_id or settings.model_exam_edits,
-                canonical_json(details),
-            ),
-        )
-
-        append_ledger(
-            conn,
-            kind=LedgerKind.EXAM_RUN,
-            ref_id=run_id,
-            payload={
-                "exam_run_id": run_id,
-                "class_key": class_key,
-                "action": action,
-                "level_tested": level_tested,
-                "passed": False,
-                "n_cases": len(valid_bases),
-                "reason": "insufficient_cases",
-                "finished_at": now_iso,
-            },
-            created_at=now_iso,
-        )
-        conn.commit()
-
-        return ExamRunResult(
+        result = ExamRunResult(
             run_id=run_id,
             class_key=class_key,
             action=action,
@@ -350,6 +320,7 @@ def run_exam(
             other_violation_rate=None,
             details=details,
         )
+        return persist_exam(access, result, now_iso=now_iso, model_id=edit_model, cases=[])
 
     # 3 & 4. Apply operators and evaluate whole pipeline on perturbed edits
     case_records: list[dict[str, Any]] = []
@@ -371,7 +342,7 @@ def run_exam(
                 raw_payload = {}
 
         for op in ops:
-            case_id = f"case-{uuid.uuid4().hex[:12]}"
+            case_id = "case-" + det_id("exam-case-v2", run_id, sit_id, op.name)
             mut_text = base_text
             mut_payload = dict(raw_payload)
             edit_valid = True
@@ -480,81 +451,13 @@ def run_exam(
         cases=case_records,
     )
 
-    passed_int = 1 if eval_stats["passed"] else 0
     details = {
         **eval_stats,
         "discarded_invalid_edits": discarded_edits,
         "valid_base_cases": len(valid_bases),
     }
 
-    # 6. Database and Ledger persistence
-    cur.execute(
-        """
-        INSERT INTO exam_runs
-        (id, class_key, action, level_tested, started_at, finished_at, n_cases,
-         invariance_flip_rate, directional_violations_critical, directional_violation_rate_other,
-         passed, edit_model_id, details_json)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-        """,
-        (
-            run_id,
-            class_key,
-            action,
-            level_tested,
-            now_iso,
-            now_iso,
-            len(case_records),
-            eval_stats["invariance_flip_rate"],
-            eval_stats["critical_violations"],
-            eval_stats["other_violation_rate"],
-            passed_int,
-            model_id or settings.model_exam_edits,
-            canonical_json(details),
-        ),
-    )
-
-    for c in case_records:
-        cur.execute(
-            """
-            INSERT INTO exam_cases
-            (id, exam_run_id, base_situation_id, operator, expectation, edit_valid,
-             decision_before, decision_after, violated, critical)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
-            """,
-            (
-                c["id"],
-                run_id,
-                c["situation_id"],
-                c["operator"],
-                c["expectation"],
-                c["edit_valid"],
-                c["decision_before"],
-                c["decision_after"],
-                c["violated"],
-                c["critical"],
-            ),
-        )
-
-    append_ledger(
-        conn,
-        kind=LedgerKind.EXAM_RUN,
-        ref_id=run_id,
-        payload={
-            "exam_run_id": run_id,
-            "class_key": class_key,
-            "action": action,
-            "level_tested": level_tested,
-            "passed": eval_stats["passed"],
-            "n_cases": len(case_records),
-            "invariance_flip_rate": eval_stats["invariance_flip_rate"],
-            "critical_violations": eval_stats["critical_violations"],
-            "finished_at": now_iso,
-        },
-        created_at=now_iso,
-    )
-    conn.commit()
-
-    return ExamRunResult(
+    result = ExamRunResult(
         run_id=run_id,
         class_key=class_key,
         action=action,
@@ -566,3 +469,4 @@ def run_exam(
         other_violation_rate=eval_stats["other_violation_rate"],
         details=details,
     )
+    return persist_exam(access, result, now_iso=now_iso, model_id=edit_model, cases=case_records)

@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from probation.config import settings
-from probation.core.clock import Clock
+from probation.core.clock import get_clock
 from probation.core.enums import EvidenceStrength
 from probation.core.types import Outcome, Situation
 from probation.packs.base import WorldView
@@ -43,7 +43,7 @@ def resolve_files_outcome(
         else:
             occurred_dt = occurred_dt.astimezone(UTC)
     except Exception:
-        occurred_dt = Clock().now()
+        occurred_dt = get_clock().now()
 
     window_days = getattr(settings, "outcome_window_file_days", DEFAULT_FILE_WINDOW_DAYS)
     window_delta = timedelta(days=window_days)

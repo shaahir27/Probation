@@ -11,7 +11,7 @@ from probation.cli_eval import eval_run_cmd as eval_run_cmd
 from probation.cli_safety import import_source, synthesis_target
 from probation.config import settings
 from probation.db.connection import get_connection, init_db
-from probation.db.ledger import verify_ledger
+from probation.db.ledger import ledger_snapshot
 from probation.synth.generator import generate_synthetic_world
 from probation.synth.importers import import_calendar, import_files, import_links, import_mail
 
@@ -30,12 +30,10 @@ def cli_ledger_verify() -> None:
     console.print(f"[bold cyan]Verifying ledger at:[/] {settings.db_path}")
     conn = get_connection(settings.db_path)
     try:
-        intact, corrupted_seq = verify_ledger(conn)
-        cursor = conn.cursor()
-        cursor.execute("SELECT COUNT(*) AS cnt, hash FROM ledger ORDER BY seq DESC LIMIT 1;")
-        row = cursor.fetchone()
-        count = row[0] if row else 0
-        head_hash = row[1] if row and count > 0 else "N/A"
+        snapshot = ledger_snapshot(conn)
+        intact, corrupted_seq = snapshot.ok, snapshot.first_broken_seq
+        count = snapshot.length
+        head_hash = snapshot.head_hash if count else "N/A"
 
         if intact:
             console.print(
@@ -233,6 +231,7 @@ def ingest_cmd() -> None:
     try:
         sit_count = ingest_situations(conn)
         feat_count = extract_features_for_situations(conn)
+        conn.commit()
         console.print(
             f"[bold green]Ingestion complete.[/] Situations extracted: {sit_count}, "
             f"Features computed: {feat_count}"

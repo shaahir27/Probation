@@ -125,7 +125,17 @@ def test_habit_mining_discovers_planted_rule(tmp_path: Path) -> None:
 
     conn.commit()
 
-    habits = mine_habits(conn, as_of="2026-05-10T00:00:00Z")
+    clone = get_connection(":memory:")
+    try:
+        conn.backup(clone)
+        habits = mine_habits(conn, as_of="2026-05-10T00:00:00Z")
+        clone.execute("BEGIN")
+        independent = mine_habits(clone, as_of="2026-05-10T00:00:00Z")
+        assert sorted(h.id for h in habits) == sorted(h.id for h in independent)
+        clone.rollback()
+        assert clone.execute("SELECT count(*) FROM habits").fetchone()[0] == 0
+    finally:
+        clone.close()
     assert len(habits) >= 1
 
     # Look for the discovered early -> DECLINE habit
@@ -315,8 +325,17 @@ def test_chain_mining_planted_pattern(tmp_path: Path) -> None:
 
     conn.commit()
 
-    # Mine chains
-    chains = mine_chains(conn, as_of="2026-06-25T00:00:00Z")
+    clone = get_connection(":memory:")
+    try:
+        conn.backup(clone)
+        chains = mine_chains(conn, as_of="2026-06-25T00:00:00Z")
+        clone.execute("BEGIN")
+        independent = mine_chains(clone, as_of="2026-06-25T00:00:00Z")
+        assert sorted(c.id for c in chains) == sorted(c.id for c in independent)
+        clone.rollback()
+        assert clone.execute("SELECT count(*) FROM chains").fetchone()[0] == 0
+    finally:
+        clone.close()
     assert len(chains) >= 1
 
     block_chain = next(

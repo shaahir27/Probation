@@ -10,10 +10,12 @@ from datetime import UTC, datetime, timedelta
 from typing import Final
 
 from probation.config import settings
+from probation.core.actions import InvalidAction, parse_action
 from probation.core.enums import LedgerKind, LicenceLevel
 from probation.core.types import LicenceView
-from probation.db.ledger import append_ledger
-from probation.engine.caps import BASE_ACTION_CAPS, is_recallable
+from probation.db.access import Role, RoleAccess
+from probation.db.guards import ReadConnection
+from probation.engine.caps import get_action_cap, is_recallable
 from probation.engine.evidence import ClassStats
 
 L1_MIN_N_DEFAULT: Final[int] = 20
@@ -61,7 +63,8 @@ def derive_licence_level(
     - Effective level: min(L, cap)
     """
     rec = recallable if recallable is not None else is_recallable(action)
-    act_cap = cap if cap is not None else BASE_ACTION_CAPS.get(action.upper(), 3)
+    # A supplied conditional cap cannot make an unknown/no-op action licensable.
+    act_cap = min(cap, get_action_cap(action)) if cap is not None else get_action_cap(action)
 
     lvl = 0
 
@@ -88,7 +91,7 @@ def derive_licence_level(
 
 
 def check_exam_ok(
-    conn: sqlite3.Connection,
+    conn: sqlite3.Connection | ReadConnection,
     class_key: str,
     action: str,
     as_of: str,
@@ -136,7 +139,7 @@ def check_exam_ok(
     }
     family = family_map.get(pack, pack)
     cur.execute(
-        "SELECT MAX(week_start) FROM family_shift WHERE (family = ? OR family = ?) AND alarm = 1;",
+        "SELECT MAX(week_start COLLATE UTC_TIMESTAMP) FROM family_shift WHERE (family = ? OR family = ?) AND alarm = 1;",
         (family, pack),
     )
     shift_row = cur.fetchone()
@@ -148,9 +151,9 @@ def check_exam_ok(
       AND action = ?
       AND level_tested >= ?
       AND passed = 1
-      AND finished_at >= ?
-      AND finished_at <= ?
-    ORDER BY finished_at DESC
+      AND finished_at COLLATE UTC_TIMESTAMP >= ?
+      AND finished_at COLLATE UTC_TIMESTAMP <= ?
+    ORDER BY finished_at COLLATE UTC_TIMESTAMP DESC
     LIMIT 1;
     """
     cur.execute(query, (class_key, action, level, min_finished, as_of))
@@ -160,9 +163,9 @@ def check_exam_ok(
         return False
 
     finished_at = str(row["finished_at"])
-    if last_drift_alarm and finished_at <= last_drift_alarm:
+    if last_drift_alarm and _parse_ts(finished_at) <= _parse_ts(last_drift_alarm):
         return False
-    if last_shift_alarm and finished_at <= last_shift_alarm:
+    if last_shift_alarm and _parse_ts(finished_at) <= _parse_ts(last_shift_alarm):
         return False
 
     return True
@@ -187,8 +190,8 @@ def get_latest_passing_exam_id(
       AND action = ?
       AND level_tested >= ?
       AND passed = 1
-      AND finished_at <= ?
-    ORDER BY finished_at DESC
+      AND finished_at COLLATE UTC_TIMESTAMP <= ?
+    ORDER BY finished_at COLLATE UTC_TIMESTAMP DESC
     LIMIT 1;
     """
     cur.execute(query, (class_key, action, level, as_of))
@@ -206,131 +209,142 @@ def derive_and_cache_licences(
 
     Appends LedgerKind.LICENCE_CHANGE to the ledger when a level transition occurs.
     """
-    cur = conn.cursor()
-    as_of_dt = _parse_ts(as_of)
-    valid_until = (as_of_dt + timedelta(days=LICENCE_TTL_DAYS_DEFAULT)).strftime(
-        "%Y-%m-%dT%H:%M:%SZ"
-    )
+    access = RoleAccess(conn, Role.EXAMINER)
+    with access.transaction():
+        cur = access.conn.cursor()
+        as_of_dt = _parse_ts(as_of)
+        valid_until = (as_of_dt + timedelta(days=LICENCE_TTL_DAYS_DEFAULT)).strftime(
+            "%Y-%m-%dT%H:%M:%SZ"
+        )
 
-    # If stats not provided, query class_stats as of as_of
-    stats_dict: dict[tuple[str, str], ClassStats] = {}
-    if stats is not None:
-        stats_dict = stats
-    else:
-        cur.execute("SELECT * FROM class_stats WHERE as_of = ?;", (as_of,))
-        for r in cur.fetchall():
-            s = ClassStats(
-                class_key=str(r["class_key"]),
-                action=str(r["action"]),
-                as_of=str(r["as_of"]),
-                n_strong=int(r["n_strong"]),
-                k_strong=int(r["k_strong"]),
-                n_all=int(r["n_all"]),
-                k_all=int(r["k_all"]),
-                n_recent=int(r["n_recent"]),
-                lb_strong=float(r["lb_strong"]),
-                lb_all=float(r["lb_all"]),
+        # If stats not provided, query class_stats as of as_of
+        stats_dict: dict[tuple[str, str], ClassStats] = {}
+        if stats is not None:
+            stats_dict = stats
+        else:
+            cur.execute(
+                "SELECT * FROM class_stats WHERE as_of COLLATE UTC_TIMESTAMP = ?;", (as_of,)
             )
-            stats_dict[(s.class_key, s.action)] = s
+            for r in cur.fetchall():
+                s = ClassStats(
+                    class_key=str(r["class_key"]),
+                    action=str(r["action"]),
+                    as_of=str(r["as_of"]),
+                    n_strong=int(r["n_strong"]),
+                    k_strong=int(r["k_strong"]),
+                    n_all=int(r["n_all"]),
+                    k_all=int(r["k_all"]),
+                    n_recent=int(r["n_recent"]),
+                    lb_strong=float(r["lb_strong"]),
+                    lb_all=float(r["lb_all"]),
+                )
+                stats_dict[(s.class_key, s.action)] = s
 
-    licences: dict[tuple[str, str], LicenceView] = {}
+        licences: dict[tuple[str, str], LicenceView] = {}
 
-    for (c_key, act), s in stats_dict.items():
-        # Get previous level from cache
-        cur.execute(
-            "SELECT level FROM licence_cache WHERE class_key = ? AND action = ?;",
-            (c_key, act),
-        )
-        prev_row = cur.fetchone()
-        prev_level = int(prev_row["level"]) if prev_row else 0
+        for (c_key, act), s in stats_dict.items():
+            try:
+                if parse_action(act).is_noop:
+                    continue
+            except InvalidAction:
+                continue
+            # Get previous level from cache
+            cur.execute(
+                "SELECT level FROM licence_cache WHERE class_key = ? AND action = ?;",
+                (c_key, act),
+            )
+            prev_row = cur.fetchone()
+            prev_level = int(prev_row["level"]) if prev_row else 0
 
-        # Build exam_ok checker for this specific pair
-        def _check_exam(
-            lvl: int,
-            current_ck: str = c_key,
-            current_act: str = act,
-        ) -> bool:
-            if exam_ok_fn is not None:
-                return exam_ok_fn(current_ck, current_act, lvl)
-            return check_exam_ok(conn, current_ck, current_act, as_of, lvl)
+            # Build exam_ok checker for this specific pair
+            def _check_exam(
+                lvl: int,
+                current_ck: str = c_key,
+                current_act: str = act,
+            ) -> bool:
+                if exam_ok_fn is not None:
+                    return exam_ok_fn(current_ck, current_act, lvl)
+                return check_exam_ok(conn, current_ck, current_act, as_of, lvl)
 
-        new_level = derive_licence_level(
-            action=act,
-            n_all=s.n_all,
-            lb_all=s.lb_all,
-            n_strong=s.n_strong,
-            lb_strong=s.lb_strong,
-            n_recent=s.n_recent,
-            exam_ok_fn=_check_exam,
-            current_level=prev_level,
-        )
-
-        reasons: list[str] = []
-        if new_level > prev_level:
-            reasons.append("promoted")
-        elif new_level < prev_level:
-            reasons.append("demoted")
-
-        # Determine exam_run_id for level >= 2
-        exam_run_id = None
-        if int(new_level.value) >= 2:
-            exam_run_id = get_latest_passing_exam_id(conn, c_key, act, as_of, int(new_level.value))
-
-        # Update cache
-        cur.execute(
-            """
-            INSERT OR REPLACE INTO licence_cache
-            (class_key, action, level, lower_bound, reasons_json, exam_run_id, computed_at, valid_until)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?);
-            """,
-            (
-                c_key,
-                act,
-                int(new_level.value),
-                s.lb_strong,
-                json.dumps(reasons),
-                exam_run_id,
-                as_of,
-                valid_until,
-            ),
-        )
-
-        # Append to hash-chained ledger on transition
-        if int(new_level.value) != prev_level:
-            append_ledger(
-                conn,
-                kind=LedgerKind.LICENCE_CHANGE,
-                ref_id=f"{c_key}::{act}",
-                payload={
-                    "class_key": c_key,
-                    "action": act,
-                    "prev_level": prev_level,
-                    "new_level": int(new_level.value),
-                    "lower_bound": s.lb_strong,
-                    "n_strong": s.n_strong,
-                    "k_strong": s.k_strong,
-                    "as_of": as_of,
-                },
-                created_at=as_of,
+            new_level = derive_licence_level(
+                action=act,
+                n_all=s.n_all,
+                lb_all=s.lb_all,
+                n_strong=s.n_strong,
+                lb_strong=s.lb_strong,
+                n_recent=s.n_recent,
+                exam_ok_fn=_check_exam,
+                current_level=prev_level,
             )
 
-        licences[(c_key, act)] = LicenceView(
-            class_key=c_key,
-            action=act,
-            level=new_level,
-            lower_bound=s.lb_strong,
-            n_strong=s.n_strong,
-            k_strong=s.k_strong,
-            n_all=s.n_all,
-            k_all=s.k_all,
-            n_recent=s.n_recent,
-            exam_run_id=exam_run_id,
-            valid_until=valid_until,
-            reasons=reasons,
-        )
+            reasons: list[str] = []
+            if new_level > prev_level:
+                reasons.append("promoted")
+            elif new_level < prev_level:
+                reasons.append("demoted")
 
-    conn.commit()
-    return licences
+            # Determine exam_run_id for level >= 2
+            exam_run_id = None
+            if int(new_level.value) >= 2:
+                exam_run_id = get_latest_passing_exam_id(
+                    conn, c_key, act, as_of, int(new_level.value)
+                )
+
+            # Update cache
+            access.execute_write(
+                "licence_cache",
+                """
+                INSERT OR REPLACE INTO licence_cache
+                (class_key, action, level, lower_bound, reasons_json, exam_run_id, computed_at, valid_until)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+                """,
+                (
+                    c_key,
+                    act,
+                    int(new_level.value),
+                    s.lb_strong,
+                    json.dumps(reasons),
+                    exam_run_id,
+                    as_of,
+                    valid_until,
+                ),
+            )
+
+            # Append to hash-chained ledger on transition
+            if int(new_level.value) != prev_level:
+                access.append_ledger(
+                    kind=LedgerKind.LICENCE_CHANGE,
+                    ref_id=f"{c_key}::{act}",
+                    payload={
+                        "class_key": c_key,
+                        "action": act,
+                        "old_level": prev_level,
+                        "new_level": int(new_level.value),
+                        "lower_bound": s.lb_strong,
+                        "reasons": reasons,
+                        "n_strong": s.n_strong,
+                        "k_strong": s.k_strong,
+                        "as_of": as_of,
+                    },
+                    created_at=as_of,
+                )
+
+            licences[(c_key, act)] = LicenceView(
+                class_key=c_key,
+                action=act,
+                level=new_level,
+                lower_bound=s.lb_strong,
+                n_strong=s.n_strong,
+                k_strong=s.k_strong,
+                n_all=s.n_all,
+                k_all=s.k_all,
+                n_recent=s.n_recent,
+                exam_run_id=exam_run_id,
+                valid_until=valid_until,
+                reasons=reasons,
+            )
+
+        return licences
 
 
 def find_exam_candidates(
@@ -360,7 +374,7 @@ def find_exam_candidates(
         """
         SELECT class_key, action, n_strong, lb_strong, n_recent
         FROM class_stats
-        WHERE as_of = ?
+        WHERE as_of COLLATE UTC_TIMESTAMP = ?
         ORDER BY n_strong DESC;
         """,
         (as_of,),

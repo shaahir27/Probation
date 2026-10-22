@@ -4,6 +4,7 @@ Authority: docs/PACKS_SPEC.md section 0 and docs/CONTRACT.md section 5.
 """
 
 from probation.packs.base import PackAdapter
+from probation.packs.descriptor import PackDescriptor
 
 
 def validate_pack(pack: PackAdapter) -> None:
@@ -46,6 +47,10 @@ class PackRegistry:
             if family in pack.families:
                 return pack
         return None
+
+    def get_descriptor(self, name: str) -> PackDescriptor:
+        """Return the metadata/read capability used outside Executor."""
+        return PackDescriptor(self.get(name))
 
     def list_packs(self) -> list[str]:
         """List registered pack names."""

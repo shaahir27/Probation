@@ -22,11 +22,11 @@ from probation.core.types import (
     ReaderSpec,
     Situation,
 )
+from probation.llm.jobs import InviteReader
 from probation.llm.redact import redact
 from probation.packs.base import ExecutorIO, PackAdapter, WorldView
 from probation.packs.calendar.clues import extract_calendar_clues
 from probation.packs.calendar.exam_ops import CALENDAR_EXAM_OPERATORS
-from probation.packs.calendar.executor import execute_calendar_action, undo_calendar_action
 from probation.packs.calendar.resolver import DEFAULT_INVITE_MAX_DAYS, resolve_calendar_outcome
 
 CALENDAR_ACTION_CATALOG = [
@@ -37,19 +37,7 @@ CALENDAR_ACTION_CATALOG = [
     ActionSpec(type="BLOCK_TIME", recallable=True, base_cap=3, loss=3.0),
 ]
 
-CALENDAR_READER_SCHEMA = {
-    "type": "object",
-    "additionalProperties": False,
-    "required": ["purpose", "looks_mandatory", "money_involved"],
-    "properties": {
-        "purpose": {
-            "type": "string",
-            "enum": ["class", "club", "interview", "social", "work", "sales", "other"],
-        },
-        "looks_mandatory": {"type": "boolean"},
-        "money_involved": {"type": "boolean"},
-    },
-}
+CALENDAR_READER_SCHEMA = InviteReader.model_json_schema()
 
 
 class CalendarPack(PackAdapter):
@@ -227,10 +215,14 @@ class CalendarPack(PackAdapter):
 
     def execute(self, a: Action, io: ExecutorIO) -> ExecResult:
         """Execute calendar side effect."""
+        from probation.packs.calendar.executor import execute_calendar_action
+
         return execute_calendar_action(a, io)
 
     def undo(self, a: Action, io: ExecutorIO) -> ExecResult:
         """Undo executed calendar action."""
+        from probation.packs.calendar.executor import undo_calendar_action
+
         return undo_calendar_action(a, io)
 
     def window(self, s: Situation) -> timedelta:

@@ -87,3 +87,53 @@ status: "Built"
 * **Known issues/deferred:**
   - Full statistical policy training (logistic regression) and empirical Bayes Beta pooling are stubbed for Phase 4 & Phase 5.
   - Live LLM HTTP schema parsing is stubbed for Phase 1.
+
+
+## WP0 remediation - 22 October 2026
+
+### 1. Overview
+Updated development verification and CLI infrastructure under approved WP0. Traces to
+CONTRACT I-18/I-19 and section 10, TEST_PLAN foundations, and CHANGES_IMPLEMENTATION_PLAN WP0.
+
+### 2. Technical rationale
+Use the existing Python environment and a standard-library check runner so Windows and
+GNU make run the same gates. A fresh working-tree snapshot excludes environment files,
+private directories and local logs. Publishing outputs remains an explicit operation.
+Alternative: running pytest in the source checkout was rejected because the old CLI test
+rewrote published results and configuration automatically loads a local environment file.
+
+### 3. Database schema impact
+None. Existing generated fixture databases and published numerical artifacts are unchanged.
+
+### 4. Core logic and necessary functions
+- scripts/check.py: main() -> int runs Ruff, configured mypy, explicit strict core/engine
+  mypy and non-live pytest. Called by Makefile check/test and make.cmd check/test.
+- scripts/check.py: snapshot(workspace: Path) -> None copies only public working files;
+  protected_hashes(root: Path) -> dict[str, str] checks source/snapshot fixture/result
+  integrity around pytest. Test subprocess keys and private path overrides are removed.
+- backend/src/probation/cli_safety.py: synthesis_target(*, persona_id: int, size: str,
+  out: str, overwrite: bool, regenerate_fixture: bool) -> Path validates output before
+  generation. import_source(path: str | None, source: str | None) -> str rejects ambiguous
+  or missing inputs. Both are called by the CLI handlers.
+- backend/src/probation/cli.py: synth_generate defaults to data/synth/<persona>;
+  import_mail_cmd/import_calendar_cmd/import_files_cmd/import_links_cmd accept --source;
+  serve(host, port, reload) invokes the existing FastAPI app through Uvicorn.
+- backend/src/probation/cli_apps.py owns registration groups; cli_engine.py contains the
+  existing exam/backtest commands; cli_eval.py owns evaluation/export/report commands;
+  cli_extra.py owns existing webfacts/habit/chain commands. cli.py imports these groups
+  and retains the entry point. Each CLI module is below 400 lines.
+- backend/pyproject.toml enables the complete applicable strict flag set for core/engine;
+  the portable gate also invokes mypy --strict explicitly.
+
+### 5. Testing and verification
+Seven CLI safety regressions failed against the baseline before repair. The first complete
+portable run passed Ruff lint/format, project mypy (119 modules), strict mypy (21 core/engine
+modules), and 207 tests with two existing Typer deprecation warnings. Source and snapshot
+fixture/result hashes matched. Final command-form verification is recorded in the WP0 handoff.
+No live calls, installations or credential access occurred. Graphify AST update succeeded;
+its optional SQL parser is absent and no dependency was installed to alter that environment.
+
+### 6. Dependencies and deferred work
+No new dependency. Existing historical metrics/spike claims are qualified in PROVENANCE.md
+and decision log; corrected experiments belong to later WPs. The 43 tracked build logs are
+inventoried for later reviewed untracking; only future local log files are ignored now.

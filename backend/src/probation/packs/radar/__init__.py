@@ -21,12 +21,12 @@ from probation.core.types import (
     ReaderSpec,
     Situation,
 )
+from probation.llm.jobs import OpportunityReader
 from probation.packs.base import ExecutorIO, PackAdapter, WorldView
 from probation.packs.radar.clues import (
     extract_radar_clues,
 )
 from probation.packs.radar.exam_ops import RADAR_EXAM_OPERATORS
-from probation.packs.radar.executor import execute_radar_action, undo_radar_action
 from probation.packs.radar.resolver import DEFAULT_RADAR_WINDOW_DAYS, resolve_radar_outcome
 
 RADAR_ACTION_CATALOG = [
@@ -35,53 +35,7 @@ RADAR_ACTION_CATALOG = [
     ActionSpec(type="LEAVE", recallable=False, base_cap=0, loss=0.0),
 ]
 
-OPPORTUNITY_READER_SCHEMA = {
-    "type": "object",
-    "additionalProperties": False,
-    "required": [
-        "opp_type",
-        "topic",
-        "organiser_name",
-        "opportunity_name",
-        "deadline_text",
-        "fee_mentioned",
-        "requires_personal_docs",
-    ],
-    "properties": {
-        "opp_type": {
-            "type": "string",
-            "enum": [
-                "hackathon",
-                "internship",
-                "job",
-                "scholarship",
-                "competition",
-                "conference",
-                "workshop",
-                "other",
-            ],
-        },
-        "topic": {
-            "type": "string",
-            "enum": [
-                "ai_ml",
-                "web_dev",
-                "data",
-                "cybersecurity",
-                "design",
-                "finance",
-                "core_eng",
-                "research",
-                "general",
-            ],
-        },
-        "organiser_name": {"type": ["string", "null"], "maxLength": 40},
-        "opportunity_name": {"type": ["string", "null"], "maxLength": 60},
-        "deadline_text": {"type": ["string", "null"], "maxLength": 40},
-        "fee_mentioned": {"type": "boolean"},
-        "requires_personal_docs": {"type": "boolean"},
-    },
-}
+OPPORTUNITY_READER_SCHEMA = OpportunityReader.model_json_schema()
 
 
 class RadarPack(PackAdapter):
@@ -213,10 +167,14 @@ class RadarPack(PackAdapter):
 
     def execute(self, a: Action, io: ExecutorIO) -> ExecResult:
         """Execute Opportunity Radar side-effect into SimWorld."""
+        from probation.packs.radar.executor import execute_radar_action
+
         return execute_radar_action(a, io)
 
     def undo(self, a: Action, io: ExecutorIO) -> ExecResult:
         """Undo executed Opportunity Radar action."""
+        from probation.packs.radar.executor import undo_radar_action
+
         return undo_radar_action(a, io)
 
     def window(self, s: Situation) -> timedelta:

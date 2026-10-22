@@ -182,7 +182,10 @@ def decide(...):
 3. If `action == REPLY` and the preview gate is `SUGGEST`, `HOLD_THEN_EXECUTE` or an `EXECUTE_*`: call the writer, then run the draft validator (`PROMPTS.md` section 5.1).
    - Draft invalid after one regeneration: final gate `ASK` with reason `draft_invalid`.
    - Draft has `needs_user_input = true`: final gate `SUGGEST` with reason `needs_user_input`.
-4. Write the `drafts` row, then the immutable `proposals` row and the ledger entries (CONTRACT I-7).
+4. Persist one transaction: append the proposal ledger entry, insert the immutable
+   `proposals` row, then insert any validated `drafts` row referencing it. Commit before
+   Executor consumption (CONTRACT I-7). Draft generation/validation happens in memory
+   before the transaction. This order satisfies the existing draft foreign key.
 
 ---
 

@@ -10,7 +10,7 @@ import sqlite3
 from datetime import timedelta
 from pathlib import Path
 
-from probation.core.clock import Clock
+from probation.core.clock import get_clock
 from probation.core.hashing import canonical_json
 from probation.db.access import Role, RoleAccess
 
@@ -37,8 +37,8 @@ def load_web_facts_fixtures(
     entities = data.get("entities", [])
     access = RoleAccess(conn, Role.WEBFACTS)
 
-    now_iso = Clock().now_iso()
-    future_iso = (Clock().now() + timedelta(days=365)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    now_iso = get_clock().now_iso()
+    future_iso = (get_clock().now() + timedelta(days=365)).strftime("%Y-%m-%dT%H:%M:%SZ")
     count = 0
 
     for ent in entities:

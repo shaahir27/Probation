@@ -11,8 +11,7 @@ from collections.abc import Callable
 from typing import Any
 
 from probation.config import settings
-from probation.core.clock import Clock
-from probation.core.enums import ClockMode
+from probation.core.clock import Clock, get_clock
 from probation.core.hashing import canonical_json
 from probation.core.history import HistoryView
 from probation.core.types import Situation
@@ -36,11 +35,11 @@ def extract_features_for_situations(
     Uses real LLMClient when settings.llm_api_key is set and reader_callable is None.
     """
     access_conn = RoleAccess(conn, Role.BRAIN)
-    read_cursor = conn.cursor()
+    read_cursor = access_conn.conn.cursor()
 
     llm_client: LLMClient | None = None
     if reader_callable is None and settings.llm_api_key:
-        llm_client = LLMClient(api_key=settings.llm_api_key)
+        llm_client = LLMClient(api_key=settings.llm_api_key, clock=clock or get_clock())
 
     # Find situations without features
     read_cursor.execute(
@@ -49,15 +48,13 @@ def extract_features_for_situations(
         FROM situations s
         LEFT JOIN features f ON s.id = f.situation_id
         WHERE f.situation_id IS NULL
-        ORDER BY s.occurred_at ASC;
+        ORDER BY s.occurred_at COLLATE UTC_TIMESTAMP ASC;
         """
     )
     rows = read_cursor.fetchall()
     count = 0
 
-    clk = clock or Clock(
-        mode=ClockMode.REPLAY if settings.clock_mode == "replay" else ClockMode.LIVE
-    )
+    clk = clock or get_clock()
 
     for row in rows:
         sit = Situation(
@@ -75,7 +72,7 @@ def extract_features_for_situations(
         )
 
         try:
-            pack = registry.get(sit.pack)
+            pack = registry.get_descriptor(sit.pack)
         except KeyError:
             continue
 
@@ -163,5 +160,4 @@ def extract_features_for_situations(
         )
         count += 1
 
-    access_conn.commit()
     return count

@@ -16,10 +16,15 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+<<<<<<< HEAD
 from probation.config import settings
 from probation.core.clock import Clock
 from probation.core.hashing import canonical_json, canonical_raw_item_id, det_id, normalize_rel_path
 from probation.core.identity import normalize_address
+=======
+from probation.core.clock import get_clock
+from probation.core.hashing import canonical_json, det_id
+>>>>>>> ecd356592b0e72673b7aef2346f5c10d01e2f754
 
 
 @dataclass(frozen=True)
@@ -56,8 +61,8 @@ def _iso_utc(dt_or_str: Any) -> str:
                     dt = dt.replace(tzinfo=UTC)
                 return dt.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
             except Exception:
-                return Clock().now_iso()
-    return Clock().now_iso()
+                return get_clock().now_iso()
+    return get_clock().now_iso()
 
 
 def _get_or_create_source(
@@ -66,6 +71,7 @@ def _get_or_create_source(
     kind: str,
     ref: str,
 ) -> str:
+<<<<<<< HEAD
     """Register origin source record and return deterministic source_id.
 
     Authority: docs/CHANGES_IMPLEMENTATION_PLAN.md section 6.1.2.
@@ -77,6 +83,11 @@ def _get_or_create_source(
     )
     source_id = det_id("source", pack, kind, stable_ref)
     now = Clock().now_iso()
+=======
+    """Register origin source record and return deterministic source_id."""
+    source_id = det_id("source", pack, kind, str(ref))
+    now = get_clock().now_iso()
+>>>>>>> ecd356592b0e72673b7aef2346f5c10d01e2f754
     conn.execute(
         """
         INSERT OR IGNORE INTO sources (id, pack, kind, ref, imported_at)
@@ -297,7 +308,7 @@ def import_calendar(
 
         def parse_ics_date(s: str | None) -> str:
             if not s:
-                return Clock().now_iso()
+                return get_clock().now_iso()
             s = s.strip()
             if len(s) == 16 and s.endswith("Z"):  # YYYYMMDDTHHMMSSZ
                 try:
@@ -399,8 +410,13 @@ def import_files(
     cursor = conn.cursor()
 
     for f_info in files_list:
+<<<<<<< HEAD
         rel_path = normalize_rel_path(f_info["rel_path"])
         occurred_at = _iso_utc(f_info.get("mtime", Clock().now_iso()))
+=======
+        rel_path = f_info["rel_path"]
+        occurred_at = _iso_utc(f_info.get("mtime", get_clock().now_iso()))
+>>>>>>> ecd356592b0e72673b7aef2346f5c10d01e2f754
 
         payload = {
             "rel_path": rel_path,
@@ -474,7 +490,7 @@ def import_links(
             if line and not line.startswith("#"):
                 entries.append({"url": line})
 
-    now_iso = Clock().now_iso()
+    now_iso = get_clock().now_iso()
 
     for entry in entries:
         url = entry.get("url", "").strip()

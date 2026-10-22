@@ -16,7 +16,7 @@ def ingest_situations(conn: sqlite3.Connection) -> int:
     Authority: docs/DATA_MODEL.md section 1.
     """
     access_conn = RoleAccess(conn, Role.INGESTOR)
-    read_cursor = conn.cursor()
+    read_cursor = access_conn.conn.cursor()
 
     # Find raw items not yet processed into situations
     read_cursor.execute(
@@ -25,7 +25,7 @@ def ingest_situations(conn: sqlite3.Connection) -> int:
         FROM raw_items r
         LEFT JOIN situations s ON r.id = s.raw_item_id
         WHERE s.id IS NULL
-        ORDER BY r.occurred_at ASC;
+        ORDER BY r.occurred_at COLLATE UTC_TIMESTAMP ASC;
         """
     )
     unprocessed_rows = read_cursor.fetchall()
@@ -34,7 +34,7 @@ def ingest_situations(conn: sqlite3.Connection) -> int:
     for row in unprocessed_rows:
         pack_name = row["pack"]
         try:
-            pack = registry.get(pack_name)
+            pack = registry.get_descriptor(pack_name)
         except KeyError:
             continue
 
@@ -65,5 +65,4 @@ def ingest_situations(conn: sqlite3.Connection) -> int:
             )
             extracted_count += 1
 
-    access_conn.commit()
     return extracted_count

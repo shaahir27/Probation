@@ -1,5 +1,9 @@
 # Phase 1 Handoff: Core, Database, Ledger, LLM Client, and Redaction
 
+> Historical phase report. The 22 October WP1 remediation checkpoint and its remaining
+> requirements are recorded in [wp1-checkpoint-2026-10-22.md](wp1-checkpoint-2026-10-22.md).
+> This historical report does not establish completion of that later work package.
+
 **Branch:** `phase-1-core-db-ledger`  
 **Phase:** 1 — Core, Database, Ledger, LLM Client, Redaction  
 

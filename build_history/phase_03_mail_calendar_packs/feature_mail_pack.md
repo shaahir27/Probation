@@ -34,3 +34,25 @@ status: "Built"
 ## 6. Dependencies & Deferred Work
 * **Depends on:** Phase 1 core types, Phase 2 `SimWorld`.
 * **Known issues/deferred:** Writer draft generation is deferred to Phase 5 when Executor hold queue is fully wired.
+
+
+## WP1 final verified checkpoint - 22 October 2026
+
+### 1. Overview
+Mail schema and descriptor integration. Scope: docs/CHANGES_IMPLEMENTATION_PLAN.md section 5.
+
+### 2. Technical rationale
+Registry consumers obtain read/decision descriptors without importing executable modules. Mail reader and exam output use the shared strict job definitions rather than duplicate schemas.
+
+### 3. Database schema impact
+No persistent schema migration or new dependency; historical ledger bytes retained.
+
+### 4. Core logic and necessary functions
+backend/src/probation/packs/mail/__init__.py: deferred executor imports; mail/clues.py and exam_ops.py: exported job schemas; packs/descriptor.py: decision-only descriptor.
+Why/how called: Registry consumers obtain read/decision descriptors without importing executable modules. Mail reader and exam output use the shared strict job definitions rather than duplicate schemas.
+
+### 5. Testing and verification
+test_wp1_execution_authority.py, test_wp1_validation.py. Final isolated scripts/check.py passed 328 tests, Ruff lint/format, project mypy (130 modules) and strict core/engine mypy (24 modules). Source/snapshot fixture and published-result hashes unchanged.
+
+### 6. Dependencies and remaining work
+WP1 remains incomplete. See docs/reports/wp1-checkpoint-2026-10-22.md for exact gaps and CCR-F; this update supersedes earlier verification counts and any historical no-known-issues statement for this repair. No live provider call or contract amendment.

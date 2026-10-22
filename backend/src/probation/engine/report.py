@@ -46,10 +46,10 @@ def generate_report_card(
         query += " AND p.family = ?"
         params.append(family)
     if as_of is not None:
-        query += " AND p.proposed_at <= ?"
+        query += " AND p.proposed_at COLLATE UTC_TIMESTAMP <= ?"
         params.append(as_of)
 
-    query += " ORDER BY p.proposed_at ASC;"
+    query += " ORDER BY p.proposed_at COLLATE UTC_TIMESTAMP ASC;"
     cur.execute(query, tuple(params))
     rows = cur.fetchall()
 

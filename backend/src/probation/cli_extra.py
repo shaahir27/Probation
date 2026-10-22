@@ -26,6 +26,7 @@ def webfacts_vet(
 
         console.print(f"[bold cyan]Vetting domain:[/] {domain} (brand: {brand or 'auto'})...")
         res = vet_entity(conn, domain=domain, brand_token=brand)
+        conn.commit()
         table = Table(title=f"Entity Facts — {domain}")
         table.add_column("Property", style="cyan")
         table.add_column("Value", style="green")
@@ -59,6 +60,7 @@ def webfacts_vet_batch(
             apply_schema(conn)
 
         count = vet_situations_batch(conn, as_of=as_of)
+        conn.commit()
         console.print(f"[bold green]Vetted {count} entity domains for situations batch.[/]")
     finally:
         conn.close()
@@ -152,6 +154,7 @@ def habits_mine(
     conn = get_connection(settings.db_path)
     try:
         habits = mine_habits(conn, as_of=as_of)
+        conn.commit()
         table = Table(title=f"Mined Habits (Count: {len(habits)})")
         table.add_column("ID", style="cyan")
         table.add_column("Family", style="magenta")
@@ -189,6 +192,7 @@ def chains_mine(
     conn = get_connection(settings.db_path)
     try:
         chains = mine_chains(conn, as_of=as_of)
+        conn.commit()
         table = Table(title=f"Mined Chains (Count: {len(chains)})")
         table.add_column("ID", style="cyan")
         table.add_column("Trigger Class Key", style="magenta")

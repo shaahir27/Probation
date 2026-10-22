@@ -60,3 +60,26 @@ def derive_licence_level(
 ## 6. Dependencies & Deferred Work
 * **Depends on:** `engine/caps.py`, `db/ledger.py`, `core/enums.py`.
 * **Known issues/deferred:** Full adversarial counterfactual perturbation operators and automatic exam generation belong to Phase 7.
+
+
+## WP1 repair update - 22 October 2026
+
+### 1. Overview
+Exclude no-op authority and support read-only re-derivation. Scope: docs/CHANGES_IMPLEMENTATION_PLAN.md section 5; CONTRACT remains unchanged.
+
+### 2. Technical rationale
+No-op/unsupported proposal actions do not create evidence pairs or licences. Executor requests evidence with persist=False through its read-only capability and re-derives permission instead of trusting licence_cache. The evidence helper no longer commits caller work. New licence_change payloads use old_level; API accepts legacy prev_level. Broader licence/exam/evidence semantics remain WP5 work.
+
+### 3. Database schema impact
+No persistent schema/ledger-byte migration or new dependency.
+
+### 4. Core logic and necessary functions
+backend/src/probation/engine/evidence.py: aggregate_evidence(conn, as_of, ..., persist=True). backend/src/probation/engine/licence.py: derive_licence_level(...) and check_exam_ok(...). backend/src/probation/workers/executor.py: _default_licence_checker(class_key, action, as_of).
+Why/how called: No-op/unsupported proposal actions do not create evidence pairs or licences. Executor requests evidence with persist=False through its read-only capability and re-derives permission instead of trusting licence_cache. The evidence helper no longer commits caller work. New licence_change payloads use old_level; API accepts legacy prev_level. Broader licence/exam/evidence semantics remain WP5 work.
+
+### 5. Testing and verification
+Test files test_wp1_proposals.py, test_wp1_execution_authority.py, test_wp1_actions.py and existing evidence/licence tests.
+An earlier isolated full checkpoint passed 291 tests plus lint/types; later targeted results are recorded in docs/reports/wp1-progress-2026-10-22.md. Final checks remain required after all edits.
+
+### 6. Dependencies and remaining work
+WP0 committed c92131c; WP1 is in progress. See the progress report for open role/transaction, canonical-payload, clock/identity and handoff requirements. This update is not a WP1 completion claim or live-provider proof.

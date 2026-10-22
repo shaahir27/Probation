@@ -17,14 +17,24 @@ from probation.api.routes import (
     webfacts,
 )
 from probation.config import settings
+from probation.core.clock import get_clock, use_clock
 from probation.db.connection import get_connection
-from probation.db.ledger import verify_ledger
+from probation.db.ledger import ledger_snapshot
 
 app = FastAPI(
     title="Probation API",
     description="Earned autonomy personal AI backend.",
     version="0.1.0",
 )
+app.state.clock = get_clock()
+
+
+@app.middleware("http")
+async def share_context_clock(request: Request, call_next: Any) -> Any:
+    """All handlers in a request observe the application's injected clock."""
+    with use_clock(request.app.state.clock):
+        return await call_next(request)
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -78,17 +88,12 @@ def api_ledger_verify() -> dict[str, Any]:
 
     conn = get_connection(settings.db_path)
     try:
-        intact, corrupted_seq = verify_ledger(conn)
-        cursor = conn.cursor()
-        cursor.execute("SELECT COUNT(*) AS cnt, hash FROM ledger ORDER BY seq DESC LIMIT 1;")
-        row = cursor.fetchone()
-        count = row[0] if row else 0
-        head_hash = row[1] if row and count > 0 else "0" * 64
+        snapshot = ledger_snapshot(conn)
         return {
-            "ok": intact,
-            "seq": corrupted_seq,
-            "length": count,
-            "head_hash": head_hash,
+            "ok": snapshot.ok,
+            "seq": snapshot.first_broken_seq,
+            "length": snapshot.length,
+            "head_hash": snapshot.head_hash,
         }
     finally:
         conn.close()

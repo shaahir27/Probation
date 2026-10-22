@@ -18,7 +18,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from probation.config import settings
-from probation.core.clock import Clock
+from probation.core.clock import get_clock
 from probation.core.enums import GateDecision
 from probation.db.connection import get_connection
 from probation.workers.examiner import run_examiner_job
@@ -160,7 +160,7 @@ def get_habits() -> dict[str, Any]:
             """
             SELECT id, family, clue, clue_value, action, k, n, lift, q_value, statement, examples_json, status, created_at
             FROM habits
-            ORDER BY created_at DESC;
+            ORDER BY created_at COLLATE UTC_TIMESTAMP DESC;
             """
         )
         rows = cursor.fetchall()
@@ -218,7 +218,7 @@ def get_chains() -> dict[str, Any]:
             """
             SELECT id, trigger_class_key, follow_action, k, n, base_rate, lift, status, created_at
             FROM chains
-            ORDER BY created_at DESC;
+            ORDER BY created_at COLLATE UTC_TIMESTAMP DESC;
             """
         )
         rows = cursor.fetchall()
@@ -256,7 +256,7 @@ def get_exams() -> dict[str, Any]:
                    n_cases, invariance_flip_rate, directional_violations_critical,
                    passed, details_json
             FROM exam_runs
-            ORDER BY started_at DESC;
+            ORDER BY started_at COLLATE UTC_TIMESTAMP DESC;
             """
         )
         runs = []
@@ -344,7 +344,7 @@ def run_exam(body: RunExamBody) -> dict[str, Any]:
             "invariance_flip_rate": res.invariance_flip_rate,
             "critical_violations": res.critical_violations,
             "other_violation_rate": res.other_violation_rate,
-            "ran_at": Clock().now_iso(),
+            "ran_at": get_clock().now_iso(),
         }
     finally:
         conn.close()

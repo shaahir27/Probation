@@ -45,3 +45,26 @@ status: "Built"
   - `probation webfacts vet <domain>`: Verified on `github.com` and `g00gle.com`.
   - `probation webfacts audit`: Verified on `tavily_calls` table.
   - `probation webfacts load-fixtures`: Loaded 9 fixtures.
+
+
+## WP1 repair update - 22 October 2026
+
+### 1. Overview
+Context-clock budgets and transport-duration boundary. Scope: docs/CHANGES_IMPLEMENTATION_PLAN.md section 5; CONTRACT remains unchanged.
+
+### 2. Technical rationale
+Budget day/month derive from one reading of the injected context clock; audit writes use the same clock. Accounting errors deny a call. Latency measurement goes through core/clock.py and does not supply event timestamps or autonomy. Audit helper writes no longer commit their parent. Concurrent reservations and complete Tavily accounting remain later work.
+
+### 3. Database schema impact
+No persistent schema/ledger-byte migration or new dependency.
+
+### 4. Core logic and necessary functions
+backend/src/probation/web/client.py: TavilyClient(..., clock=None), _check_budget(), _log_call(...). backend/src/probation/core/clock.py: elapsed_seconds().
+Why/how called: Budget day/month derive from one reading of the injected context clock; audit writes use the same clock. Accounting errors deny a call. Latency measurement goes through core/clock.py and does not supply event timestamps or autonomy. Audit helper writes no longer commit their parent. Concurrent reservations and complete Tavily accounting remain later work.
+
+### 5. Testing and verification
+Test files test_wp1_context.py and test_tavily_webfacts.py. All tests offline; no provider calls made.
+An earlier isolated full checkpoint passed 291 tests plus lint/types; later targeted results are recorded in docs/reports/wp1-progress-2026-10-22.md. Final checks remain required after all edits.
+
+### 6. Dependencies and remaining work
+WP0 committed c92131c; WP1 is in progress. See the progress report for open role/transaction, canonical-payload, clock/identity and handoff requirements. This update is not a WP1 completion claim or live-provider proof.

@@ -10,19 +10,15 @@ from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
 from probation.config import settings
-from probation.core.clock import Clock
-from probation.core.enums import ClockMode
+from probation.core.clock import get_clock
 
 router = APIRouter(prefix="/api", tags=["replay"])
-
-# Default replay clock instance
-_clock = Clock(mode=ClockMode.REPLAY if settings.clock_mode == "replay" else ClockMode.LIVE)
 
 # Global in-memory replay state for demo mode
 _replay_state: dict[str, Any] = {
     "running": False,
     "speed": 1.0,
-    "simulated_date": _clock.now_iso(),
+    "simulated_date": get_clock().now_iso(),
     "mode": settings.clock_mode,
 }
 
@@ -34,7 +30,7 @@ class ReplaySpeedBody(BaseModel):
 @router.get("/replay/state")
 def get_replay_state() -> dict[str, Any]:
     """Retrieve current replay simulation state."""
-    _replay_state["simulated_date"] = _clock.now_iso()
+    _replay_state["simulated_date"] = get_clock().now_iso()
     _replay_state["mode"] = settings.clock_mode
     return _replay_state
 

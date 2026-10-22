@@ -7,6 +7,7 @@ import re
 from typing import Any
 
 from probation.core.types import ExamOperator
+from probation.llm.jobs import ExamEdit
 
 MAIL_EXAM_OPERATORS = [
     ExamOperator(
@@ -88,14 +89,7 @@ EXAM_SYSTEM_PROMPT = (
     'Output ONLY JSON: {"edited_text": string}.'
 )
 
-EXAM_EDIT_SCHEMA: dict[str, Any] = {
-    "type": "object",
-    "additionalProperties": False,
-    "required": ["edited_text"],
-    "properties": {
-        "edited_text": {"type": "string"},
-    },
-}
+EXAM_EDIT_SCHEMA = ExamEdit.model_json_schema()
 
 MAIL_OPERATOR_INSTRUCTIONS: dict[str, str] = {
     "paraphrase_body": "Rephrase the text with different wording and the same meaning",

@@ -5,14 +5,16 @@ Only designated workers/modules may write to specific tables.
 """
 
 import sqlite3
+from collections.abc import Generator
+from contextlib import contextmanager
 from enum import StrEnum
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
+from probation.db.guards import AccessError as AccessError
+from probation.db.guards import ReadConnection, ReadCursor, statement_guard
 
-class AccessError(Exception):
-    """Raised when an unauthorized component attempts to write to a restricted table."""
-
-    pass
+if TYPE_CHECKING:
+    from probation.core.types import Situation
 
 
 class Role(StrEnum):
@@ -68,9 +70,18 @@ class RoleAccess:
     """Connection wrapper enforcing per-process write isolation."""
 
     def __init__(self, conn: sqlite3.Connection, role: Role) -> None:
-        self.conn = conn
+        self._connection = conn
         self.role = role
         self.allowed_tables = ROLE_ALLOWED_WRITE_TABLES[role]
+        bound_role = getattr(conn, "bound_role", None)
+        if bound_role is not None and bound_role != role.value:
+            raise AccessError("Cannot change the role of a dedicated connection")
+        self._savepoint = 0
+
+    @property
+    def conn(self) -> ReadConnection:
+        """Expose reads, never the underlying unrestricted connection."""
+        return ReadConnection(self._connection)
 
     def verify_write(self, table: str) -> None:
         """Verify that current role has write permission for the target table."""
@@ -80,25 +91,94 @@ class RoleAccess:
                 f"Permitted tables: {sorted(self.allowed_tables)}"
             )
 
-    def execute_write(self, table: str, query: str, params: tuple[Any, ...] = ()) -> sqlite3.Cursor:
+    def execute_write(self, table: str, query: str, params: tuple[Any, ...] = ()) -> ReadCursor:
         """Execute write query after permission verification."""
+        if self.role == Role.BRAIN and table == "situations":
+            raise AccessError("Brain situation writes require the typed chain repository")
+        return self._execute_write(table, query, params)
+
+    def _execute_write(self, table: str, query: str, params: tuple[Any, ...] = ()) -> ReadCursor:
         self.verify_write(table)
-        cursor = self.conn.cursor()
-        cursor.execute(query, params)
-        return cursor
+        cursor = self._connection.cursor()
+        with statement_guard(self._connection, self.allowed_tables, target=table):
+            cursor.execute(query, params)
+        return ReadCursor(self._connection, cursor)
 
     def executemany_write(
         self, table: str, query: str, seq_of_params: list[tuple[Any, ...]]
-    ) -> sqlite3.Cursor:
+    ) -> ReadCursor:
         """Execute batch write query after permission verification."""
+        if self.role == Role.BRAIN and table == "situations":
+            raise AccessError("Brain situation writes require the typed chain repository")
         self.verify_write(table)
-        cursor = self.conn.cursor()
-        cursor.executemany(query, seq_of_params)
-        return cursor
+        cursor = self._connection.cursor()
+        with statement_guard(self._connection, self.allowed_tables, target=table):
+            cursor.executemany(query, seq_of_params)
+        return ReadCursor(self._connection, cursor)
+
+    def insert_chain_situation(self, situation: "Situation") -> None:
+        """The brain owns chain follow-up variants, never ordinary ingested rows."""
+        if self.role != Role.BRAIN or (
+            situation.pack != "chains"
+            or situation.family != "chain_followup"
+            or situation.variant not in {"REPLY", "BLOCK_TIME", "CREATE_TASK"}
+        ):
+            raise AccessError("Only a validated chain follow-up may be inserted by brain")
+        self._execute_write(
+            "situations",
+            """INSERT INTO situations
+            (id,pack,family,raw_item_id,occurred_at,sender_key,content_hash,redacted_text,
+             hands_off_reason,variant,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+            (
+                situation.id,
+                situation.pack,
+                situation.family,
+                situation.raw_item_id,
+                situation.occurred_at,
+                situation.sender_key,
+                situation.content_hash,
+                situation.redacted_text,
+                situation.hands_off_reason,
+                situation.variant,
+                situation.created_at,
+            ),
+        )
 
     def commit(self) -> None:
         """Commit transaction."""
-        self.conn.commit()
+        self._connection.commit()
+
+    def append_ledger(
+        self, kind: str, ref_id: str, payload: dict[str, Any], created_at: str
+    ) -> int:
+        """Append through the same actual-target guard without exposing a raw writer."""
+        from probation.db.ledger import append_ledger
+
+        self.verify_write("ledger")
+        with statement_guard(self._connection, self.allowed_tables, target="ledger"):
+            return append_ledger(self._connection, kind, ref_id, payload, created_at)
+
+    @contextmanager
+    def transaction(self) -> Generator["RoleAccess"]:
+        """Own an outer transaction or a nested savepoint, without committing its parent."""
+        nested = self._connection.in_transaction
+        self._savepoint += 1
+        name = f"role_uow_{self._savepoint}"
+        self._connection.execute(f"SAVEPOINT {name}" if nested else "BEGIN IMMEDIATE")
+        try:
+            yield self
+        except BaseException:
+            if nested:
+                self._connection.execute(f"ROLLBACK TO {name}")
+                self._connection.execute(f"RELEASE {name}")
+            else:
+                self._connection.rollback()
+            raise
+        else:
+            if nested:
+                self._connection.execute(f"RELEASE {name}")
+            else:
+                self._connection.commit()
 
 
 # Factory helpers

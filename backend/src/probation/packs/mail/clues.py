@@ -10,7 +10,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from probation.config import settings
-from probation.core.clock import Clock
+from probation.core.clock import get_clock
 from probation.core.history import HistoryView
 from probation.core.identity import (
     AUTOMATED_LOCAL_PARTS,
@@ -64,7 +64,7 @@ def extract_mail_clues(
     try:
         occ_dt = datetime.fromisoformat(s.occurred_at.replace("Z", "+00:00")).astimezone(user_tz)
     except Exception:
-        occ_dt = Clock().now(user_tz)
+        occ_dt = get_clock().now(user_tz)
 
     hour_of_day = occ_dt.hour
     weekday = occ_dt.weekday()  # 0=Monday, 6=Sunday

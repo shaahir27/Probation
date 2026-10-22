@@ -8,11 +8,11 @@ Outputs docs/results/main.json and docs/results/tables.md.
 
 import json
 import sqlite3
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from probation.config import settings
+from probation.core.clock import Clock
 from probation.core.enums import Gate
 from probation.core.types import Situation
 from probation.eval.baselines import (
@@ -357,7 +357,7 @@ def run_evaluation(
         "metadata": {
             "suite": suite,
             "seed": seed,
-            "date": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "date": Clock.live().now_iso(),
             "total_situations": total_situations,
             "non_noop_situations": non_noop_count,
         },

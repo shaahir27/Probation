@@ -43,5 +43,9 @@ Thumbs.db
 .codex/
 graphify-out/
 
+# Local Graphify output and machine-specific hook
+/graphify-out/
+/.codex/hooks.json
+
 # Local construction records (existing tracked records need separate reviewed cleanup)
 /build_history/

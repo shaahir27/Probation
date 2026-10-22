@@ -4,10 +4,11 @@ Authority: docs/CONTRACT.md invariant I-16 and docs/DATA_MODEL.md table llm_cach
 """
 
 import hashlib
+import json
 import sqlite3
 from typing import Any
 
-from probation.core.hashing import canonical_json
+from probation.db.access import Role, RoleAccess
 
 
 def compute_cache_key(content_hash: str, prompt_id: str, prompt_version: str, model_id: str) -> str:
@@ -42,9 +43,11 @@ def store_cached_response(
     created_at: str,
 ) -> None:
     """Store deterministic response into llm_cache."""
-    response_json = canonical_json(response_data)
-    cursor = conn.cursor()
-    cursor.execute(
+    # Cache values are validated data, not ledger material: keep their precision.
+    response_json = json.dumps(response_data, sort_keys=True, ensure_ascii=False, allow_nan=False)
+    access = RoleAccess(conn, Role(getattr(conn, "bound_role", None) or Role.BRAIN))
+    access.execute_write(
+        "llm_cache",
         """
         INSERT OR REPLACE INTO llm_cache (
             cache_key, kind, model_id, prompt_id, prompt_version,
@@ -64,4 +67,3 @@ def store_cached_response(
             created_at,
         ),
     )
-    conn.commit()

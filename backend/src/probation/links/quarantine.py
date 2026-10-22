@@ -10,77 +10,13 @@ import sqlite3
 from datetime import datetime
 from typing import Any
 
+from probation.core.clock import get_clock
 from probation.core.hashing import canonical_json, det_id
+from probation.llm.jobs import LinkExtraction, OpportunityExtraction
 
-EXTRACT_OPPORTUNITY_SCHEMA = {
-    "type": "object",
-    "additionalProperties": False,
-    "required": [
-        "title",
-        "organiser",
-        "deadline_date",
-        "start_date",
-        "eligibility",
-        "fee_mentioned",
-        "mode",
-        "apply_domain",
-    ],
-    "properties": {
-        "title": {"type": ["string", "null"], "maxLength": 80},
-        "organiser": {"type": ["string", "null"], "maxLength": 60},
-        "deadline_date": {"type": ["string", "null"], "pattern": r"^\d{4}-\d{2}-\d{2}$"},
-        "start_date": {"type": ["string", "null"], "pattern": r"^\d{4}-\d{2}-\d{2}$"},
-        "eligibility": {
-            "type": "array",
-            "maxItems": 3,
-            "items": {"type": "string", "maxLength": 100},
-        },
-        "fee_mentioned": {"type": "boolean"},
-        "mode": {"enum": ["online", "in_person", "hybrid", "unknown"]},
-        "apply_domain": {"type": ["string", "null"], "maxLength": 80},
-    },
-}
+EXTRACT_OPPORTUNITY_SCHEMA = OpportunityExtraction.model_json_schema()
 
-EXTRACT_LINK_SCHEMA = {
-    "type": "object",
-    "additionalProperties": False,
-    "required": ["title", "topic", "content_type", "actionable"],
-    "properties": {
-        "title": {"type": ["string", "null"], "maxLength": 100},
-        "topic": {
-            "enum": [
-                "programming",
-                "ai_ml",
-                "web_dev",
-                "data",
-                "security",
-                "career",
-                "college",
-                "finance",
-                "health",
-                "design",
-                "science",
-                "news",
-                "other",
-            ]
-        },
-        "content_type": {
-            "enum": [
-                "article",
-                "paper",
-                "video",
-                "docs",
-                "tutorial",
-                "repo",
-                "product",
-                "forum",
-                "social",
-                "other",
-            ]
-        },
-        "actionable": {"type": "boolean"},
-    },
-}
+EXTRACT_LINK_SCHEMA = LinkExtraction.model_json_schema()
 
 FEE_REGEX_PATTERN = re.compile(
     r"\b(fee|registration fee|payment|pay|upi|inr|rs\.?|entry fee|cost|amount)\b|[₹$€£]",
@@ -230,7 +166,7 @@ def record_quarantine_output(
     now_iso: str | None = None,
 ) -> str:
     """Store typed output of quarantined extractor in quarantine_outputs table."""
-    now_ts = now_iso or datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+    now_ts = now_iso or get_clock().now_iso()
     output_id = det_id("quar_out", extraction_id, prompt_id, prompt_version)
     fields_json = canonical_json(validated_fields)
     notes_json = canonical_json(validator_notes)
@@ -254,5 +190,4 @@ def record_quarantine_output(
             now_ts,
         ),
     )
-    conn.commit()
     return output_id

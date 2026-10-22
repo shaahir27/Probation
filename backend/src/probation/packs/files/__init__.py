@@ -23,13 +23,13 @@ from probation.core.types import (
     Situation,
 )
 from probation.engine.handsoff import is_hands_off
+from probation.llm.jobs import FileReader
 from probation.packs.base import ExecutorIO, PackAdapter, WorldView
 from probation.packs.files.clues import (
     extract_files_clues,
     extract_origin_group,
 )
 from probation.packs.files.exam_ops import FILES_EXAM_OPERATORS
-from probation.packs.files.executor import execute_files_action, undo_files_action
 from probation.packs.files.resolver import DEFAULT_FILE_WINDOW_DAYS, resolve_files_outcome
 
 FILES_ACTION_CATALOG = [
@@ -37,28 +37,7 @@ FILES_ACTION_CATALOG = [
     ActionSpec(type="LEAVE", recallable=True, base_cap=0, loss=0.0),
 ]
 
-FILE_READER_SCHEMA = {
-    "type": "object",
-    "additionalProperties": False,
-    "required": ["doc_type", "course_hint"],
-    "properties": {
-        "doc_type": {
-            "type": "string",
-            "enum": [
-                "lecture_notes",
-                "assignment",
-                "manual",
-                "receipt_invoice",
-                "ticket",
-                "image_photo",
-                "paper",
-                "form",
-                "other",
-            ],
-        },
-        "course_hint": {"type": ["string", "null"], "maxLength": 20},
-    },
-}
+FILE_READER_SCHEMA = FileReader.model_json_schema()
 
 
 class FilesPack(PackAdapter):
@@ -210,10 +189,14 @@ class FilesPack(PackAdapter):
 
     def execute(self, a: Action, io: ExecutorIO) -> ExecResult:
         """Execute file side effect."""
+        from probation.packs.files.executor import execute_files_action
+
         return execute_files_action(a, io)
 
     def undo(self, a: Action, io: ExecutorIO) -> ExecResult:
         """Undo executed file action."""
+        from probation.packs.files.executor import undo_files_action
+
         return undo_files_action(a, io)
 
     def window(self, s: Situation) -> timedelta:

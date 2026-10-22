@@ -52,3 +52,26 @@ class LLMClient:
 ## 6. Dependencies & Deferred Work
 * **Depends on:** `core/types.py`, `config/prices.json`.
 * **Known issues/deferred:** None.
+
+
+## WP1 repair update - 22 October 2026
+
+### 1. Overview
+Strict output validation and atomic inference recording. Scope: docs/CHANGES_IMPLEMENTATION_PLAN.md section 5; CONTRACT remains unchanged.
+
+### 2. Technical rationale
+LLMClient validates fresh and cached output through strict Pydantic schemas and registered semantic models. It records cache plus exposure after HTTP in one savepoint. The caller retains transaction ownership; a failed exposure insert cannot leave an unaccounted cache entry. Inference uses the runtime context clock. Cache values retain numeric precision.
+
+### 3. Database schema impact
+No persistent schema/ledger-byte migration or new dependency.
+
+### 4. Core logic and necessary functions
+backend/src/probation/llm/jobs.py: strict fourteen-job models and validate_job_output(data, prompt_id, prompt_version). backend/src/probation/llm/schema.py: compile_schema(schema), validate_json_schema(data, schema). backend/src/probation/db/inference.py: record_inference(conn, *, cache_key, ..., created_at, ...). backend/src/probation/llm/client.py: LLMClient(..., clock=None).
+Why/how called: LLMClient validates fresh and cached output through strict Pydantic schemas and registered semantic models. It records cache plus exposure after HTTP in one savepoint. The caller retains transaction ownership; a failed exposure insert cannot leave an unaccounted cache entry. Inference uses the runtime context clock. Cache values retain numeric precision.
+
+### 5. Testing and verification
+Test files test_wp1_validation.py, test_wp1_context.py and test_llm_client_and_budget.py (T-LLM). See docs/LLM_SCHEMA_SUPPORT.md for the exact supported surface.
+An earlier isolated full checkpoint passed 291 tests plus lint/types; later targeted results are recorded in docs/reports/wp1-progress-2026-10-22.md. Final checks remain required after all edits.
+
+### 6. Dependencies and remaining work
+WP0 committed c92131c; WP1 is in progress. See the progress report for open role/transaction, canonical-payload, clock/identity and handoff requirements. This update is not a WP1 completion claim or live-provider proof.
