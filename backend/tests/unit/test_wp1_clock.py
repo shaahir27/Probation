@@ -60,7 +60,7 @@ def _clock_violations(source: str) -> list[str]:
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             aliases.update({alias.asname or alias.name: alias.name for alias in node.names})
-        elif isinstance(node, ast.ImportFrom) and node.module in {"datetime", "time"}:
+        elif isinstance(node, ast.ImportFrom) and node.module:
             aliases.update(
                 {alias.asname or alias.name: f"{node.module}.{alias.name}" for alias in node.names}
             )
@@ -70,7 +70,35 @@ def _clock_violations(source: str) -> list[str]:
             return aliases.get(node.id, node.id)
         if isinstance(node, ast.Attribute):
             return qualified(node.value) + "." + node.attr
+        if isinstance(node, ast.Call):
+            name = qualified(node.func)
+            if name in {"__import__", "importlib.import_module"} and node.args:
+                module = node.args[0]
+                if isinstance(module, ast.Constant) and isinstance(module.value, str):
+                    return module.value
+            if name == "getattr" and len(node.args) >= 2:
+                attribute = node.args[1]
+                if isinstance(attribute, ast.Constant) and isinstance(attribute.value, str):
+                    return qualified(node.args[0]) + "." + attribute.value
         return ""
+
+    # Resolve aliases to functions/modules as well as aliases declared by imports.
+    for _ in range(len(list(ast.walk(tree)))):
+        changed = False
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Assign):
+                targets, value = node.targets, node.value
+            elif isinstance(node, (ast.AnnAssign, ast.NamedExpr)) and node.value is not None:
+                targets, value = [node.target], node.value
+            else:
+                continue
+            resolved = qualified(value)
+            for target in targets:
+                if isinstance(target, ast.Name) and resolved and aliases.get(target.id) != resolved:
+                    aliases[target.id] = resolved
+                    changed = True
+        if not changed:
+            break
 
     forbidden = {
         "datetime.now",
@@ -102,6 +130,12 @@ def _clock_violations(source: str) -> list[str]:
         "import datetime as d\nd.datetime.now()",
         "from time import time as seconds\nseconds()",
         "from datetime import date as d\nd.today()",
+        "from datetime import datetime as D\nnow = D.now\nnow()",
+        "import time as t\nfirst = t.time\nsecond = first\nsecond()",
+        "import datetime as d\ngetattr(d.datetime, 'utcnow')()",
+        "__import__('time').time()",
+        "from importlib import import_module as load\nload('datetime').datetime.now()",
+        "import importlib as i\nm = i.import_module('time')\nm.perf_counter()",
     ],
 )
 def test_clock_scan_detects_aliases_and_utcnow(source: str) -> None:

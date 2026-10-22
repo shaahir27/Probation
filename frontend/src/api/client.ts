@@ -8,6 +8,7 @@
 
 import {
   ActionItem,
+  AdminCommand,
   BoardResponse,
   ChainItem,
   ExamRunItem,
@@ -194,11 +195,13 @@ export const apiClient = {
     return request<{ habits: HabitItem[] }>("/habits");
   },
 
-  async denyHabit(habitId: string): Promise<{ ok: boolean; habit_id: string; denied: boolean }> {
+  async denyHabit(habitId: string): Promise<{ ok: boolean; command: AdminCommand }> {
     if (this.previewMode) {
-      return { ok: true, habit_id: habitId, denied: true };
+      return { ok: true, command: { id: `preview-deny-${habitId}`, kind: "deny_habit", status: "SUCCEEDED",
+        requested_at: "2026-03-01T00:00:00Z", updated_at: "2026-03-01T00:00:00Z",
+        result: { habit_id: habitId, denied: true } } };
     }
-    return request<{ ok: boolean; habit_id: string; denied: boolean }>(`/habits/${habitId}/deny`, {
+    return request<{ ok: boolean; command: AdminCommand }>(`/habits/${encodeURIComponent(habitId)}/deny`, {
       method: "POST",
     });
   },
@@ -217,14 +220,21 @@ export const apiClient = {
     return request<{ runs: ExamRunItem[] }>("/exams");
   },
 
-  async runExam(classKey: string, action: string): Promise<{ ok: boolean; run_id: string }> {
+  async runExam(classKey: string, action: string, attemptOrdinal = 0): Promise<{ ok: boolean; command: AdminCommand }> {
     if (this.previewMode) {
-      return { ok: true, run_id: `exam-prev-${Date.now()}` };
+      return { ok: true, command: { id: "preview-exam", kind: "run_exam", status: "SUCCEEDED",
+        requested_at: "2026-03-01T00:00:00Z", updated_at: "2026-03-01T00:00:00Z",
+        result: { run_id: "preview-exam" } } };
     }
-    return request<{ ok: boolean; run_id: string }>("/exams/run", {
+    return request<{ ok: boolean; command: AdminCommand }>("/exams/run", {
       method: "POST",
-      body: JSON.stringify({ class_key: classKey, action }),
+      body: JSON.stringify({ class_key: classKey, action, attempt_ordinal: attemptOrdinal }),
     });
+  },
+
+  async getCommand(id: string): Promise<{ command: AdminCommand }> {
+    if (this.previewMode) throw new Error("Preview commands do not use the live service");
+    return request<{ command: AdminCommand }>(`/commands/${encodeURIComponent(id)}`);
   },
 
   async getExposure(): Promise<ExposureResponse> {

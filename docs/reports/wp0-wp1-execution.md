@@ -1,6 +1,6 @@
 # WP0 / WP1 execution record
 
-Status: WP0 implemented, verified and committed (`c92131c`); WP1 implementation in progress.
+Status: WP0 implemented, verified and committed (`c92131c`); WP1 implemented and verified under the user-approved CCR-F ruling.
 Date: 22 October 2026. The approved scope is sections 4 and 5 of
 `docs/CHANGES_IMPLEMENTATION_PLAN.md`; all numbered tasks remain acceptance requirements.
 `docs/CONTRACT.md` is unchanged. Existing user changes are preserved.
@@ -44,10 +44,13 @@ strict core/engine mypy (21 modules), and 207 tests (two existing Typer warnings
 Source and snapshot fixture/result hashes were unchanged. Details and all nine task
 dispositions are in `docs/reports/wp0-handoff-2026-10-22.md`.
 
-WP1: substantive repairs and regressions are implemented. The final isolated checkpoint
-passed 328 tests plus lint/format/types (130 project modules, 24 strict core/engine modules). This
-does not close every numbered WP1 requirement. Current evidence and outstanding
-audit items are in `docs/reports/wp1-progress-2026-10-22.md`; the numbered disposition
-and contract change request are in `docs/reports/wp1-checkpoint-2026-10-22.md`. Existing D/FP
-contract-dependent work remains gated until approved. No WP1 completion or full
-product readiness is claimed.
+WP1: complete under the user-approved CCR-F ruling. Final isolated checks passed
+362 tests, Ruff lint/format, project mypy (135 modules) and strict core/engine mypy
+(24 modules). Frontend build and three client-contract tests passed; fixture/results
+were unchanged. The additive migration and Examiner CLI commands passed in an
+isolated synthetic copy. The numbered audit, approved role extension and exact
+limitations are in `docs/reports/wp1-closure-2026-10-22.md`.
+
+CONTRACT.md remains untouched. D6/CCR-F is resolved narrowly by the user's instruction
+to implement the recommended queue and finish WP1; unrelated D/FP decisions and later
+work-package acceptance remain gated. No full-product readiness is claimed.

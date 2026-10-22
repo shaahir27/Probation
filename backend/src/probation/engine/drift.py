@@ -56,13 +56,16 @@ class CUSUMTracker:
         threshold: float = CUSUM_ALARM_DEFAULT,
         last_alarm_at: str | None = None,
         initial_s: float = 0.0,
+        correction_times: tuple[str, ...] = (),
     ) -> None:
         self.baseline_err = baseline_err
         self.allowance = allowance
         self.threshold = threshold
         self.last_alarm_at = last_alarm_at
         self.s = initial_s
-        self._undo_history: list[datetime] = []
+        self._undo_history: list[datetime] = [
+            _parse_ts(timestamp) for timestamp in correction_times
+        ]
 
     def update(
         self,
@@ -264,7 +267,7 @@ def check_family_shift(
                 ref_id=f"shift-{family}-{as_of}",
                 payload={
                     "family": family,
-                    "alarm_type": "FAMILY_SHIFT",
+                    "kind": "family_shift",
                     "max_psi": max_psi,
                     "psi_scores": psi_results,
                     "week_start": as_of,

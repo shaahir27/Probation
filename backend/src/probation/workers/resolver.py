@@ -151,9 +151,7 @@ def resolve_outcomes(
                 "observed_action": outcome.observed_action,
                 "strength": str(outcome.strength),
                 "source": outcome.source,
-                "observed_at": outcome.observed_at,
                 "known_at": outcome.known_at,
-                "details": outcome.details,
             },
             created_at=outcome.known_at,
         )

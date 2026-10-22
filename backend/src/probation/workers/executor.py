@@ -17,12 +17,11 @@ from probation.core.hashing import canonical_json
 from probation.core.types import Action, ExecResult
 from probation.db.access import Role, RoleAccess
 from probation.db.actions import persist_action
-from probation.db.ledger import append_ledger
-from probation.engine.drift import CUSUMTracker
 from probation.engine.evidence import aggregate_evidence
 from probation.engine.licence import check_exam_ok, derive_licence_level
 from probation.packs.base import ExecutorIO
 from probation.packs.registry import registry
+from probation.workers.drift import has_pending_drift
 
 HOLD_MINUTES_DEFAULT: Final[int] = 10
 
@@ -59,6 +58,8 @@ class Executor:
     def _default_licence_checker(self, class_key: str, action: str, as_of: str) -> int:
         """Re-derive from bounded evidence without examiner writes or cache authority."""
         try:
+            if has_pending_drift(self.conn, class_key, action, as_of):
+                return 0
             reader = self.role_access.conn
             stats = aggregate_evidence(reader, as_of=as_of, persist=False).get((class_key, action))
             if stats is None:
@@ -142,7 +143,7 @@ class Executor:
                 "Executor consumption requires committed intent and a clean transaction"
             )
         now_iso = as_of or self.clock.now_iso()
-        cur = self.conn.cursor()
+        cur = self.role_access.conn.cursor()
 
         cur.execute(
             """
@@ -169,15 +170,21 @@ class Executor:
             class_key = str(row["class_key"] or f"{pack_name}|unknown")
 
             # 1. Re-check licence at execution time (CONTRACT section 8)
+            if has_pending_drift(self.conn, class_key, act_type, now_iso):
+                results.append(
+                    ExecResult(success=False, action_id=act_id, error="Drift review pending")
+                )
+                continue
+
             current_licence = self.licence_checker(class_key, act_type, now_iso)
             if current_licence < level_req:
                 # Licence dropped below requirement -> cancel action
-                cur.execute(
+                self.role_access.execute_write(
+                    "actions",
                     "UPDATE actions SET status = ?, updated_at = ? WHERE id = ?;",
                     (ActionStatus.CANCELLED.value, now_iso, act_id),
                 )
-                append_ledger(
-                    self.conn,
+                self.role_access.append_ledger(
                     kind=LedgerKind.ACTION,
                     ref_id=act_id,
                     payload={
@@ -219,7 +226,8 @@ class Executor:
 
             if exec_res.success:
                 undo_str = canonical_json(exec_res.undo_data) if exec_res.undo_data else None
-                cur.execute(
+                self.role_access.execute_write(
+                    "actions",
                     """
                     UPDATE actions
                     SET status = ?, executed_at = ?, undo_json = ?, updated_at = ?
@@ -227,8 +235,7 @@ class Executor:
                     """,
                     (ActionStatus.DONE.value, now_iso, undo_str, now_iso, act_id),
                 )
-                append_ledger(
-                    self.conn,
+                self.role_access.append_ledger(
                     kind=LedgerKind.ACTION,
                     ref_id=act_id,
                     payload={
@@ -241,7 +248,8 @@ class Executor:
                     created_at=now_iso,
                 )
             else:
-                cur.execute(
+                self.role_access.execute_write(
+                    "actions",
                     "UPDATE actions SET status = ?, updated_at = ? WHERE id = ?;",
                     (ActionStatus.FAILED.value, now_iso, act_id),
                 )
@@ -259,7 +267,7 @@ class Executor:
         if self.conn.in_transaction:
             raise ValueError("Executor undo requires committed intent and a clean transaction")
         now_iso = as_of or self.clock.now_iso()
-        cur = self.conn.cursor()
+        cur = self.role_access.conn.cursor()
 
         cur.execute(
             """
@@ -295,7 +303,6 @@ class Executor:
         act_type = str(row["type"])
         params = json.loads(row["params_json"])
         undo_data = json.loads(row["undo_json"]) if row["undo_json"] else None
-        class_key = str(row["class_key"] or f"{pack_name}|unknown")
         sit_id = str(row["situation_id"] or f"sit-{row['proposal_id']}")
 
         action_obj = Action(
@@ -329,14 +336,14 @@ class Executor:
             return undo_res
 
         # 1. Update action status to UNDONE
-        cur.execute(
+        self.role_access.execute_write(
+            "actions",
             "UPDATE actions SET status = ?, updated_at = ? WHERE id = ?;",
             (ActionStatus.UNDONE.value, now_iso, action_id),
         )
 
         # 2. Append action event to ledger
-        append_ledger(
-            self.conn,
+        self.role_access.append_ledger(
             kind=LedgerKind.ACTION,
             ref_id=action_id,
             payload={
@@ -350,8 +357,7 @@ class Executor:
         )
 
         # 3. Record strong disagreement outcome in outcomes table (ENGINE_SPEC.md section 10)
-        seq = append_ledger(
-            self.conn,
+        seq = self.role_access.append_ledger(
             kind=LedgerKind.OUTCOME,
             ref_id=f"undo-{action_id}",
             payload={
@@ -366,56 +372,9 @@ class Executor:
             created_at=now_iso,
         )
 
-        cur.execute(
-            """
-            INSERT OR REPLACE INTO outcomes
-            (situation_id, observed_action, strength, source, observed_at, known_at, details_json, ledger_seq)
-            VALUES (?, 'UNDO', 'STRONG', 'undo', ?, ?, '{}', ?);
-            """,
-            (sit_id, now_iso, now_iso, seq),
-        )
+        self.role_access.store_undo_outcome(action_id, now_iso, seq)
 
-        # 4. Update CUSUM drift tracker for (class_key, action)
-        cur.execute(
-            "SELECT * FROM drift_state WHERE class_key = ? AND action = ?;",
-            (class_key, act_type),
-        )
-        d_row = cur.fetchone()
-        if d_row is not None:
-            tracker = CUSUMTracker(
-                baseline_err=float(d_row["baseline_err"]),
-                initial_s=float(d_row["cusum"]),
-                last_alarm_at=d_row["last_alarm_at"],
-            )
-        else:
-            tracker = CUSUMTracker()
-
-        alarm = tracker.update(is_error=True, is_undo=True, timestamp=now_iso)
-
-        cur.execute(
-            """
-            INSERT OR REPLACE INTO drift_state
-            (class_key, action, cusum, baseline_err, last_alarm_at)
-            VALUES (?, ?, ?, ?, ?);
-            """,
-            (class_key, act_type, tracker.s, tracker.baseline_err, tracker.last_alarm_at),
-        )
-
-        if alarm:
-            append_ledger(
-                self.conn,
-                kind=LedgerKind.DRIFT_ALARM,
-                ref_id=f"alarm-{class_key}-{act_type}",
-                payload={
-                    "class_key": class_key,
-                    "action": act_type,
-                    "cusum": tracker.s,
-                    "kind": "cusum",
-                    "alarm_at": now_iso,
-                    "reason": "undo_cusum_alarm",
-                },
-                created_at=now_iso,
-            )
+        # Examiner consumes the immutable outcome ledger event before later execution.
 
         self.conn.commit()
         return undo_res

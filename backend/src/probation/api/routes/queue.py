@@ -12,11 +12,11 @@ from typing import Any, Literal
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
+from probation.api.db import connect_api as get_connection
 from probation.api.event_time import response_time
 from probation.config import settings
 from probation.core.enums import GateDecision
 from probation.db.access import Role, get_role_access
-from probation.db.connection import get_connection
 
 router = APIRouter(prefix="/api", tags=["queue"])
 
@@ -145,8 +145,8 @@ def respond_queue(proposal_id: str, body: QueueRespondBody) -> dict[str, Any]:
         cursor = conn.cursor()
         # Verify proposal exists
         cursor.execute("SELECT id, proposed_at FROM proposals WHERE id = ?;", (proposal_id,))
-        proposal_row = cursor.fetchone()
-        if not proposal_row:
+        proposal = cursor.fetchone()
+        if not proposal:
             raise HTTPException(status_code=404, detail=f"Proposal '{proposal_id}' not found")
 
         # Check if already answered
@@ -168,7 +168,7 @@ def respond_queue(proposal_id: str, body: QueueRespondBody) -> dict[str, Any]:
             )
 
         resp_id = f"resp-{uuid.uuid4().hex[:12]}"
-        now_iso = response_time(str(proposal_row["proposed_at"]))
+        now_iso = response_time(str(proposal["proposed_at"]))
 
         # Strictly use RoleAccess with Role.API (permits user_responses only)
         role_access = get_role_access(conn, Role.API)

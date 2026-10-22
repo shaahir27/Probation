@@ -350,3 +350,11 @@ export interface BoardResponse {
   entries: BoardEntry[];
   note?: string;
 }
+export interface AdminCommand {
+  id: string;
+  kind: "deny_habit" | "run_exam";
+  status: "PENDING" | "SUCCEEDED" | "FAILED";
+  requested_at: string;
+  updated_at: string;
+  result: Record<string, unknown> | null;
+}

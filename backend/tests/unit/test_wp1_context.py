@@ -11,6 +11,45 @@ from probation.core.clock import Clock
 from probation.llm.client import LLMClient
 
 
+@pytest.mark.parametrize("content", [None, 12, {}, []])
+@pytest.mark.parametrize("cached", [False, True])
+def test_text_output_rejects_non_string_without_coercion(
+    memory_db: sqlite3.Connection, content: object, cached: bool
+) -> None:
+    from probation.llm.cache import compute_cache_key, store_cached_response
+    from probation.llm.client import LLMValidationError
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        assert not cached, "invalid cache must fail locally"
+        return httpx.Response(200, json={"choices": [{"message": {"content": content}}]})
+
+    if cached:
+        key = compute_cache_key("text-check", "prompt", "v1", "synthetic-model")
+        store_cached_response(
+            memory_db,
+            key,
+            "writer",
+            "synthetic-model",
+            "prompt",
+            "v1",
+            {"text": content},
+            1,
+            1,
+            0,
+            "2026-01-01T00:00:00Z",
+        )
+    client = LLMClient(api_key="synthetic", transport=httpx.MockTransport(respond))
+    with pytest.raises(LLMValidationError):
+        client.chat_text(
+            kind="writer",
+            model="synthetic-model",
+            system="data only",
+            user="synthetic",
+            cache_parts={"content_hash": "text-check"},
+            conn=memory_db,
+        )
+
+
 def _response(request: httpx.Request) -> httpx.Response:
     return httpx.Response(
         200,

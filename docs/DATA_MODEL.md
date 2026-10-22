@@ -381,6 +381,25 @@ Using deterministic IDs makes ingestion and replay idempotent.
 
 ## 3. Timestamps and "known_at"
 
+### Approved WP1 additive storage
+
+The user's CCR-F ruling is recorded in `DECISIONS_AND_OPEN_QUESTIONS.md`.
+`backend/src/probation/db/wp1.sql` is the executable additive DDL; the bootstrap-only
+`probation db migrate` command applies it idempotently to an existing engine database.
+Fresh `db init` applies it after the original schema. No ledger row/hash or existing
+outcome projection is migrated or replaced by this upgrade.
+
+| Table | Columns | Ownership and constraints |
+|---|---|---|
+| `admin_commands` | `id`, `kind`, `payload_json`, `status`, `result_json`, `requested_at`, `updated_at` | API inserts validated PENDING intents; Examiner completes SUCCEEDED/FAILED results. Intent and terminal results immutable; no deletion/replacement. Deterministic identity includes the complete typed payload and explicit exam attempt ordinal. |
+| `drift_receipts` | `event_seq` (ledger FK/PK), `class_key`, `action`, `known_at`, `is_correction` | Examiner appends review receipts atomically with state/alarm writes. No UPDATE/DELETE/replacement. Other roles may read them to inhibit stale execution. |
+
+The upgrade also prevents INSERT OR REPLACE from replacing an existing ledger
+sequence, closing SQLite's implicit-delete escape while preserving ordinary append.
+Schema/bootstrap administration remains separate from every permanently bound role.
+
+### Timestamp representation
+
 - WP1 representation: new context-clock timestamps use UTC `Z`, retaining six
   fractional digits when microseconds are nonzero and the legacy whole-second form
   otherwise. Inputs with more than six fractional digits are rejected rather than
@@ -430,6 +449,14 @@ Ledger payload shapes:
 | `exam_run` | `{exam_run_id, class_key, action, level_tested, passed}` |
 | `drift_alarm` | `{class_key, action, cusum, kind}` |
 | `audit_draw` | `{situation_id, draw, fraction, selected}` |
+
+New class alarms use `kind='cusum'`. Family-level alarms use the distinct payload
+`{family, kind:'family_shift', max_psi, psi_scores, week_start}` because a family
+alarm has no individual class/action pair. Historical family payloads may contain
+`alarm_type:'FAMILY_SHIFT'` instead; historical CUSUM payloads may omit `kind`/`cusum`.
+Ledger APIs return those historical payloads unchanged. Readers must not rewrite
+stored payloads or hashes to normalize their spelling. New resolver outcome payloads
+use only the compact fields above; details remain in the outcomes table.
 
 ---
 

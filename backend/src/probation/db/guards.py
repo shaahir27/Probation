@@ -23,7 +23,11 @@ READ_ACTIONS = {
 
 
 def authorizer(
-    allowed: frozenset[str], *, target: str | None = None, denied: list[bool] | None = None
+    allowed: frozenset[str],
+    *,
+    target: str | None = None,
+    denied: list[bool] | None = None,
+    role: str | None = None,
 ) -> Authorizer:
     """Authorize compiled SQL targets, including CTEs, aliases and trigger effects."""
 
@@ -43,6 +47,13 @@ def authorizer(
             )
             if table == "ledger" and action != sqlite3.SQLITE_INSERT:
                 permitted = False
+            if table == "admin_commands":
+                permitted = permitted and (
+                    (role == "api" and action == sqlite3.SQLITE_INSERT)
+                    or (role == "examiner" and action == sqlite3.SQLITE_UPDATE)
+                )
+            if table == "drift_receipts":
+                permitted = permitted and role == "examiner" and action == sqlite3.SQLITE_INSERT
         if not permitted and denied is not None:
             denied[0] = True
         return sqlite3.SQLITE_OK if permitted else sqlite3.SQLITE_DENY
@@ -52,7 +63,11 @@ def authorizer(
 
 @contextmanager
 def statement_guard(
-    conn: sqlite3.Connection, allowed: frozenset[str], *, target: str | None = None
+    conn: sqlite3.Connection,
+    allowed: frozenset[str],
+    *,
+    target: str | None = None,
+    role: str | None = None,
 ) -> Generator[None]:
     """Apply a role for one statement; restore a dedicated connection's bound guard."""
     blocked = [False]
@@ -60,7 +75,9 @@ def statement_guard(
     bound = getattr(conn, "allowed_write_tables", None)
     if bound is not None:
         allowed = allowed & bound
-    sqlite3.Connection.set_authorizer(conn, authorizer(allowed, target=target, denied=blocked))
+    sqlite3.Connection.set_authorizer(
+        conn, authorizer(allowed, target=target, denied=blocked, role=role)
+    )
     try:
         yield
     except sqlite3.DatabaseError as exc:

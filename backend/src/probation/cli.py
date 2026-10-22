@@ -24,6 +24,35 @@ def db_init() -> None:
     console.print("[bold green]Database schema initialized successfully in WAL mode.[/]")
 
 
+@db_app.command("migrate")
+def db_migrate() -> None:
+    """Apply additive WP1 tables to an existing database; preserves ledger bytes."""
+    from probation.db.migrations import migrate_wp1
+
+    if not settings.db_path.exists():
+        raise typer.BadParameter("Database does not exist; initialize it first")
+    with get_connection(settings.db_path) as conn:
+        migrate_wp1(conn)
+    console.print("[bold green]Additive WP1 migration complete.[/]")
+
+
+@app.command("examiner-tick")
+def examiner_tick() -> None:
+    """Drain correction review and approved administration using Examiner authority."""
+    from probation.core.clock import get_clock
+    from probation.db.access import Role
+    from probation.db.connection import get_role_connection
+    from probation.workers.admin import process_admin_commands
+    from probation.workers.drift import review_outcome_events
+
+    with get_role_connection(settings.db_path, Role.EXAMINER) as conn:
+        reviewed = review_outcome_events(conn, as_of=get_clock().now_iso())
+        commands = process_admin_commands(conn)
+    console.print(
+        f"Reviewed {reviewed} outcomes; completed {len(commands)} administrative commands."
+    )
+
+
 @ledger_app.command("verify")
 def cli_ledger_verify() -> None:
     """Verify hash chain integrity."""

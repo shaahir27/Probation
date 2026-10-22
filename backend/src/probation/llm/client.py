@@ -363,8 +363,13 @@ class LLMClient:
 
         if conn is not None:
             cached = get_cached_response(conn, cache_key)
-            if cached is not None and "text" in cached:
-                return str(cached["text"])
+            if cached is not None:
+                if not isinstance(cached, dict) or set(cached) != {"text"}:
+                    raise LLMValidationError("Invalid cached text shape")
+                text = cached["text"]
+                if not isinstance(text, str) or not text.strip():
+                    raise LLMValidationError("Text output must be a nonempty string")
+                return text
 
         estimated_cost = calculate_cost(model, 1000, max_tokens, self.budget_guard.price_table)
         self.budget_guard.check_and_reserve(estimated_cost)
@@ -386,7 +391,12 @@ class LLMClient:
                 )
 
             body = resp.json()
-            text_result = str(body["choices"][0]["message"]["content"])
+            try:
+                text_result = body["choices"][0]["message"]["content"]
+            except (KeyError, IndexError, TypeError) as exc:
+                raise LLMValidationError("Invalid text response shape") from exc
+            if not isinstance(text_result, str) or not text_result.strip():
+                raise LLMValidationError("Text output must be a nonempty string")
             usage = body.get("usage", {})
             tokens_in = int(usage.get("prompt_tokens", 800))
             tokens_out = int(usage.get("completion_tokens", max_tokens))

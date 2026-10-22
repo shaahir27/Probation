@@ -13,10 +13,10 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
+from probation.api.db import connect_api as get_connection
 from probation.api.event_time import response_time
 from probation.config import settings
 from probation.db.access import Role, get_role_access
-from probation.db.connection import get_connection
 
 router = APIRouter(prefix="/api", tags=["actions"])
 
@@ -91,8 +91,8 @@ def request_undo(action_id: str) -> dict[str, Any]:
     try:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT a.id, a.proposal_id, a.status, a.recallable, a.created_at, p.proposed_at "
-            "FROM actions a JOIN proposals p ON p.id=a.proposal_id WHERE a.id = ?;",
+            """SELECT a.id, a.proposal_id, a.status, a.recallable, a.created_at, p.proposed_at
+               FROM actions a JOIN proposals p ON p.id = a.proposal_id WHERE a.id = ?;""",
             (action_id,),
         )
         row = cursor.fetchone()
@@ -113,7 +113,7 @@ def request_undo(action_id: str) -> dict[str, Any]:
             )
 
         resp_id = f"resp-undo-{uuid.uuid4().hex[:12]}"
-        now_iso = response_time(str(row["proposed_at"]), created_at=str(row["created_at"]))
+        now_iso = response_time(str(row["proposed_at"]), str(row["created_at"]))
 
         # Write strictly to user_responses using Role.API
         role_access = get_role_access(conn, Role.API)

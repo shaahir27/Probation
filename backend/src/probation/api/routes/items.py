@@ -12,8 +12,8 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
+from probation.api.db import connect_api as get_connection
 from probation.config import settings
-from probation.db.connection import get_connection
 
 router = APIRouter(prefix="/api", tags=["items"])
 
