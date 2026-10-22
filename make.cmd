@@ -6,7 +6,9 @@ if "%TARGET%"=="" set TARGET=help
 
 set PYTHONPATH=%~dp0backend\src;%PYTHONPATH%
 
-if exist "%~dp0.venv311\Scripts\python.exe" (
+if defined PROBATION_PYTHON (
+    set PYTHON="%PROBATION_PYTHON%"
+) else if exist "%~dp0.venv311\Scripts\python.exe" (
     set PYTHON="%~dp0.venv311\Scripts\python.exe"
     set PYTEST="%~dp0.venv311\Scripts\pytest.exe"
     set RUFF="%~dp0.venv311\Scripts\ruff.exe"
@@ -43,25 +45,18 @@ if "%TARGET%"=="setup" (
 )
 
 if "%TARGET%"=="check" (
-    echo Running ruff check...
-    %RUFF% check backend || exit /b 1
-    echo Running ruff format check...
-    %RUFF% format --check backend || exit /b 1
-    echo Running mypy...
-    %MYPY% --config-file backend/pyproject.toml backend/src/probation || exit /b 1
-    echo Running pytest...
-    %PYTEST% -q backend/tests -m "not live" || exit /b 1
+    %PYTHON% scripts/check.py || exit /b 1
     echo All checks passed!
     exit /b 0
 )
 
 if "%TARGET%"=="test" (
-    %PYTEST% -q backend/tests --cov=probation --cov-report=term-missing
+    %PYTHON% scripts/check.py --tests-only --coverage
     exit /b %ERRORLEVEL%
 )
 
 if "%TARGET%"=="serve" (
-    %UVICORN% probation.api.app:app --app-dir "%~dp0backend\src" --host 0.0.0.0 --port 8000 --reload
+    %PYTHON% -m probation.cli serve --reload
     exit /b %ERRORLEVEL%
 )
 
@@ -92,7 +87,7 @@ set P=%2
 if "%P%"=="" set P=1
 set S=%3
 if "%S%"=="" set S=1
-%PYTHON% -m probation.cli synth generate --persona %P% --seed %S%
+%PYTHON% -m probation.cli synth generate --persona-id %P% --seed %S% --out data/synth/%P%
 exit /b %ERRORLEVEL%
 
 :backtest
@@ -104,6 +99,6 @@ exit /b %ERRORLEVEL%
 :eval
 set S=%2
 if "%S%"=="" set S=main
-%PYTHON% -m probation.cli eval --suite %S%
+%PYTHON% -m probation.cli eval run --suite %S%
 exit /b %ERRORLEVEL%
 

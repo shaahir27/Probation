@@ -59,6 +59,7 @@ class CalendarPack(PackAdapter):
     families: tuple[str, ...] = ("invite_rsvp",)
 
     def __init__(self, user_addresses: list[str] | str | None = None) -> None:
+        self.user_addresses: list[str] | None
         if isinstance(user_addresses, str):
             self.user_addresses = [a.strip() for a in user_addresses.split(",") if a.strip()]
         elif user_addresses is not None:

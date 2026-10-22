@@ -1,5 +1,9 @@
 # Phase 0 Handoff: Foundations and Spikes
 
+WP0 remediation update, 22 October 2026: see
+[the dated repair handoff](wp0-handoff-2026-10-22.md). Earlier spike/verification statements
+below are historical and retain the qualifications recorded in the current decision log.
+
 **Branch:** `phase-0-foundations-spikes`  
 **Phase:** 0 — Foundations and Spikes  
 

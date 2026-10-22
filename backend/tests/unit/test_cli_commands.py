@@ -6,6 +6,7 @@ Authority: docs/CONTRACT.md section 10 and docs/TEST_PLAN.md T-API.
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
 from typer.testing import CliRunner
 
 from probation.cli import app
@@ -128,17 +129,17 @@ def test_cli_import_and_ingest(tmp_path: Path) -> None:
 
     with patch.object(settings, "db_path", test_db):
         # 2. Import mail
-        res_mail = runner.invoke(app, ["import", "mail", str(mbox_path)])
+        res_mail = runner.invoke(app, ["import", "mail", "--source", str(mbox_path)])
         assert res_mail.exit_code == 0
         assert "Mail imported successfully" in res_mail.stdout
 
         # 3. Import calendar
-        res_cal = runner.invoke(app, ["import", "calendar", str(ics_path)])
+        res_cal = runner.invoke(app, ["import", "calendar", "--source", str(ics_path)])
         assert res_cal.exit_code == 0
         assert "Calendar imported successfully" in res_cal.stdout
 
         # 4. Import files
-        res_files = runner.invoke(app, ["import", "files", str(manifest_path)])
+        res_files = runner.invoke(app, ["import", "files", "--source", str(manifest_path)])
         assert res_files.exit_code == 0
         assert "Files imported successfully" in res_files.stdout
 
@@ -148,16 +149,24 @@ def test_cli_import_and_ingest(tmp_path: Path) -> None:
         assert "Ingestion complete" in res_ingest.stdout
 
 
-def test_cli_stubs() -> None:
-    """Stub commands report planned status cleanly."""
-    res_backtest = runner.invoke(app, ["backtest"])
-    assert res_backtest.exit_code == 0
-    assert "Phase 4" in res_backtest.stdout
+def test_cli_workflows(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Exercise commands on an isolated DB; exports cannot overwrite published results."""
+    import json
 
-    res_exam = runner.invoke(app, ["exam", "run"])
-    assert res_exam.exit_code == 0
-    assert "Phase 7" in res_exam.stdout
-
-    res_eval = runner.invoke(app, ["eval"])
-    assert res_eval.exit_code == 0
-    assert "Phase 10" in res_eval.stdout
+    monkeypatch.chdir(tmp_path)
+    db = tmp_path / "workflows.db"
+    init_db(db)
+    with patch.object(settings, "db_path", db):
+        res_backtest = runner.invoke(app, ["backtest"])
+        assert res_backtest.exit_code == 0, res_backtest.output
+        assert "Total Proposals Emitted" in res_backtest.stdout
+        res_exam = runner.invoke(app, ["exam", "run"])
+        assert res_exam.exit_code == 0, res_exam.output
+        assert "Probation Examination Board Results" in res_exam.stdout
+        output = tmp_path / "evaluation.json"
+        res_eval = runner.invoke(app, ["eval", "run", "--db", str(db), "--out", str(output)])
+        assert res_eval.exit_code == 0, res_eval.output
+        results = json.loads(output.read_text(encoding="utf-8"))
+        assert results["metadata"]["total_situations"] == 0
+        assert output.with_suffix(".md").is_file()
+        assert not (tmp_path / "docs/results").exists()

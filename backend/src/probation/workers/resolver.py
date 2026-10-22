@@ -17,6 +17,7 @@ from probation.db.access import Role, RoleAccess
 from probation.db.ledger import append_ledger
 from probation.packs.base import WorldView
 from probation.packs.calendar.resolver import resolve_calendar_outcome
+from probation.packs.identity import world_user_addresses
 from probation.packs.mail.resolver import MailResolverIndex, resolve_mail_outcome
 from probation.packs.registry import registry
 
@@ -51,12 +52,8 @@ def resolve_outcomes(
             effective_user_addrs = [a.strip() for a in user_addresses.split(",") if a.strip()]
         else:
             effective_user_addrs = [a.strip() for a in user_addresses if a.strip()]
-    elif getattr(world, "user_addresses", None):
-        world_addrs = world.user_addresses
-        if isinstance(world_addrs, str):
-            effective_user_addrs = [a.strip() for a in world_addrs.split(",") if a.strip()]
-        else:
-            effective_user_addrs = [a.strip() for a in world_addrs if a.strip()]
+    elif (world_addrs := world_user_addresses(world)) is not None:
+        effective_user_addrs = world_addrs
     else:
         try:
             cur.execute("SELECT value FROM meta WHERE key = 'user_addresses';")

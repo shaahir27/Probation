@@ -27,28 +27,25 @@ setup:
 	$(PYTHON) -m probation.cli db init
 
 check:
-	ruff check backend
-	ruff format --check backend
-	mypy --config-file backend/pyproject.toml backend/src/probation
-	pytest -q backend/tests -m "not live"
+	$(PYTHON) scripts/check.py
 
 test:
-	pytest -q backend/tests --cov=probation --cov-report=term-missing
+	$(PYTHON) scripts/check.py --tests-only --coverage
 
 synth:
-	$(PYTHON) -m probation.cli synth generate --persona $(or $(PERSONA),1) --seed $(or $(SEED),1)
+	$(PYTHON) -m probation.cli synth generate --persona-id $(or $(PERSONA),1) --seed $(or $(SEED),1) --out data/synth/$(or $(PERSONA),1)
 
 backtest:
 	$(PYTHON) -m probation.cli backtest --family $(or $(FAMILY),email_action)
 
 serve:
-	uvicorn probation.api.app:app --host 0.0.0.0 --port 8000 --reload
+	$(PYTHON) -m probation.cli serve --reload
 
 web:
 	cd frontend && $(NPM) run dev
 
 eval:
-	$(PYTHON) -m probation.cli eval --suite $(or $(SUITE),main)
+	$(PYTHON) -m probation.cli eval run --suite $(or $(SUITE),main)
 
 ledger-verify:
 	$(PYTHON) -m probation.cli ledger verify

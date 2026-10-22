@@ -11,6 +11,7 @@ from probation.config import settings
 from probation.core.enums import EvidenceStrength
 from probation.core.types import Outcome, Situation
 from probation.packs.base import WorldView
+from probation.packs.identity import world_user_addresses
 from probation.packs.mail.clues import normalize_address
 
 DEFAULT_MAIL_WINDOW_DAYS = 7
@@ -92,12 +93,8 @@ def resolve_mail_outcome(
             user_addrs = [normalize_address(a) for a in user_addresses.split(",") if a.strip()]
         else:
             user_addrs = [normalize_address(a) for a in user_addresses if a.strip()]
-    elif getattr(world, "user_addresses", None):
-        world_addrs = world.user_addresses
-        if isinstance(world_addrs, str):
-            user_addrs = [normalize_address(a) for a in world_addrs.split(",") if a.strip()]
-        else:
-            user_addrs = [normalize_address(a) for a in world_addrs if a.strip()]
+    elif (world_addrs := world_user_addresses(world)) is not None:
+        user_addrs = [normalize_address(a) for a in world_addrs]
     else:
         user_addrs = [normalize_address(a) for a in settings.user_addresses.split(",") if a.strip()]
 

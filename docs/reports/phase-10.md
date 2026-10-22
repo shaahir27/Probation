@@ -1,5 +1,10 @@
 # Phase 10 handoff
 
+> WP0 provenance correction, 22 October 2026: the numerical claims below are preserved
+> as historical statements and are unverified/superseded as release evidence. See
+> `docs/results/PROVENANCE.md` and `docs/reports/changes-audit-2026-10-22.md`. This report
+> does not establish completion of the corrected evaluation pipeline or a real study.
+
 Branch / commit: `phase-10-evaluation` / HEAD
 Date: 2026-10-20
 

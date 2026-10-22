@@ -60,6 +60,12 @@ Where the specs deliberately differ from `SYSTEM_DESIGN.md` (v2). The specs win.
 
 ## 3. Verify on day 1 (open questions)
 
+WP0 correction, 22 October 2026: earlier checked boxes for model availability/schema
+support, provider spikes and brand verification are historical claims, not accepted
+live-run evidence. O-1, O-2, O-17 and O-18 are reopened pending recorded account-specific
+results/source provenance. This repair uses synthetic/offline checks only and does not
+establish a provider credit balance or retention policy.
+
 Tick each when done and record the result in the "Result" column.
 
 | ID | Question | How to verify | Result |
@@ -105,6 +111,7 @@ Tick each when done and record the result in the "Result" column.
 
 | Date | Change | By |
 |---|---|---|
+| 22 Oct 2026 | WP0 approved implementation: portable isolated checks, safe CLI outputs/import/serve forms, strict core/engine typing and optional owner-identity capability. No dependency installation, live calls or contract amendment. Historical evaluation/spike claims qualified; original metrics preserved. | Coding agent |
 | 3 Oct 2026 | Initial docs set created | |
 | 4 Oct 2026 | Tavily entity-facts service, Radar and Reading packs added (`TAVILY_AND_NEW_PACKS.md`, CCR-1) | |
 | 3 Oct 2026 | Consistency audit: fixed demotion rule, exam scheduling and cost, undo flow, chain situations, accept semantics, API additions; added `USER_FLOW.md` | |
