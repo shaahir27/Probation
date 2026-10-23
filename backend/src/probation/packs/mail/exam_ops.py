@@ -153,20 +153,22 @@ def apply_mail_llm_operator(
     if not instruction:
         return text, payload
 
-    if llm_client is not None and getattr(llm_client, "api_key", None):
-        user_prompt = f"<instruction>{instruction}</instruction>\n<text>{text}</text>"
+    from probation.llm.consumers import RegisteredConsumer
+    from probation.llm.gateway import JobFailure
+    from probation.llm.prompt_loader import PromptAssetError
+
+    jobs = {
+        "paraphrase_body": "exam.paraphrase",
+        "add_money_request": "exam.add_money_request",
+        "add_personal_info_request": "exam.add_personal_info_request",
+    }
+    if isinstance(llm_client, RegisteredConsumer) and operator_name in jobs:
         try:
-            res = llm_client.complete_json(
-                system=EXAM_SYSTEM_PROMPT,
-                user=user_prompt,
-                schema=EXAM_EDIT_SCHEMA,
-                model=model or "meta-llama/Meta-Llama-3.1-8B-Instruct",
-                cache_parts={"prompt_id": f"exam.{operator_name}", "prompt_version": "v1"},
-            )
-            edited = str(res.get("edited_text", "")).strip()
-            if edited:
+            result = llm_client.call(jobs[operator_name], {"text": text}, purpose="exam_edit")
+            edited = str(result.data["edited_text"])
+            if validate_mail_operator_result(operator_name, text, edited, payload, payload):
                 return edited, payload
-        except Exception:
+        except (JobFailure, PromptAssetError):
             pass
 
     # Deterministic fallback conforming to PROMPTS.md specs

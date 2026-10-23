@@ -23,6 +23,7 @@ from probation.core.types import (
     ReaderSpec,
     Situation,
 )
+from probation.llm.context import redaction_names
 from probation.llm.jobs import MailReader
 from probation.llm.redact import redact
 from probation.packs.base import ExecutorIO, PackAdapter, WorldView
@@ -98,8 +99,10 @@ class MailPack(PackAdapter):
         subject = payload.get("subject", "")
         full_text = f"Subject: {subject}\n\n{body}"
 
-        # Redact before LLM egress (Invariant I-14)
-        redacted = redact(full_text, profile="mail")
+        # Redact before LLM egress (Invariant I-14). The names in the headers are the person behind
+        # the address, so they are passed into redaction here instead of riding along in clear text.
+        names = redaction_names(payload.get("from"), payload.get("to"), payload.get("cc"))
+        redacted = redact(full_text, profile="mail", display_names=names)
 
         source_ref = (
             (
@@ -132,22 +135,19 @@ class MailPack(PackAdapter):
     def deterministic_clues(self, s: Situation, hist: HistoryView) -> dict[str, float | str | bool]:
         """Compute all 16 deterministic clues strictly through HistoryView (Invariant I-6)."""
         # Find raw item payload if available
-        raw_items = hist.get_raw_items(pack=self.name)
-        payload = {}
-        for row in raw_items:
-            if row["id"] == s.raw_item_id:
-                try:
-                    payload = json.loads(row["payload_json"])
-                except Exception:
-                    pass
-                break
+        row = hist.get_raw_item(s.raw_item_id)
+        if row is None:
+            raise ValueError("Current source is not known at cutoff")
+        payload = json.loads(row["payload_json"])
+        if not isinstance(payload, dict):
+            raise ValueError("Invalid source payload")
         return extract_mail_clues(s, hist, payload, user_addresses=self.user_addresses)
 
     def reader_spec(self) -> ReaderSpec:
         """Prompt descriptor for mail reader."""
         return ReaderSpec(
             prompt_id="reader.mail",
-            prompt_version="v2",
+            prompt_version="v3",
             json_schema=MAIL_READER_SCHEMA,
             redaction_profile="mail",
         )

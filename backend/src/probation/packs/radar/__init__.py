@@ -126,7 +126,7 @@ class RadarPack(PackAdapter):
             prompt_id="reader.opportunity",
             prompt_version="v1",
             json_schema=OPPORTUNITY_READER_SCHEMA,
-            redaction_profile="opportunity",
+            redaction_profile="mail",
         )
 
     def class_key(self, s: Situation, f: Features) -> str:

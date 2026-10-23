@@ -1,6 +1,6 @@
 # WP3 detailed work packages
 
-Companion to [the main plan](../WP3_IMPLEMENTATION_PLAN.md), 23 October 2026. Every file/interface below is proposed unless the source audit explicitly identifies it as existing. No implementation is performed by this document.
+Companion to [the main plan](WP3_IMPLEMENTATION_PLAN.md), 23 October 2026. Every file/interface below is proposed unless the source audit explicitly identifies it as existing. No implementation is performed by this document.
 
 ## P00 — Accept and rebase on the active WP2 handoff
 

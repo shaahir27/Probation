@@ -10,15 +10,17 @@ Steps:
 6. Compare deadlines for discrepancy warning.
 """
 
-import re
 import sqlite3
 from typing import Any
 from urllib.parse import urlparse
 
 import publicsuffix2
 
+from probation.core.clock import Clock, get_clock
+from probation.db.access import Role, RoleAccess
 from probation.links.extract import extract_url_content
-from probation.links.quarantine import validate_opportunity_fields
+from probation.links.extractor_jobs import extract_stored_page
+from probation.llm.consumers import RegisteredConsumer
 from probation.web.client import TavilyClient
 from probation.web.query_guard import validate_tavily_query
 
@@ -47,6 +49,10 @@ def verify_opportunity_out_of_band(
     client: TavilyClient,
     mail_deadline: str | None = None,
     situation_id: str | None = None,
+    *,
+    official_domains: frozenset[str] = frozenset(),
+    consumer: RegisteredConsumer | None = None,
+    clock: Clock | None = None,
 ) -> dict[str, Any]:
     """Execute out-of-band Tavily Search and Extract verification flow."""
     clean_org = (organiser_name or "").strip()
@@ -102,7 +108,8 @@ def verify_opportunity_out_of_band(
             "sources": [],
         }
 
-    # Pick official candidate: prioritize platform domains or top organic domain
+    # This allowlist comes from reviewed public-entity provenance in the Webfacts
+    # caller, never a browser field. Search rank alone grants no official authority.
     official_url: str | None = None
     official_domain: str | None = None
     sources: list[dict[str, Any]] = []
@@ -111,7 +118,7 @@ def verify_opportunity_out_of_band(
         u = r.get("url", "")
         t = r.get("title", "")
         dom = _get_registrable_domain(u)
-        if not official_url and dom:
+        if not official_url and dom in official_domains:
             official_url = u
             official_domain = dom
         if len(sources) < 3:
@@ -126,7 +133,8 @@ def verify_opportunity_out_of_band(
 
     # 3. Invariant I-24: Extract on the official URL discovered by search ONLY
     extracted_text = ""
-    if official_url:
+    extraction_id = None
+    if official_url and consumer is not None:
         extract_res = extract_url_content(
             url=official_url,
             conn=conn,
@@ -137,26 +145,22 @@ def verify_opportunity_out_of_band(
         )
         if extract_res.get("ok"):
             extracted_text = extract_res.get("content_text") or ""
+            extraction_id = extract_res.get("extraction_id")
 
     # 4. Quarantined extraction + code validation
-    raw_fields: dict[str, Any] = {
-        "title": clean_opp,
-        "organiser": clean_org,
-        "deadline_date": None,
-        "start_date": None,
-        "eligibility": [],
-        "fee_mentioned": False,
-        "mode": "online",
-        "apply_domain": official_domain,
-    }
-
-    # Extract date if literally in page text
-    if extracted_text:
-        date_matches = re.findall(r"(\d{4}-\d{2}-\d{2})", extracted_text)
-        if date_matches:
-            raw_fields["deadline_date"] = date_matches[0]
-
-    validated_fields, _val_ok, _notes = validate_opportunity_fields(raw_fields, extracted_text)
+    validated_fields: dict[str, Any] = {}
+    extraction_status = "unavailable"
+    if extracted_text and extraction_id and consumer is not None:
+        output = extract_stored_page(
+            RoleAccess(conn, Role.WEBFACTS),
+            consumer,
+            extraction_id=extraction_id,
+            kind="opportunity",
+            clock=clock or get_clock(),
+        )
+        if output["ok"]:
+            validated_fields = output["fields"]
+            extraction_status = "validated"
 
     # 5. Check discrepancy between mail deadline and page deadline
     discrepancy = None
@@ -169,7 +173,8 @@ def verify_opportunity_out_of_band(
         }
 
     return {
-        "verified": True,
+        "verified": official_url is not None,
+        "extraction_status": extraction_status,
         "status": "confirmed_official" if official_url else "unverified",
         "official_url": official_url,
         "official_domain": official_domain,

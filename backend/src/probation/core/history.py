@@ -22,6 +22,7 @@ class HistoryView:
     def __init__(self, conn: sqlite3.Connection | ReadConnection, as_of: str | datetime) -> None:
         self._conn = conn
         self._as_of = format_timestamp(as_of)
+        self._current_override: tuple[str, dict[str, Any]] | None = None
 
     @property
     def as_of(self) -> str:
@@ -61,15 +62,29 @@ class HistoryView:
             self._conn, self.as_of, organizer, current_id, start, end, timezone
         )
 
-    def get_raw_item(self, raw_item_id: str) -> sqlite3.Row | None:
+    def with_current_payload(self, raw_item_id: str, payload: dict[str, Any]) -> "HistoryView":
+        """Counterfactual current-item data only; no future rows or historical mutation."""
+        if self.get_raw_item(raw_item_id) is None:
+            raise ValueError("Current item is not known at this cutoff")
+        view = HistoryView(self._conn, self.as_of)
+        view._current_override = (raw_item_id, dict(payload))
+        return view
+
+    def get_raw_item(self, raw_item_id: str) -> dict[str, Any] | None:
         """Fetch a single item only if it was knowable at this cut."""
-        return cast(
+        row = cast(
             sqlite3.Row | None,
             self._conn.execute(
                 "SELECT * FROM raw_items WHERE id=? AND known_at COLLATE UTC_TIMESTAMP <= ?",
                 (raw_item_id, self.as_of),
             ).fetchone(),
         )
+        if row is None:
+            return None
+        result = dict(row)
+        if self._current_override is not None and self._current_override[0] == raw_item_id:
+            result["payload_json"] = json.dumps(self._current_override[1], allow_nan=False)
+        return result
 
     def get_raw_items(
         self,

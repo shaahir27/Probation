@@ -86,6 +86,10 @@ class Settings(BaseSettings):
     retrain_interval_days: int = 7
     train_half_life_days: float = 90.0
     cold_start_min_situations: int = 200
+    embedding_model_dir: Path = Path(
+        "data/models/all-MiniLM-L6-v2/d13954661f83248295ba75c1ed411eef3b7b936e"
+    )
+    embedding_manifest_path: Path = Path("data/models/all-MiniLM-L6-v2/manifest.json")
     novelty_k: int = 10
     novelty_pctl: float = 95.0
     pooling_kappa: float = 10.0

@@ -1,0 +1,248 @@
+[
+  {
+    "family": "file_destination",
+    "size": 250,
+    "queries": 1,
+    "seconds": 0.0041322000324726105,
+    "matching_situations": 15,
+    "returned_rows": 8,
+    "output_fields": 3,
+    "scan_parity": true,
+    "query_plan": [
+      "MATERIALIZE decisions",
+      "MATERIALIZE events",
+      "SEARCH ledger USING INDEX idx_ledger_kind_time (kind=? AND created_at<?)",
+      "LIST SUBQUERY 1",
+      "SEARCH situations USING INDEX idx_situations_sender_time (sender_key=? AND occurred_at<?)",
+      "CREATE BLOOM FILTER",
+      "MATERIALIZE eligible",
+      "SCAN events",
+      "USE TEMP B-TREE FOR GROUP BY",
+      "USE TEMP B-TREE FOR count(DISTINCT)",
+      "SCAN events",
+      "SCAN eligible",
+      "SEARCH s USING INDEX idx_situations_sender_time (sender_key=? AND occurred_at<?)",
+      "SEARCH r USING INDEX sqlite_autoindex_raw_items_1 (id=?)",
+      "SCAN d LEFT-JOIN",
+      "USE TEMP B-TREE FOR GROUP BY"
+    ]
+  },
+  {
+    "family": "file_destination",
+    "size": 1000,
+    "queries": 1,
+    "seconds": 0.002877799968700856,
+    "matching_situations": 59,
+    "returned_rows": 8,
+    "output_fields": 3,
+    "scan_parity": true,
+    "query_plan": [
+      "MATERIALIZE decisions",
+      "MATERIALIZE events",
+      "SEARCH ledger USING INDEX idx_ledger_kind_time (kind=? AND created_at<?)",
+      "LIST SUBQUERY 1",
+      "SEARCH situations USING INDEX idx_situations_sender_time (sender_key=? AND occurred_at<?)",
+      "CREATE BLOOM FILTER",
+      "MATERIALIZE eligible",
+      "SCAN events",
+      "USE TEMP B-TREE FOR GROUP BY",
+      "USE TEMP B-TREE FOR count(DISTINCT)",
+      "SCAN events",
+      "SCAN eligible",
+      "SEARCH s USING INDEX idx_situations_sender_time (sender_key=? AND occurred_at<?)",
+      "SEARCH r USING INDEX sqlite_autoindex_raw_items_1 (id=?)",
+      "SCAN d LEFT-JOIN",
+      "USE TEMP B-TREE FOR GROUP BY"
+    ]
+  },
+  {
+    "family": "file_destination",
+    "size": 4000,
+    "queries": 1,
+    "seconds": 0.014206700026988983,
+    "matching_situations": 236,
+    "returned_rows": 8,
+    "output_fields": 3,
+    "scan_parity": true,
+    "query_plan": [
+      "MATERIALIZE decisions",
+      "MATERIALIZE events",
+      "SEARCH ledger USING INDEX idx_ledger_kind_time (kind=? AND created_at<?)",
+      "LIST SUBQUERY 1",
+      "SEARCH situations USING INDEX idx_situations_sender_time (sender_key=? AND occurred_at<?)",
+      "CREATE BLOOM FILTER",
+      "MATERIALIZE eligible",
+      "SCAN events",
+      "USE TEMP B-TREE FOR GROUP BY",
+      "USE TEMP B-TREE FOR count(DISTINCT)",
+      "SCAN events",
+      "SCAN eligible",
+      "SEARCH s USING INDEX idx_situations_sender_time (sender_key=? AND occurred_at<?)",
+      "SEARCH r USING INDEX sqlite_autoindex_raw_items_1 (id=?)",
+      "SCAN d LEFT-JOIN",
+      "USE TEMP B-TREE FOR GROUP BY"
+    ]
+  },
+  {
+    "family": "email_action",
+    "size": 250,
+    "queries": 1,
+    "returned_rows": [
+      15
+    ],
+    "seconds": 0.0011460999958217144,
+    "scan_parity": true,
+    "query_plans": [
+      [
+        "MATERIALIZE decisions",
+        "MATERIALIZE events",
+        "SEARCH ledger USING INDEX idx_ledger_kind_time (kind=? AND created_at<?)",
+        "LIST SUBQUERY 1",
+        "SEARCH situations USING INDEX idx_situations_sender_time (sender_key=? AND occurred_at<?)",
+        "CREATE BLOOM FILTER",
+        "MATERIALIZE eligible",
+        "SCAN events",
+        "USE TEMP B-TREE FOR GROUP BY",
+        "USE TEMP B-TREE FOR count(DISTINCT)",
+        "SCAN events",
+        "SCAN eligible",
+        "SEARCH s USING INDEX idx_situations_sender_time (sender_key=? AND occurred_at<?)",
+        "SEARCH r USING INDEX sqlite_autoindex_raw_items_1 (id=?)",
+        "SCAN d LEFT-JOIN",
+        "USE TEMP B-TREE FOR LAST TERM OF ORDER BY"
+      ]
+    ]
+  },
+  {
+    "family": "email_action",
+    "size": 1000,
+    "queries": 1,
+    "returned_rows": [
+      59
+    ],
+    "seconds": 0.00325660000089556,
+    "scan_parity": true,
+    "query_plans": [
+      [
+        "MATERIALIZE decisions",
+        "MATERIALIZE events",
+        "SEARCH ledger USING INDEX idx_ledger_kind_time (kind=? AND created_at<?)",
+        "LIST SUBQUERY 1",
+        "SEARCH situations USING INDEX idx_situations_sender_time (sender_key=? AND occurred_at<?)",
+        "CREATE BLOOM FILTER",
+        "MATERIALIZE eligible",
+        "SCAN events",
+        "USE TEMP B-TREE FOR GROUP BY",
+        "USE TEMP B-TREE FOR count(DISTINCT)",
+        "SCAN events",
+        "SCAN eligible",
+        "SEARCH s USING INDEX idx_situations_sender_time (sender_key=? AND occurred_at<?)",
+        "SEARCH r USING INDEX sqlite_autoindex_raw_items_1 (id=?)",
+        "SCAN d LEFT-JOIN",
+        "USE TEMP B-TREE FOR LAST TERM OF ORDER BY"
+      ]
+    ]
+  },
+  {
+    "family": "email_action",
+    "size": 4000,
+    "queries": 1,
+    "returned_rows": [
+      236
+    ],
+    "seconds": 0.014434600016102195,
+    "scan_parity": true,
+    "query_plans": [
+      [
+        "MATERIALIZE decisions",
+        "MATERIALIZE events",
+        "SEARCH ledger USING INDEX idx_ledger_kind_time (kind=? AND created_at<?)",
+        "LIST SUBQUERY 1",
+        "SEARCH situations USING INDEX idx_situations_sender_time (sender_key=? AND occurred_at<?)",
+        "CREATE BLOOM FILTER",
+        "MATERIALIZE eligible",
+        "SCAN events",
+        "USE TEMP B-TREE FOR GROUP BY",
+        "USE TEMP B-TREE FOR count(DISTINCT)",
+        "SCAN events",
+        "SCAN eligible",
+        "SEARCH s USING INDEX idx_situations_sender_time (sender_key=? AND occurred_at<?)",
+        "SEARCH r USING INDEX sqlite_autoindex_raw_items_1 (id=?)",
+        "SCAN d LEFT-JOIN",
+        "USE TEMP B-TREE FOR LAST TERM OF ORDER BY"
+      ]
+    ]
+  },
+  {
+    "family": "invite_rsvp",
+    "size": 250,
+    "queries": 3,
+    "returned_rows": [
+      250,
+      250,
+      0
+    ],
+    "seconds": 0.010003200033679605,
+    "scan_parity": true,
+    "query_plans": [
+      [
+        "SEARCH ledger USING INDEX idx_ledger_kind_time (kind=? AND created_at<?)"
+      ],
+      [
+        "SEARCH s USING INDEX idx_situations_family_time (family=? AND occurred_at<?)",
+        "SEARCH r USING INDEX sqlite_autoindex_raw_items_1 (id=?)"
+      ],
+      [
+        "SEARCH raw_items USING INDEX idx_raw_items_pack_time (pack=?)"
+      ]
+    ]
+  },
+  {
+    "family": "invite_rsvp",
+    "size": 1000,
+    "queries": 3,
+    "returned_rows": [
+      1000,
+      1000,
+      0
+    ],
+    "seconds": 0.022086600016336888,
+    "scan_parity": true,
+    "query_plans": [
+      [
+        "SEARCH ledger USING INDEX idx_ledger_kind_time (kind=? AND created_at<?)"
+      ],
+      [
+        "SEARCH s USING INDEX idx_situations_family_time (family=? AND occurred_at<?)",
+        "SEARCH r USING INDEX sqlite_autoindex_raw_items_1 (id=?)"
+      ],
+      [
+        "SEARCH raw_items USING INDEX idx_raw_items_pack_time (pack=?)"
+      ]
+    ]
+  },
+  {
+    "family": "invite_rsvp",
+    "size": 4000,
+    "queries": 3,
+    "returned_rows": [
+      4000,
+      4000,
+      0
+    ],
+    "seconds": 0.09165489999577403,
+    "scan_parity": true,
+    "query_plans": [
+      [
+        "SEARCH ledger USING INDEX idx_ledger_kind_time (kind=? AND created_at<?)"
+      ],
+      [
+        "SEARCH s USING INDEX idx_situations_family_time (family=? AND occurred_at<?)",
+        "SEARCH r USING INDEX sqlite_autoindex_raw_items_1 (id=?)"
+      ],
+      [
+        "SEARCH raw_items USING INDEX idx_raw_items_pack_time (pack=?)"
+      ]
+    ]
+  }
+]

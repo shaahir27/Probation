@@ -105,24 +105,17 @@ def apply_calendar_llm_operator(
     title = str(mutated.get("title", ""))
 
     if operator_name == "paraphrase_title":
-        if llm_client is not None and getattr(llm_client, "api_key", None):
-            user_prompt = (
-                f"<instruction>Rephrase the event title with similar meaning and concise length</instruction>\n"
-                f"<text>{title}</text>"
-            )
+        from probation.llm.consumers import RegisteredConsumer
+        from probation.llm.gateway import JobFailure
+        from probation.llm.prompt_loader import PromptAssetError
+
+        if isinstance(llm_client, RegisteredConsumer):
             try:
-                res = llm_client.complete_json(
-                    system=EXAM_SYSTEM_PROMPT,
-                    user=user_prompt,
-                    schema=EXAM_EDIT_SCHEMA,
-                    model=model or "meta-llama/Meta-Llama-3.1-8B-Instruct",
-                    cache_parts={"prompt_id": "exam.paraphrase_title", "prompt_version": "v1"},
-                )
-                edited = str(res.get("edited_text", "")).strip()
-                if edited:
-                    mutated["title"] = edited
-                    return mutated
-            except Exception:
+                result = llm_client.call("exam.paraphrase", {"text": title}, purpose="exam_title")
+                edited = dict(mutated, title=str(result.data["edited_text"]))
+                if validate_calendar_operator_result(operator_name, payload, edited):
+                    return edited
+            except (JobFailure, PromptAssetError):
                 pass
 
         # Deterministic paraphrase fallback

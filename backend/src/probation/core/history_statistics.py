@@ -16,6 +16,7 @@ DECISIONS = """WITH events AS MATERIALIZED (
         json_extract(payload_json,'$.observed_action') AS action,
         json_extract(payload_json,'$.strength') AS strength,
         json_extract(payload_json,'$.source') AS source,
+        COALESCE(json_extract(payload_json,'$.actor'),json_extract(payload_json,'$.details.actor'),'user') AS actor,
         json_extract(payload_json,'$.known_at') AS known
  FROM ledger WHERE kind='outcome' AND created_at COLLATE UTC_TIMESTAMP <= ?
  AND json_extract(payload_json,'$.known_at') COLLATE UTC_TIMESTAMP <= ?
@@ -23,6 +24,7 @@ DECISIONS = """WITH events AS MATERIALIZED (
  SELECT sid,MIN(seq) AS first_seq FROM events GROUP BY sid
  HAVING COUNT(DISTINCT action)=1 AND SUM(CASE
  WHEN source IN ('footprint','user_response','window_close')
+ AND actor NOT IN ('executor','system','probation','automation')
  AND action NOT IN ('UNDO','OVERRIDE','REJECT','CANCEL','ABSTAIN') THEN 0 ELSE 1 END)=0
 ), decisions AS (
  SELECT events.* FROM events JOIN eligible ON events.seq=eligible.first_seq
@@ -46,11 +48,23 @@ def sender_statistics(
         + """
         SELECT s.occurred_at,d.action,d.known FROM situations s
         LEFT JOIN decisions d ON d.sid=s.id
+        JOIN raw_items r ON r.id=s.raw_item_id AND r.known_at COLLATE UTC_TIMESTAMP <= ?
         WHERE s.sender_key=? AND s.family='email_action'
           AND s.occurred_at COLLATE UTC_TIMESTAMP <= ? AND s.id!=?
         ORDER BY s.occurred_at COLLATE UTC_TIMESTAMP,s.id
         """,
-        ("email_action", sender, as_of, exclude or "", as_of, as_of, sender, as_of, exclude or ""),
+        (
+            "email_action",
+            sender,
+            as_of,
+            exclude or "",
+            as_of,
+            as_of,
+            as_of,
+            sender,
+            as_of,
+            exclude or "",
+        ),
     ).fetchall()
     deltas = [
         (timestamp_key(r["known"]) - timestamp_key(r["occurred_at"])) / 3_600_000_000
@@ -71,7 +85,8 @@ def file_statistics(
         SUBJECT_DECISIONS
         + """
         SELECT d.action,COUNT(*) AS n FROM situations s
-        JOIN decisions d ON d.sid=s.id
+        LEFT JOIN decisions d ON d.sid=s.id
+        JOIN raw_items r ON r.id=s.raw_item_id AND r.known_at COLLATE UTC_TIMESTAMP <= ?
         WHERE s.family='file_destination' AND s.sender_key=?
           AND s.occurred_at COLLATE UTC_TIMESTAMP <= ? AND s.id!=?
         GROUP BY d.action
@@ -81,6 +96,7 @@ def file_statistics(
             origin,
             as_of,
             exclude or "",
+            as_of,
             as_of,
             as_of,
             origin,
@@ -131,21 +147,22 @@ def calendar_statistics(
     def bucket(hour: int) -> int:
         return 0 if hour < 9 else 1 if hour < 12 else 2 if hour < 17 else 3
 
+    from probation.core.history_wp4 import decision_projection
+
+    decisions = decision_projection(conn, as_of)
     rows = conn.execute(
-        DECISIONS
-        + """
-        SELECT s.sender_key,r.payload_json,d.action FROM situations s
-        JOIN raw_items r ON r.id=s.raw_item_id LEFT JOIN decisions d ON d.sid=s.id
+        """SELECT s.id,s.sender_key,r.payload_json FROM situations s
+        JOIN raw_items r ON r.id=s.raw_item_id
         WHERE s.family='invite_rsvp' AND s.id!=?
-        AND s.occurred_at COLLATE UTC_TIMESTAMP <= ? AND r.known_at COLLATE UTC_TIMESTAMP <= ?
-        """,
-        (as_of, as_of, current_id, as_of, as_of),
+        AND s.occurred_at COLLATE UTC_TIMESTAMP <= ? AND r.known_at COLLATE UTC_TIMESTAMP <= ?""",
+        (current_id, as_of, as_of),
     ).fetchall()
     organized = accepted_org = matching_bucket = accepted_bucket = conflicts = 0
     adjacent = False
     for row in rows:
         payload = json.loads(row["payload_json"])
-        accepted = row["action"] == "ACCEPT"
+        decision = decisions.get(str(row["id"]), {})
+        accepted = bool(decision.get("eligible")) and decision.get("observed_action") == "ACCEPT"
         if normalize_address(row["sender_key"] or "") == organizer:
             organized += 1
             accepted_org += int(accepted)

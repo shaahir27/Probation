@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import os
 from importlib.metadata import version
 from pathlib import Path
 
@@ -38,6 +39,30 @@ class LocalMiniLM:
                 raise NoveltyUnavailable("embedding_artifact_escape")
             if hashlib.sha256(target.read_bytes()).hexdigest() != expected:
                 raise NoveltyUnavailable("embedding_artifact_hash_mismatch")
+        # Configure process-local caches before the runtime import. No user/global cache
+        # fallback, even when a caller did not use the development smoke launcher.
+        cache = root.parents[1] / ".cache"
+        locations = {
+            "HF_HOME": "huggingface",
+            "HF_HUB_CACHE": "huggingface/hub",
+            "HUGGINGFACE_HUB_CACHE": "huggingface/hub",
+            "HF_ASSETS_CACHE": "huggingface/assets",
+            "HF_XET_CACHE": "huggingface/xet",
+            "XDG_CACHE_HOME": ".",
+            "SENTENCE_TRANSFORMERS_HOME": "sentence-transformers",
+            "TRANSFORMERS_CACHE": "transformers",
+            "FASTEMBED_CACHE_PATH": "fastembed",
+            "TEMP": "tmp",
+            "TMP": "tmp",
+            "TMPDIR": "tmp",
+        }
+        for key, relative in locations.items():
+            path = cache / relative
+            path.mkdir(parents=True, exist_ok=True)
+            os.environ[key] = str(path)
+        os.environ["HF_HUB_OFFLINE"] = "1"
+        os.environ["HF_HUB_DISABLE_TELEMETRY"] = "1"
+        os.environ["HF_HUB_DISABLE_IMPLICIT_TOKEN"] = "1"
         # Imported only after explicit path and complete hash verification. Fastembed's
         # installed implementation supports both flags; no default cache discovery.
         from fastembed import TextEmbedding
@@ -46,7 +71,9 @@ class LocalMiniLM:
             json.dumps(
                 {
                     "manifest": manifest,
-                    "runtime": version("fastembed"),
+                    "runtime": {
+                        name: version(name) for name in ("fastembed", "onnxruntime", "numpy")
+                    },
                     "preprocessing": "minilm-local-v1",
                     "normalization": "l2",
                 },
@@ -57,6 +84,7 @@ class LocalMiniLM:
             self._model = TextEmbedding(
                 model_name=MODEL,
                 specific_model_path=str(root),
+                cache_dir=str(cache / "fastembed"),
                 local_files_only=True,
                 providers=["CPUExecutionProvider"],
             )

@@ -1,64 +1,76 @@
-"""1-call live smoke test for Nebius Token Factory.
+"""Operator-only, at-most-one-attempt registered Nemotron smoke.
 
-Authority: docs/IMPLEMENTATION_PLAN.md Phase 0/1 acceptance criteria.
-Verifies real API key, model availability, schema validation, and latency with exactly 1 call.
-Never prints or logs secrets.
+Requires separate endpoint/model/budget authorization. Never auto-run in acceptance.
+Without --allow-live this script imports no application configuration and sends nothing.
 """
 
-import sys
-import time
-
-from probation.config import settings
-from probation.llm.client import LLMClient
-from probation.packs.mail import MAIL_READER_SCHEMA
+import argparse
+from pathlib import Path
 
 
 def main() -> None:
-    if not settings.llm_api_key:
-        print("ERROR: llm_api_key is empty in .env. Please set LLM_API_KEY.", file=sys.stderr)
-        sys.exit(1)
-
-    print(f"Target Base URL: {settings.llm_base_url}")
-    print(f"Target Reader Model: {settings.model_reader}")
-
-    client = LLMClient()
-    system = "You are a form-filling tool. You read ONE email and fill a JSON form adhering strictly to the schema."
-    user = (
-        "<email>\n"
-        "From: advisor@university.edu\n"
-        "Subject: Meeting tomorrow regarding thesis\n\n"
-        "Hi Meena,\n\n"
-        "Can you send me the latest draft of your thesis before our meeting tomorrow at 2pm?\n\n"
-        "Best,\nProf. Sharma\n"
-        "</email>"
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--allow-live", action="store_true")
+    parser.add_argument(
+        "--db",
+        type=Path,
+        help="Approved synthetic database with an operator-provisioned budget scope",
     )
+    args = parser.parse_args()
+    if not args.allow_live:
+        parser.error("Live smoke requires separate authorization and --allow-live")
+    if args.db is None:
+        parser.error("Provide --db for the approved synthetic smoke namespace")
 
-    cache_parts = {
-        "content_hash": "live_smoke_test_001",
-        "prompt_id": "reader.mail",
-        "prompt_version": "v2",
-    }
+    from probation.core.clock import elapsed_seconds
+    from probation.db.connection import ensure_schema, get_connection
+    from probation.db.spend import SpendStore, default_lease_owner
+    from probation.llm.budget import BudgetExceeded
+    from probation.llm.catalog import resolve_job
+    from probation.llm.client import LLMClient
+    from probation.llm.consumers import RegisteredConsumer
+    from probation.llm.context import build_request_context
+    from probation.llm.gateway import JobFailure, JobGateway, transport_authority
+    from probation.llm.prompt_loader import PromptAssetError
 
+    conn = get_connection(args.db)
+    ensure_schema(conn)
     try:
-        start = time.perf_counter()
-        result = client.chat_json(
-            kind="reader",
-            model=settings.model_reader,
-            system=system,
-            user=user,
-            schema=MAIL_READER_SCHEMA,
-            cache_parts=cache_parts,
-            max_tokens=800,
+        client = LLMClient(
+            max_physical_attempts=1,
+            max_retries=0,
+            spend_store=SpendStore(
+                conn, role="brain", lease_owner=default_lease_owner("brain")
+            ),
         )
-        elapsed = time.perf_counter() - start
-        print(f"\n[LIVE API CALL SUCCESS] Completed in {elapsed:.2f}s")
-        print("Valid JSON Schema Output received:")
-        for k, v in result.items():
-            print(f"  {k}: {v}")
-        print(f"\nRecorded spend: ${client.budget_guard.spent_usd:.6f}")
-    except Exception as exc:
-        print(f"\n[LIVE API CALL FAILED]: {exc}", file=sys.stderr)
-        sys.exit(1)
+        consumer = RegisteredConsumer(
+            JobGateway(client, conn=conn), transport_authority(client)
+        )
+        context = build_request_context(
+            resolve_job("reader.mail", "v3"),
+            {
+                "subject": "Project meeting",
+                "sender_domain_class": "other",
+                "body": "Professor Fiction asks owner@example.test to review a synthetic project draft.",
+            },
+            display_names=["Professor Fiction"],
+        )
+        started = elapsed_seconds()
+        result = consumer.run(context, purpose="authorized_operator_smoke")
+        print(
+            {
+                "validated": True,
+                "cache_hit": result.cache_hit,
+                "physical_attempts": result.physical_attempts,
+                "cost_units": result.cost_units,
+                "seconds": elapsed_seconds() - started,
+            }
+        )
+    except (BudgetExceeded, JobFailure, PromptAssetError) as exc:
+        print({"validated": False, "reason": str(exc.code)})
+        raise SystemExit(1) from None
+    finally:
+        conn.close()
 
 
 if __name__ == "__main__":

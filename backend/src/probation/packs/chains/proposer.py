@@ -159,6 +159,12 @@ def create_chain_situations_and_proposals(
 
             # Decide Gate
             p_est = float(ch["k"]) / float(ch["n"]) if int(ch["n"]) > 0 else 0.0
+            # P06 #1: a chain inherits the trigger situation's reader context, and that
+            # inheritance is required. Its absence is a failing gate input, never a reader
+            # success (W3-T03: trigger absence is not fabricated reader success).
+            from probation.llm.reader import reader_required
+
+            inherited_ok = bool(rdr)
             gate_res = decide_gate(
                 action=follow_act,
                 p=p_est,
@@ -166,8 +172,8 @@ def create_chain_situations_and_proposals(
                 licence_level=licence_level,
                 cap=cap,
                 hands_off=chain_sit.hands_off_reason,
-                reader_required=False,
-                reader_ok=True,
+                reader_required=reader_required("chains"),
+                reader_ok=inherited_ok,
                 deterministic_ok=True,
                 loss=loss,
                 attention_cost=1.0,
@@ -178,6 +184,8 @@ def create_chain_situations_and_proposals(
 
             prop_id = f"prop-{chain_sit.id}"
             reasons = ["chain_followup", f"mined_chain_lift_{ch['lift']:.1f}"]
+            if not inherited_ok:
+                reasons.append("inherited_unavailable")
             if gate_res.reason:
                 reasons.append(gate_res.reason)
             final_gate = gate_res.decision

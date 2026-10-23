@@ -74,3 +74,11 @@ The owner explicitly authorized downloading the local embedding model and keepin
 - Integration must preserve project-local cache/temp configuration BEFORE embedding-library imports. The download/smoke scripts under root data/models/ provide the exact environment mapping. No model-name-only automatic download/global-cache fallback is permitted.
 
 The model-artifact smoke blocker is now cleared. WP4 remains NOT COMPLETE: verified WP3 integration, effective settings/provenance/failure routing, clue/example wiring and integrated acceptance remain open. No frontend or application source was modified for this provisioning task.
+
+## Later integration checkpoint
+
+WP4 components have now been ported into the Phase 3 integration branch and verified with 585 passing offline tests, real offline MiniLM and installed-wheel checks. The original WP4 worktree remains unchanged. Earlier statements about integration not having occurred describe the earlier checkpoint. Current scope, evidence and upstream W3-D03/W3-D04 blockers: [integration handoff](wp3-wp4-integration-2026-10-23.md). This is not a full WP3/P11 or main-merge sign-off.
+
+## Final Phase 4 branch integration continuation
+
+WP3 commit 398729e is pushed and merged into main. Original WP4 work is preserved in 24f7629; main is integrated on the Phase 4 branch with ten reviewed hunk resolutions. All eleven requirements, new regression repairs, actual offline model/shared-snapshot smoke, published artifact manifest, package and nine-case scaling evidence are recorded in [current Phase 4 handoff](phase-4.md). Earlier NOT COMPLETE statements describe their earlier checkpoints; final full-check/merge results are recorded in the current handoff. No F01-F42 or live-provider completion claim.

@@ -198,6 +198,13 @@ def test_t_pack_no_peeking_clues() -> None:
         created_at="2026-03-05T12:00:00Z",
     )
 
+    # The current observation must really exist at this cutoff; missing source is
+    # a failure, not a successful empty clue set.
+    conn.execute(
+        "INSERT INTO raw_items VALUES ('r-p2','s1','mail','mail_in','current','2026-03-05T12:00:00Z','2026-03-05T12:00:00Z',?,'h2')",
+        (json.dumps({"from": "prof@college.edu", "body": "Second email"}),),
+    )
+    conn.commit()
     hist1 = HistoryView(conn, as_of="2026-03-05T12:00:00Z")
     clues1 = mail_pack.deterministic_clues(sit, hist1)
 

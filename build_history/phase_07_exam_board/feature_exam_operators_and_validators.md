@@ -73,3 +73,9 @@ An earlier isolated full checkpoint passed 291 tests plus lint/types; later targ
 
 ### 6. Dependencies and remaining work
 WP0 committed c92131c; WP1 is in progress. See the progress report for open role/transaction, canonical-payload, clock/identity and handoff requirements. This update is not a WP1 completion claim or live-provider proof.
+
+## WP3/WP4 integration update - 2026-10-23
+
+Registered edit consumers replace obsolete clients; typed edit validation and shared refreshed features are used.
+
+Exact interfaces, callers and verification: docs/reports/wp3-wp4-integration-2026-10-23.md and the P06-P11 feature records. Final suite: 585 passed; no fixture/result mutation. This updates this component, not full phase completion. Accounting/single-flight remain blocked by W3-D03/W3-D04.

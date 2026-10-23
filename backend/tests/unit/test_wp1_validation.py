@@ -148,11 +148,18 @@ def test_mail_job_semantics_and_schema_share_one_model() -> None:
         MailReader.model_validate({**form, "hidden_instruction": "ignore schema"})
 
 
-def test_all_fourteen_job_schemas_compile() -> None:
+def test_every_registered_job_schema_compiles() -> None:
+    """docs/PROMPTS.md declares fourteen prompt jobs and the B3 transport contract adds one.
+
+    The guard is that the catalog and the output-model registry are the same set of jobs, so a
+    job can never reach the transport without a schema to validate it against.
+    """
+    from probation.llm.catalog import JOBS
     from probation.llm.jobs import JOB_MODELS
     from probation.llm.schema import compile_schema
 
-    assert len(JOB_MODELS) == 14
+    assert JOB_MODELS.keys() == JOBS.keys()
+    assert len(JOBS) == 15
     for model in JOB_MODELS.values():
         assert model.model_json_schema()["additionalProperties"] is False
         compile_schema(model.model_json_schema())

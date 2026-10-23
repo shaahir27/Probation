@@ -30,6 +30,19 @@ def decision_projection(
         if timestamp_key(known) > timestamp_key(as_of):
             continue
         action, source = payload.get("observed_action"), payload.get("source")
+        details = payload.get("details")
+        actor = payload.get("actor") or (
+            details.get("actor") if isinstance(details, dict) else None
+        )
+        if actor in {"executor", "system", "probation", "automation"}:
+            decisions[sid] = {
+                "situation_id": sid,
+                "eligible": False,
+                "reason": "system_actor",
+                "known_at": known,
+                "ledger_seq": row["seq"],
+            }
+            continue
         if source not in {"footprint", "user_response", "window_close"} or action in {
             None,
             "UNDO",

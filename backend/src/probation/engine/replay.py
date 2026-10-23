@@ -26,15 +26,15 @@ from probation.db.access import Role, RoleAccess
 from probation.db.ledger import append_ledger
 from probation.db.proposals import persist_proposal
 from probation.engine.baselines import BaselineB0, BaselineB2
-from probation.engine.caps import get_action_loss, is_recallable
+from probation.engine.caps import is_recallable
 from probation.engine.drift import check_family_shift
 from probation.engine.evidence import aggregate_evidence
 from probation.engine.exam import run_exam
-from probation.engine.gate import compute_audit_draw, decide_gate
 from probation.engine.habits import mine_habits
 from probation.engine.licence import derive_and_cache_licences, find_exam_candidates
-from probation.engine.novelty import NoveltyDetector
+from probation.engine.novelty import EmbeddingProvider, NoveltyDetector, NoveltyUnavailable
 from probation.engine.policy import Policy
+from probation.engine.prediction import PredictionSnapshot, evaluate_prediction, policy_inputs
 from probation.engine.proposal_data import proposal_parameters
 from probation.engine.report import generate_report_card
 from probation.packs.base import ExecutorIO, WorldView
@@ -99,6 +99,7 @@ def run_replay(
     world: WorldView | None = None,
     reader_callable: Callable[[Situation], tuple[dict[str, Any] | None, bool]] | None = None,
     allow_live_llm: bool = False,
+    embedding_provider: EmbeddingProvider | None = None,
 ) -> dict[str, Any]:
     """Own one clock context for every role participating in this replay."""
     if clock is None:
@@ -113,7 +114,14 @@ def run_replay(
         clock = Clock.replay(start)
     with use_clock(clock):
         return _run_replay(
-            conn, clock, family, until, world, reader_callable, allow_live_llm=allow_live_llm
+            conn,
+            clock,
+            family,
+            until,
+            world,
+            reader_callable,
+            allow_live_llm=allow_live_llm,
+            embedding_provider=embedding_provider,
         )
 
 
@@ -125,6 +133,7 @@ def _run_replay(
     world: WorldView | None = None,
     reader_callable: (Callable[[Situation], tuple[dict[str, Any] | None, bool]] | None) = None,
     allow_live_llm: bool = False,
+    embedding_provider: EmbeddingProvider | None = None,
 ) -> dict[str, Any]:
     """Execute event-sourced replay over historical raw items up to until.
 
@@ -139,7 +148,7 @@ def _run_replay(
     #    here would read an empty outcomes table and collapse them to their defaults
     #    (plan section 6.3.3).
     reader_client = (
-        None if reader_callable is not None else build_reader_client(clock, allow_live_llm)
+        None if reader_callable is not None else build_reader_client(clock, allow_live_llm, conn)
     )
 
     # 2. Query situations to replay
@@ -377,13 +386,35 @@ def _run_replay(
     # 6. Initialize per-family models and baselines
     distinct_families = sorted({str(r["family"]) for r in sit_rows})
     policies: dict[str, Policy] = {
-        fam: Policy(family=fam, cold_start_min=settings.cold_start_min_situations)
+        fam: Policy(
+            family=fam,
+            cold_start_min=settings.cold_start_min_situations,
+            train_half_life_days=settings.train_half_life_days,
+            files_topk=settings.files_topk_folders,
+        )
         for fam in distinct_families
     }
+    if embedding_provider is None and settings.embedding_model_dir.exists():
+        from probation.local_embeddings import LocalMiniLM
+
+        try:
+            embedding_provider = LocalMiniLM(
+                settings.embedding_model_dir, settings.embedding_manifest_path
+            )
+        except NoveltyUnavailable:
+            logger.warning("Local embedding provider unavailable; autonomous decisions fail closed")
     novelties: dict[str, NoveltyDetector] = {
-        fam: NoveltyDetector(k=settings.novelty_k, percentile=settings.novelty_pctl)
+        fam: (
+            NoveltyDetector(
+                k=settings.novelty_k, percentile=settings.novelty_pctl, embedder=embedding_provider
+            )
+            if embedding_provider is not None
+            else NoveltyDetector(k=settings.novelty_k, percentile=settings.novelty_pctl)
+        )
         for fam in distinct_families
     }
+    training_cohorts: dict[str, Any] = {}
+    training_manifests: list[dict[str, Any]] = []
     b0_baselines: dict[str, BaselineB0] = {fam: BaselineB0(family=fam) for fam in distinct_families}
     b0_predictions: dict[str, str] = {}
     b2_predictions: dict[str, str] = {}
@@ -473,53 +504,43 @@ def _run_replay(
         elif ev.kind == "RETRAIN":
             as_of_iso = clock.now_iso()
 
-            # Train each family using STRICTLY data with known_at <= as_of (Invariant I-6)
+            # All eligibility and historical projection is owned by HistoryView.
+            from probation.engine.training import build_cohort, fit_cohort
+            from probation.llm.feature_pipeline import semantic_feature_version
+
             for fam in distinct_families:
-                cur.execute(
-                    """
-                    SELECT
-                        s.id,
-                        s.occurred_at,
-                        s.redacted_text,
-                        f.deterministic_json,
-                        f.reader_json,
-                        o.observed_action
-                    FROM situations s
-                    JOIN outcomes o ON s.id = o.situation_id
-                    JOIN features f ON s.id = f.situation_id
-                    WHERE s.family = ?
-                      AND o.known_at COLLATE UTC_TIMESTAMP <= ?
-                      AND o.strength = 'STRONG'
-                      AND s.hands_off_reason IS NULL
-                      AND f.reader_ok = 1
-                    ORDER BY s.occurred_at COLLATE UTC_TIMESTAMP ASC;
-                    """,
-                    (fam, as_of_iso),
+                cohort = build_cohort(
+                    HistoryView(conn, as_of_iso),
+                    fam,
+                    semantic_feature_version(stub=reader_callable is not None),
                 )
-                train_rows = cur.fetchall()
-
-                if len(train_rows) >= settings.cold_start_min_situations:
-                    feat_dicts: list[dict[str, Any]] = []
-                    obs_acts: list[str] = []
-                    timestamps_train: list[str] = []
-                    redacted_texts: list[str] = []
-
-                    for tr in train_rows:
-                        det = json.loads(tr["deterministic_json"])
-                        rdr = json.loads(tr["reader_json"]) if tr["reader_json"] else {}
-                        feat_dicts.append({**det, **rdr})
-                        obs_acts.append(str(tr["observed_action"]))
-                        timestamps_train.append(str(tr["occurred_at"]))
-                        if tr["redacted_text"]:
-                            redacted_texts.append(str(tr["redacted_text"]))
-
-                    policies[fam].fit(
-                        feat_dicts,
-                        obs_acts,
-                        timestamps_train,
-                        as_of=as_of_iso,
+                training_cohorts[fam] = cohort
+                fit_cohort(policies[fam], cohort, as_of_iso)
+                refs = [r for r in cohort.rows if r.redacted_text.strip()]
+                try:
+                    novelties[fam].fit(
+                        [r.redacted_text for r in refs],
+                        reference_ids=[r.situation_id for r in refs],
+                        family=fam,
                     )
-                    novelties[fam].fit(redacted_texts)
+                except NoveltyUnavailable:
+                    logger.warning("Novelty fitting unavailable for family %s", fam)
+                training_manifests.append(
+                    {
+                        "family": fam,
+                        "as_of": as_of_iso,
+                        "eligible_rows": len(cohort.rows),
+                        "excluded": cohort.excluded,
+                        "policy_version": policies[fam].policy_version,
+                        "policy_digest": policies[fam].policy_digest,
+                        "cohort_digest": policies[fam].cohort_digest,
+                        "calibration": policies[fam].calibration,
+                        "temperature": policies[fam].temperature,
+                        "embedding_identity": getattr(novelties[fam].embedder, "identity", None),
+                        "novelty_status": novelties[fam].status,
+                        "novelty_references": len(novelties[fam].reference_ids),
+                    }
+                )
 
             # Weekly PSI check and habit/chain mining
             sim_day_idx = (ev_dt.date() - min_dt.date()).days
@@ -544,6 +565,33 @@ def _run_replay(
                     if pack_name in ("cal", "calendar")
                     else "file_destination"
                 )
+                from probation.engine.exam_prediction import ExamPredictionContext
+                from probation.llm.consumers import RegisteredConsumer, offline_consumer
+                from probation.llm.gateway import JobGateway, transport_authority
+
+                exam_consumer = (
+                    offline_consumer(conn)
+                    if reader_client is None
+                    else RegisteredConsumer(
+                        JobGateway(reader_client, conn=conn),
+                        transport_authority(reader_client, allow_live_dispatch=allow_live_llm),
+                    )
+                )
+                exam_context = (
+                    None
+                    if cand_fam not in policies
+                    else ExamPredictionContext(
+                        PredictionSnapshot(
+                            policies[cand_fam],
+                            novelties[cand_fam],
+                            settings.audit_seed,
+                            settings.audit_fraction,
+                        ),
+                        HistoryView(conn, day_iso),
+                        exam_consumer,
+                        reader_callable,
+                    )
+                )
                 run_exam(
                     conn,
                     class_key=cand_ck,
@@ -551,6 +599,7 @@ def _run_replay(
                     level_tested=cand_lvl,
                     as_of=day_iso,
                     policy=policies.get(cand_fam),
+                    prediction_context=exam_context,
                     clock=clock,
                 )
             derive_and_cache_licences(conn, as_of=day_iso, stats=stats)
@@ -594,6 +643,7 @@ def _run_replay(
                 clock=clock,
                 situation_id=sit_id,
                 llm_client=reader_client,
+                allow_live_llm=allow_live_llm,
             )
             conn.commit()
 
@@ -610,7 +660,30 @@ def _run_replay(
             else:
                 det_dict = json.loads(f_row["deterministic_json"])
                 reader_dict = json.loads(f_row["reader_json"]) if f_row["reader_json"] else None
-                reader_ok = bool(f_row["reader_ok"])
+                from probation.llm.feature_pipeline import semantic_feature_version
+
+                reader_ok = bool(f_row["reader_ok"]) and str(
+                    f_row["featurizer_version"]
+                ) == semantic_feature_version(stub=reader_callable is not None)
+                if reader_ok:
+                    # P06 #5: a row is reusable only when its full provenance matches the
+                    # requested feature version and cutoff. An earlier cutoff counted fewer
+                    # outcomes and so proves nothing about this situation, and a row with no
+                    # parsable cutoff cannot be matched at all.
+                    stored_cutoff: str | None = None
+                    raw_prov = (
+                        f_row["provenance_json"] if "provenance_json" in f_row.keys() else None
+                    )
+                    if raw_prov:
+                        try:
+                            loaded = json.loads(raw_prov).get("cutoff")
+                            stored_cutoff = str(loaded) if loaded else None
+                        except (ValueError, TypeError, AttributeError):
+                            stored_cutoff = None
+                    if stored_cutoff != str(s_row["occurred_at"]):
+                        reader_ok = False
+                if not reader_ok:
+                    det_dict["__deterministic_ok"] = False
                 features_hash = str(f_row["features_hash"])
                 merged_features = {**det_dict, **(reader_dict or {})}
 
@@ -641,7 +714,7 @@ def _run_replay(
                 reasons.append("hands_off")
 
             # Novelty assessment
-            is_novel, novelty_dist = novelties[fam].score(sit.redacted_text or "")
+            is_novel, novelty_dist = True, 1.0
 
             # Pack caps and class key
             try:
@@ -696,33 +769,56 @@ def _run_replay(
             lic_row = cur.fetchone()
             licence_level = int(lic_row["level"]) if lic_row else 0
 
-            loss = get_action_loss(action)
             recallable = is_recallable(action)
-            audit_draw = compute_audit_draw(sit.id, seed=settings.audit_seed)
+            if feat_obj is not None:
+                prediction = evaluate_prediction(
+                    sit,
+                    feat_obj,
+                    pack,
+                    PredictionSnapshot(
+                        policies[fam], novelties[fam], settings.audit_seed, settings.audit_fraction
+                    ),
+                    licence_level=licence_level,
+                    restriction_cap=int(str(web_dict["cap"])),
+                )
+                action, p_max, probs = prediction.action, prediction.p_max, prediction.probs
+                reasons = list(prediction.reasons)
+                c_key, cap = prediction.class_key, prediction.cap
+                is_novel, novelty_dist = prediction.novel, prediction.novelty
+                gate, audit_holdout = prediction.gate, int(prediction.audit_holdout)
+            else:
+                gate, audit_holdout = GateDecision.ASK, 0
+                reasons.append("deterministic_clues_invalid")
 
-            # Gate in Phase 5: pure gate function with economic test and audit holdout
-            gate_res = decide_gate(
-                action=action,
-                p=p_max,
-                novel=is_novel,
-                licence_level=licence_level,
-                cap=cap,
-                hands_off=sit.hands_off_reason,
-                reader_required=False,
-                reader_ok=reader_ok,
-                deterministic_ok=True,
-                loss=loss,
-                attention_cost=1.0,
-                recallable=recallable,
-                audit_draw=audit_draw,
-                audit_fraction=settings.audit_fraction,
-                budget_ok=True,
+            if action in {"ABSTAIN", "NONE"} and gate in {
+                GateDecision.EXECUTE_UNDO,
+                GateDecision.EXECUTE_SILENT,
+                GateDecision.HOLD_THEN_EXECUTE,
+            }:
+                gate = GateDecision.SHADOW if reader_ok else GateDecision.ASK
+                reasons.append("non_executable_prediction")
+            try:
+                example_scores = novelties[fam].similarity_scores(
+                    str(det_dict.get("__novelty_text", sit.redacted_text or ""))[:4000]
+                )
+            except NoveltyUnavailable:
+                example_scores = {}
+            cohort_rows = training_cohorts[fam].rows if fam in training_cohorts else ()
+            from probation.core.history_statistics import historical_examples
+
+            similar_examples = historical_examples(
+                [
+                    {
+                        "situation_id": r.situation_id,
+                        "action": r.action,
+                        "text": r.redacted_text[:250],
+                        "known_at": r.known_at,
+                    }
+                    for r in cohort_rows
+                ],
+                example_scores,
+                action,
             )
-            gate = gate_res.decision
-            if gate_res.reason:
-                reasons.append(gate_res.reason)
-            audit_holdout = 1 if gate_res.audit_holdout else 0
-
             # Generate/validate all available data before the single persistence unit.
             params, binding_errors = proposal_parameters(
                 sit,
@@ -753,7 +849,11 @@ def _run_replay(
                     "features_hash": features_hash,
                     "policy_version": policies[fam].policy_version,
                     "evidence_as_of": sit.occurred_at,
+                    "policy_explanation": policies[fam].explain(policy_inputs(feat_obj))
+                    if feat_obj is not None
+                    else {"available": False, "reason": "features_unavailable"},
                     "reasons": reasons,
+                    "similar_examples": similar_examples,
                 },
                 web=web_dict,
                 policy_version=policies[fam].policy_version,
@@ -761,7 +861,51 @@ def _run_replay(
                 audit_holdout=bool(audit_holdout),
                 proposed_at=sit.occurred_at,
             )
-            persist_proposal(brain_access, final_proposal)
+            draft = None
+            if action == "REPLY" and feat_obj is not None:
+                from probation.llm.consumers import RegisteredConsumer, offline_consumer
+                from probation.llm.draft_persistence import prepare_reply_persistence
+                from probation.llm.gateway import JobGateway, transport_authority
+                from probation.llm.writer import generate_reply
+
+                raw = HistoryView(conn, sit.occurred_at).get_raw_item(sit.raw_item_id)
+                source = json.loads(raw["payload_json"]) if raw is not None else {}
+                consumer = (
+                    offline_consumer(conn)
+                    if reader_client is None
+                    else RegisteredConsumer(
+                        JobGateway(reader_client, conn=conn),
+                        transport_authority(reader_client, allow_live_dispatch=allow_live_llm),
+                    )
+                )
+                from probation.llm.context import redaction_names
+                from probation.llm.reply_examples import owner_reply_examples
+
+                owner = persisted_or_configured_owner(conn.cursor())
+                example_names = list(redaction_names(source.get("from", ""), source.get("to", "")))
+                reply_examples = owner_reply_examples(
+                    HistoryView(conn, sit.occurred_at),
+                    current_raw_id=sit.raw_item_id,
+                    owner_addresses=owner,
+                    scores=example_scores,
+                    display_names_out=example_names,
+                )
+                writer = generate_reply(
+                    consumer,
+                    incoming=str(source.get("body", "")),
+                    original_sender=str(source.get("from") or source.get("from_addr") or ""),
+                    situation_id=sit.id,
+                    examples=reply_examples,
+                    display_names=example_names,
+                    preview_warrants_reply=reader_ok and prediction.gate != GateDecision.SHADOW,
+                )
+                if writer.persistable and binding_errors == ["draft_unavailable"]:
+                    final_proposal = final_proposal.model_copy(update={"gate": prediction.gate})
+                final_proposal, draft = prepare_reply_persistence(
+                    final_proposal, sit, HistoryView(conn, sit.occurred_at), writer
+                )
+                gate, params = final_proposal.gate, final_proposal.params
+            persist_proposal(brain_access, final_proposal, draft=draft)
             # This replay is the transaction owner. No external consumer precedes this barrier.
             brain_access.commit()
             if gate in (
@@ -821,10 +965,12 @@ def _run_replay(
     conn.commit()
 
     # 8. Return comprehensive report card
-    return generate_report_card(
+    report = generate_report_card(
         conn,
         family=family,
         as_of=clock.now_iso(),
         b0_predictions=b0_predictions,
         b2_predictions=b2_predictions,
     )
+    report["training_manifest"] = training_manifests
+    return report

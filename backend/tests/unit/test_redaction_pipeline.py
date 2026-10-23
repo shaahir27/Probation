@@ -27,7 +27,11 @@ def test_t_redact_same_value_same_placeholder() -> None:
     text = "Contact alice@corp.test today. If unavailable, try alice@corp.test again."
     res = redact(text)
 
-    assert res.counts["email"] == 1
+    # PROMPTS.md section 1.2 defines counts as replacements per type, so two sent placeholders
+    # are two counts of one unique value. Reporting the unique tally as the count would
+    # understate what left the process.
+    assert res.counts["email"] == 2
+    assert res.unique["email"] == 1
     assert "<EMAIL_1>" in res.text
     assert "<EMAIL_2>" not in res.text
     assert res.text.count("<EMAIL_1>") == 2

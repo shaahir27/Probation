@@ -71,7 +71,7 @@ def test_t_llm_cache_hit_avoids_http(memory_db: sqlite3.Connection) -> None:
 def test_t_llm_budget_cap_exceeded_fails_closed(memory_db: sqlite3.Connection) -> None:
     """T-LLM: Budget cap raises BudgetExceeded before initiating an unaffordable call."""
     guard = BudgetGuard(limit_usd=0.0001)  # Very low limit
-    guard.spent_usd = 0.0001  # Already reached limit
+    guard.spent_units = guard.limit_units  # Already reached limit
 
     client = LLMClient(api_key="test-key", budget_guard=guard)
     cache_parts = {"content_hash": "hash_456", "prompt_id": "reader", "prompt_version": "v1"}

@@ -57,10 +57,16 @@ def build_cohort(history: HistoryView, family: str, semantic_version: str) -> Tr
             json.loads(record["deterministic_json"]),
             json.loads(record["reader_json"] or "{}"),
         )
+        if det.get("__reader_required") is True and not reader:
+            excluded["missing_required_reader"] += 1
+            continue
+        if not det.get("__deterministic_ok", True) or not det.get("__budget_ok", True):
+            excluded["failed_feature_status"] += 1
+            continue
         if set(det) & set(reader):
             excluded["feature_key_collision"] += 1
             continue
-        features = {**det, **reader}
+        features = {k: v for k, v in {**det, **reader}.items() if not k.startswith("__")}
         if family == "file_destination":
             # This raw current-item field was already bounded by HistoryView.
             from probation.core.file_tokens import tokenize_name
@@ -75,7 +81,7 @@ def build_cohort(history: HistoryView, family: str, semantic_version: str) -> Tr
                 str(event["known_at"]),
                 str(action),
                 features,
-                str(record["redacted_text"] or ""),
+                str(det.get("__novelty_text", record["redacted_text"]) or "")[:4000],
                 semantic_version,
                 str(record["features_hash"]),
                 int(event["ledger_seq"]),

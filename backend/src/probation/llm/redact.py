@@ -3,17 +3,37 @@
 Authority: docs/CONTRACT.md invariant I-14 and docs/PROMPTS.md section 1.
 Runs before every LLM call. Raw private data is replaced by numbered placeholders.
 The restore map is kept strictly local and never sent to external services.
+
+Two things a caller must not be able to do with the result: treat a column named
+`redacted_text` as an egress guarantee, and restore a placeholder that was never earned.
+So counts report replacements actually performed, only PERSON tokens are ever restorable,
+and a placeholder-shaped token that arrived in the source text is excluded from the
+restorable set instead of being honoured.
 """
 
 import re
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
+from dataclasses import dataclass, field
 from urllib.parse import urlparse
 
 from probation.core.types import RedactionResult
 
 READER_MAX_INPUT_CHARS = 4800
 
-# Regex patterns for history stripping
+TYPES = (
+    "email",
+    "upi",
+    "phone",
+    "aadhaar",
+    "pan",
+    "card",
+    "otp",
+    "ifsc",
+    "url",
+    "person",
+)
+
+# History stripping
 QUOTED_HEADER_PATTERNS = [
     re.compile(r"^On .{0,120} wrote:\s*$", re.MULTILINE),
     re.compile(r"^-{2,}\s*Original Message\s*-{2,}\s*$", re.MULTILINE | re.IGNORECASE),
@@ -25,18 +45,28 @@ TRAILING_SIG_PATTERN = re.compile(
     re.DOTALL | re.IGNORECASE,
 )
 
-# Regex patterns for sensitive entities
+# Sensitive entities
 PAN_PATTERN = re.compile(r"\b[A-Z]{5}[0-9]{4}[A-Z]\b")
 IFSC_PATTERN = re.compile(r"\b[A-Z]{4}0[A-Z0-9]{6}\b")
 CARD_CANDIDATE_PATTERN = re.compile(r"(?<!\d)(?:\d[ -]?){12,18}\d(?!\d)")
 AADHAAR_PATTERN = re.compile(
     r"(?<!\d)(?<!\d\s)(?<!\d-)(?:\d{4}\s\d{4}\s\d{4}|\d{12})(?!\s*\d)(?!-\d)(?!\d)"
 )
-
 PHONE_PATTERN = re.compile(
     r"(?<!\d)(?:\+91[\s-]?)?[6-9]\d{9}(?!\d)|(?<!\d)\+\d{1,3}[\s-]?(?:\(\d{2,4}\)[\s-]?)?\d{3,4}[\s-]?\d{3,4}(?!\d)"
 )
 URL_PATTERN = re.compile(r"https?://[^\s<>\"']+|www\.[^\s<>\"']+")
+EMAIL_UPI_PATTERN = re.compile(r"\b[A-Za-z0-9._%+-]+@([A-Za-z0-9.-]+)\b")
+OTP_CONTEXT_PATTERN = re.compile(
+    r"(?i)\b(?:otp|code|verification code)\b.{0,20}?\b(\d{4,8})\b|\b(\d{4,8})\b.{0,20}?\b(?:otp|code|verification code)\b"
+)
+
+# Any token that looks like one of ours, however it got there.
+TOKEN_PATTERN = re.compile(
+    r"<(?:PERSON|EMAIL|UPI|PHONE|AADHAAR|PAN|CARD|OTP|IFSC)_\d+>|<URL:[a-z]+>"
+)
+PERSON_TOKEN = re.compile(r"<PERSON_\d+>")
+RESTORABLE_PREFIX = "<PERSON_"
 
 FREEMAIL_DOMAINS = {
     "gmail.com",
@@ -86,6 +116,14 @@ def _classify_url_domain(url_str: str) -> str:
         return "other"
 
 
+def domain_class_of(address: str) -> str:
+    """Classify the domain of an email address with the same scale a URL gets."""
+    handle, _, host = address.rpartition("@")
+    if not handle:
+        return "other"
+    return _classify_url_domain(host)
+
+
 def _strip_quoted_history(text: str) -> str:
     """Strip email quoted history (lines starting with > or header cuts)."""
     earliest_idx = len(text)
@@ -111,132 +149,288 @@ def _strip_signature(text: str) -> str:
     return text
 
 
+class RedactionLedger:
+    """One request's numbering and maps, shared so documents of a request cannot collide.
+
+    PROMPTS.md numbers placeholders per document. A reply request carries the incoming mail
+    plus up to three historical examples, and two documents numbering `<PERSON_1>` for
+    different people would let one identity be restored in place of another. Sharing one
+    namespace per request makes a token mean exactly one value, and restoration authority is
+    still granted per document.
+    """
+
+    def __init__(self) -> None:
+        self._val_to_token: dict[str, str] = {}
+        self._reserved: set[str] = set()
+        self.token_to_val: dict[str, str] = {}
+        self.counters: dict[str, int] = dict.fromkeys(TYPES, 0)
+
+    def reserve(self, tokens: Iterable[str]) -> None:
+        """Mark token text as already present in the data, so numbering must skip it.
+
+        Without this, a sender who writes a literal `<PERSON_1>` into their own mail would
+        occupy the token the real display name is about to earn, and one value would then
+        stand for two different strings in the same document.
+        """
+        self._reserved.update(tokens)
+
+    def token_for(self, tag_type: str, raw_val: str) -> str:
+        key = f"{tag_type.lower()}:{raw_val}"
+        existing = self._val_to_token.get(key)
+        if existing is not None:
+            return existing
+        kind = tag_type.lower()
+        while True:
+            self.counters[kind] += 1
+            token = f"<{tag_type.upper()}_{self.counters[kind]}>"
+            if token not in self._reserved:
+                break
+        self._val_to_token[key] = token
+        self._reserved.add(token)
+        self.token_to_val[token] = raw_val
+        return token
+
+
+def _kind_of(token: str) -> str:
+    """The type a placeholder belongs to, read from the token itself.
+
+    Tallies are derived from the tokens in the sent text rather than from a numbering counter,
+    so a class-collapsed token such as `<URL:corp>`, which is never numbered, is still counted.
+    """
+    header = token[1:-1]
+    return header.partition("_")[0].partition(":")[0].lower()
+
+
+def _positive(tally: dict[str, int]) -> dict[str, int]:
+    return {kind: value for kind, value in tally.items() if value > 0}
+
+
+@dataclass(frozen=True, slots=True)
+class RequestRedaction:
+    """Every document that went out in one request, with its own restoration authority."""
+
+    documents: Mapping[str, RedactionResult]
+    ledger: RedactionLedger = field(repr=False)
+    current: str
+    truncated: bool
+
+    @property
+    def counts(self) -> dict[str, int]:
+        merged: dict[str, int] = dict.fromkeys(TYPES, 0)
+        for result in self.documents.values():
+            for kind, value in result.counts.items():
+                merged[kind] = merged.get(kind, 0) + int(value)
+        return _positive(merged)
+
+    def text(self, label: str) -> str:
+        return self.documents[label].text
+
+    @property
+    def current_text(self) -> str:
+        return self.documents[self.current].text
+
+    def restorable(self, label: str | None = None) -> dict[str, str]:
+        """Placeholder to value for one document of this request.
+
+        This is the numbering record: it lets a reader confirm that a token means the same person in
+        every document of the request. It is not permission to put anything back, which is why the
+        caller that restores a draft asks for `authority` instead.
+        """
+        label = label if label is not None else self.current
+        allowed = self.documents[label].restorable
+        return {
+            token: self.ledger.token_to_val[token]
+            for token in sorted(allowed)
+            if token in self.ledger.token_to_val
+        }
+
+    def authority(self, label: str | None = None) -> dict[str, str]:
+        """The only map that may be restored into an outbound draft: the item being answered.
+
+        A historical example earned its PERSON tokens and is sent as data, but putting a name back
+        from an example is how an old correspondent becomes a new recipient. Authority belongs to
+        the current document alone, so asking for any other label returns nothing.
+        """
+        label = label if label is not None else self.current
+        if label != self.current:
+            return {}
+        return self.restorable(label)
+
+
+def restore_person(text: str, restorable: Mapping[str, str]) -> tuple[str, tuple[str, ...]]:
+    """Restore only PERSON placeholders this document earned; report what stayed unresolved."""
+    unresolved: list[str] = []
+
+    def _replace(match: re.Match[str]) -> str:
+        token = match.group(0)
+        value = restorable.get(token)
+        if value is None:
+            unresolved.append(token)
+            return token
+        return value
+
+    return PERSON_TOKEN.sub(_replace, text), tuple(dict.fromkeys(unresolved))
+
+
 def redact(
     text: str,
     *,
     display_names: Iterable[str] | None = None,
     profile: str = "mail",
+    ledger: RedactionLedger | None = None,
+    limit: int = READER_MAX_INPUT_CHARS,
 ) -> RedactionResult:
-    """Execute local deterministic redaction pipeline per docs/PROMPTS.md section 1."""
+    """Execute local deterministic redaction pipeline per docs/PROMPTS.md section 1.
+
+    Counts and maps describe this document only, even when the numbering namespace is shared
+    with the other documents of the same request.
+    """
+    scope = ledger or RedactionLedger()
     if profile == "mail":
         text = _strip_quoted_history(text)
         text = _strip_signature(text)
 
-    val_to_placeholder: dict[str, str] = {}
-    restore_map: dict[str, str] = {}
-    counts: dict[str, int] = {
-        "email": 0,
-        "upi": 0,
-        "phone": 0,
-        "aadhaar": 0,
-        "pan": 0,
-        "card": 0,
-        "otp": 0,
-        "ifsc": 0,
-        "url": 0,
-        "person": 0,
-    }
+    # Any token that looks like ours and arrived in the source text is hostile, not earned.
+    # Reserving it first means the real values can never be numbered into a collision with it.
+    forged = {match.group(0) for match in TOKEN_PATTERN.finditer(text)}
+    scope.reserve(forged)
+    # Token -> local value, or None when the placeholder is lossy by design and cannot be
+    # restored. Insertion-ordered, so a document's map is reproducible.
+    earned: dict[str, str | None] = {}
 
-    def _get_or_create_placeholder(tag_type: str, raw_val: str) -> str:
-        if raw_val in val_to_placeholder:
-            return val_to_placeholder[raw_val]
-        counts[tag_type.lower()] += 1
-        placeholder = f"<{tag_type.upper()}_{counts[tag_type.lower()]}>"
-        val_to_placeholder[raw_val] = placeholder
-        restore_map[placeholder] = raw_val
-        return placeholder
+    def _tag(tag_type: str, raw_val: str) -> str:
+        token = scope.token_for(tag_type, raw_val)
+        earned.setdefault(token, raw_val)
+        return token
 
-    # 1. Person names
-    if display_names:
-        for name in display_names:
-            name_clean = name.strip()
-            if len(name_clean) >= 2:
-                pattern = re.compile(rf"\b{re.escape(name_clean)}\b", re.IGNORECASE)
-                for match in pattern.finditer(text):
-                    _get_or_create_placeholder("PERSON", match.group(0))
-                text = pattern.sub(lambda m: _get_or_create_placeholder("PERSON", m.group(0)), text)
-
-    # 2. URLs
     def url_sub(match: re.Match[str]) -> str:
-        raw_val = match.group(0)
-        domain_class = _classify_url_domain(raw_val)
-        counts["url"] += 1
-        tag = f"<URL:{domain_class}>"
-        restore_map[tag] = raw_val
-        return tag
+        # Same-class URLs collapse to one token, so no single value could be honestly restored.
+        token = f"<URL:{_classify_url_domain(match.group(0))}>"
+        earned.setdefault(token, None)
+        return token
 
     text = URL_PATTERN.sub(url_sub, text)
+    text = PAN_PATTERN.sub(lambda m: _tag("PAN", m.group(0)), text)
+    text = IFSC_PATTERN.sub(lambda m: _tag("IFSC", m.group(0)), text)
 
-    # 3. PAN
-    def pan_sub(match: re.Match[str]) -> str:
-        return _get_or_create_placeholder("PAN", match.group(0))
-
-    text = PAN_PATTERN.sub(pan_sub, text)
-
-    # 4. IFSC
-    def ifsc_sub(match: re.Match[str]) -> str:
-        return _get_or_create_placeholder("IFSC", match.group(0))
-
-    text = IFSC_PATTERN.sub(ifsc_sub, text)
-
-    # 5. Card check (Checked before Aadhaar so 16-digit cards are not eaten by 12-digit Aadhaar)
     def card_sub(match: re.Match[str]) -> str:
         raw_val = match.group(0)
-        if _luhn_valid(raw_val):
-            return _get_or_create_placeholder("CARD", raw_val)
-        return raw_val
+        return _tag("CARD", raw_val) if _luhn_valid(raw_val) else raw_val
 
     text = CARD_CANDIDATE_PATTERN.sub(card_sub, text)
-
-    # 6. Aadhaar (12 digits, strictly not followed by another digit run)
-    def aadhaar_sub(match: re.Match[str]) -> str:
-        return _get_or_create_placeholder("AADHAAR", match.group(0))
-
-    text = AADHAAR_PATTERN.sub(aadhaar_sub, text)
-
-    # 7. Emails and UPI IDs
-    email_or_upi_pattern = re.compile(r"\b[A-Za-z0-9._%+-]+@([A-Za-z0-9.-]+)\b")
+    text = AADHAAR_PATTERN.sub(lambda m: _tag("AADHAAR", m.group(0)), text)
 
     def email_or_upi_sub(match: re.Match[str]) -> str:
         raw_val = match.group(0)
-        domain_part = match.group(1)
-        if "." in domain_part:
-            return _get_or_create_placeholder("EMAIL", raw_val)
-        else:
-            return _get_or_create_placeholder("UPI", raw_val)
+        has_domain_dot = "." in match.group(1)
+        return _tag("EMAIL" if has_domain_dot else "UPI", raw_val)
 
-    text = email_or_upi_pattern.sub(email_or_upi_sub, text)
-
-    # 8. OTPs (4-8 digits near OTP/code keywords)
-    otp_context_pattern = re.compile(
-        r"(?i)\b(?:otp|code|verification code)\b.{0,20}?\b(\d{4,8})\b|\b(\d{4,8})\b.{0,20}?\b(?:otp|code|verification code)\b"
-    )
+    text = EMAIL_UPI_PATTERN.sub(email_or_upi_sub, text)
 
     def otp_sub(match: re.Match[str]) -> str:
         otp_val = match.group(1) or match.group(2)
-        placeholder = _get_or_create_placeholder("OTP", otp_val)
-        return match.group(0).replace(otp_val, placeholder, 1)
+        return match.group(0).replace(otp_val, _tag("OTP", otp_val), 1)
 
-    text = otp_context_pattern.sub(otp_sub, text)
+    text = OTP_CONTEXT_PATTERN.sub(otp_sub, text)
 
-    # 9. Phones
     def phone_sub(match: re.Match[str]) -> str:
         raw_val = match.group(0)
         if "<" in raw_val or ">" in raw_val:
             return raw_val
-        return _get_or_create_placeholder("PHONE", raw_val)
+        return _tag("PHONE", raw_val)
 
     text = PHONE_PATTERN.sub(phone_sub, text)
 
-    if len(text) > READER_MAX_INPUT_CHARS:
-        text = text[:READER_MAX_INPUT_CHARS]
+    # Names go last: an address or URL that contains a person's name is already a typed
+    # placeholder by now, so a name pattern can never cut a private token in half.
+    # Longest first, so a short configured token ("Meena") cannot consume part of a longer
+    # display name ("Meena Rao") and leave the rest of it in clear text.
+    cleaned = {name.strip() for name in display_names or () if len(name.strip()) >= 2}
+    for name in sorted(cleaned, key=lambda value: (-len(value), value)):
+        pattern = re.compile(rf"\b{re.escape(name)}\b", re.IGNORECASE)
+        text = pattern.sub(lambda m: _tag("PERSON", m.group(0)), text)
 
-    clean_counts = {k: v for k, v in counts.items() if v > 0}
+    truncated = len(text) > limit
+    if truncated:
+        text = _safe_clip(text, limit)
+
+    # Tallies are read off the text that is actually about to leave, so a clipped placeholder
+    # cannot be reported as an exposure that never happened, and a hostile literal that merely
+    # looks like one of ours is never credited as our own replacement.
+    sent_occ: dict[str, int] = dict.fromkeys(TYPES, 0)
+    sent_uni: dict[str, int] = dict.fromkeys(TYPES, 0)
+    live: set[str] = set()
+    for match in TOKEN_PATTERN.finditer(text):
+        token = match.group(0)
+        if token not in earned:
+            continue
+        live.add(token)
+        kind = _kind_of(token)
+        sent_occ[kind] += 1
+    for token in live:
+        sent_uni[_kind_of(token)] += 1
+
+    # Reservation makes a forged literal unnumberable, so every token earned here is genuinely
+    # ours; only PERSON carries a value worth putting back.
+    restorable = frozenset(
+        token for token in live if earned[token] is not None and token.startswith(RESTORABLE_PREFIX)
+    )
 
     return RedactionResult(
         text=text,
-        counts=clean_counts,
-        restore_map=restore_map,
+        counts=_positive(sent_occ),
+        restore_map={
+            token: value for token, value in earned.items() if value is not None and token in live
+        },
+        unique=_positive(sent_uni),
+        restorable=restorable,
+        truncated=truncated,
+    )
+
+
+def _safe_clip(text: str, limit: int) -> str:
+    """Clip at the limit without cutting a placeholder or tag in half."""
+    clipped = text[:limit]
+    open_token = re.search(r"<[A-Za-z_:0-9]*$", clipped)
+    if open_token:
+        clipped = clipped[: open_token.start()]
+    dangling = clipped.rfind("<")
+    if dangling != -1 and clipped.find(">", dangling) == -1:
+        clipped = clipped[:dangling]
+    return clipped
+
+
+def clip(text: str, limit: int) -> tuple[str, bool]:
+    """Clip to `limit` and report whether anything was removed.
+
+    Context assembly clips before it wraps a value in a tag, so the returned flag is the only
+    honest way to carry "this field was shortened" into provenance.
+    """
+    if len(text) <= limit:
+        return text, False
+    return _safe_clip(text, limit), True
+
+
+def redact_request(
+    documents: Mapping[str, str],
+    *,
+    current: str,
+    display_names: Iterable[str] | None = None,
+    profile: str = "mail",
+    limit: int = READER_MAX_INPUT_CHARS,
+) -> RequestRedaction:
+    """Redact every document of one outbound request through one namespace."""
+    scope = RedactionLedger()
+    results: dict[str, RedactionResult] = {}
+    for label, raw in documents.items():
+        results[label] = redact(
+            raw, display_names=display_names, profile=profile, ledger=scope, limit=limit
+        )
+    return RequestRedaction(
+        documents=results,
+        ledger=scope,
+        current=current,
+        truncated=any(result.truncated for result in results.values()),
     )
 
 

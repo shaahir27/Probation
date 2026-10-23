@@ -269,7 +269,7 @@ def _as_if_licensed(conn: sqlite3.Connection, row: dict[str, Any]) -> tuple[str,
     """Recompute what the gate would have decided for this proposal at licence 3.
 
     No licence in the tiny corpus can be earned -- every class bottoms out at level 0, because the
-    Clopper-Pearson lower bound needs about 58 agreeing trials and the fixture has 223 situations
+    Beta posterior lower bound needs about 58 agreeing trials and the fixture has 223 situations
     spread over twenty classes. So the licensed tier is tested as the property that actually
     matters: given the inputs each proposal persisted for itself, lifting only the licence must
     produce the same decision and the same bound execution parameters whether or not the future was
@@ -282,8 +282,9 @@ def _as_if_licensed(conn: sqlite3.Connection, row: dict[str, Any]) -> tuple[str,
         "SELECT hands_off_reason FROM situations WHERE id = ?;", (sit_id,)
     ).fetchone()
     feats = conn.execute(
-        "SELECT reader_ok FROM features WHERE situation_id = ?;", (sit_id,)
+        "SELECT reader_ok,deterministic_json FROM features WHERE situation_id = ?;", (sit_id,)
     ).fetchone()
+    statuses = json.loads(feats["deterministic_json"]) if feats is not None else {}
     result = decide_gate(
         action=str(row["action"]),
         p=float(row["p_max"]),
@@ -291,15 +292,15 @@ def _as_if_licensed(conn: sqlite3.Connection, row: dict[str, Any]) -> tuple[str,
         licence_level=3,
         cap=int(row["cap"]),
         hands_off=None if hands_off is None else hands_off["hands_off_reason"],
-        reader_required=False,
-        reader_ok=True if feats is None else bool(feats["reader_ok"]),
-        deterministic_ok=True,
+        reader_required=bool(statuses.get("__reader_required", True)),
+        reader_ok=False if feats is None else bool(feats["reader_ok"]),
+        deterministic_ok=bool(statuses.get("__deterministic_ok", False)),
         loss=get_action_loss(str(row["action"])),
         attention_cost=1.0,
         recallable=is_recallable(str(row["action"])),
         audit_draw=compute_audit_draw(sit_id, seed=settings.audit_seed),
         audit_fraction=settings.audit_fraction,
-        budget_ok=True,
+        budget_ok=bool(statuses.get("__budget_ok", False)),
     )
     return result.decision.value, result.reason, str(row["params_json"])
 
@@ -325,16 +326,22 @@ def test_t_nopeek_future_mutation_leaves_the_past_intact(
     monkeypatch.setattr(settings, "cold_start_min_situations", 20)
 
     def test_novelty(*args: Any, **kwargs: Any) -> NoveltyDetector:
-        return NoveltyDetector(*args, embedder=RecordedEmbeddings(), **kwargs)
+        kwargs["embedder"] = RecordedEmbeddings()
+        return NoveltyDetector(*args, **kwargs)
 
     monkeypatch.setattr(replay, "NoveltyDetector", test_novelty)
 
+    from tests.stubs.stub_reader import StubReader
+
+    reader = StubReader(tiny_synth_dir / "truth.json")
     pristine = _build_pristine_input(tiny_synth_dir, tiny_synth_owner)
     world_db = tiny_synth_dir / "world.db"
 
     baseline = _copy_input(pristine)
     with SimWorld(world_db) as world:
-        run_replay(baseline, clock=Clock(mode=ClockMode.REPLAY), world=world)
+        run_replay(
+            baseline, clock=Clock(mode=ClockMode.REPLAY), world=world, reader_callable=reader
+        )
 
     full = _proposal_map(baseline, None)
     assert len(full) >= CUTS, f"only {len(full)} proposals; V08 needs at least {CUTS} cut points"
@@ -388,7 +395,13 @@ def test_t_nopeek_future_mutation_leaves_the_past_intact(
         assert dropped + relabelled + damaged > 0, f"cut {t_cut} had no future left to mutate"
 
         with SimWorld(cut_world_db) as mutated:
-            run_replay(conn, clock=Clock(mode=ClockMode.REPLAY), world=mutated, until=t_cut)
+            run_replay(
+                conn,
+                clock=Clock(mode=ClockMode.REPLAY),
+                world=mutated,
+                until=t_cut,
+                reader_callable=reader,
+            )
 
         got = _proposal_map(conn, None)
         want = {sid: row for sid, row in full.items() if str(row["proposed_at"]) <= t_cut}

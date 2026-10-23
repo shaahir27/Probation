@@ -97,3 +97,19 @@ The complete architectural specifications live under [`docs/`](docs/):
 ## 5. License
 
 MIT License. See [LICENSE](LICENSE) for details.
+
+### Local novelty model (WP4)
+
+Nemotron reader/writer jobs use the configured provider; novelty uses the separate **local** `sentence-transformers/all-MiniLM-L6-v2` embedding model. It is not a reply-generating local LLM. Model weights and caches are ignored project data, not GitHub assets. Missing or invalid artifacts leave novelty unavailable and cannot authorize autonomous execution. There is no TF-IDF fallback or automatic model download.
+
+Provision the reviewed FastEmbed ONNX distribution `Qdrant/all-MiniLM-L6-v2-onnx` at revision `d13954661f83248295ba75c1ed411eef3b7b936e` through an approved setup/download step. Put its seven reviewed model/tokenizer/config files under `data/models/all-MiniLM-L6-v2/<revision>/`. The reviewed hashes are supplied in `config/embeddings/all-MiniLM-L6-v2.manifest.json`; copy that file to the adjacent `manifest.json` (or pass its absolute path and set `EMBEDDING_MANIFEST_PATH`). The manifest must contain `model: "sentence-transformers/all-MiniLM-L6-v2"` and a `files` object mapping **every** artifact-relative path to its reviewed SHA-256. A manifest is an integrity record, not independent proof of a file's publisher: verify upstream provenance before accepting it. Do not point the loader at an unreviewed model or a global cache.
+
+After the declared Python dependencies and verified artifacts are available, run from the checkout (PowerShell and POSIX support the same argument form):
+
+```text
+python -B scripts/verify_embeddings.py --model-dir data/models/all-MiniLM-L6-v2/d13954661f83248295ba75c1ed411eef3b7b936e --manifest data/models/all-MiniLM-L6-v2/manifest.json
+```
+
+The command checks the complete manifest, initializes CPU inference offline, verifies 384-dimensional finite/normalized/repeatable vectors and strict duplicate novelty, and blocks socket connections and .env reads. It prints only synthetic smoke diagnostics; it does not validate policy accuracy or earned authority. The loader places runtime caches/temp under the model's project-local `.cache` parent and records model/tokenizer/preprocessing and FastEmbed/ONNX Runtime/NumPy identity. It may not download missing artifacts.
+
+For a separate worktree, supply absolute model/manifest paths inside this project and set `EMBEDDING_MODEL_DIR` / `EMBEDDING_MANIFEST_PATH` to those same reviewed paths for application runs. Do not copy weights into Git or assume the worktree's relative data directory contains them. CI can inject deterministic test embeddings; those tests do not replace the real offline smoke.

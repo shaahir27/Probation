@@ -83,6 +83,20 @@ Governed by [`docs/BUILD_LOGGING_PROTOCOL.md`](file:///d:/Desktop/project/Probat
 |---|---|---|---|---|
 | WP3 static audit and implementation plan (implementation not started) | Phase 3 / cross-phase planning | [Planning record](phase_03_mail_calendar_packs/feature_wp3_audit_plan.md) | Deferred | 2026-10-23 |
 
+## WP3 implementation record - 23 October 2026
+
+Branch `phase-3-wp3-reader-pipeline`, packages P00-P05 of `docs/wp3/WORK_PACKAGES.md`. Requirement
+statuses and what remains are tracked per requirement in
+[`docs/reports/wp3-requirements-coverage-2026-10-23.csv`](file:///d:/Desktop/project/Probation/docs/reports/wp3-requirements-coverage-2026-10-23.csv).
+
+| Feature | Phase | File | Status | Last Updated |
+|---|---|---|---|---|
+| WP3 P01 typed job and outcome contracts | Phase 3 — WP3 | [P01 contracts](phase_03_mail_calendar_packs/feature_wp3_p01_job_contracts.md) | Built | 2026-10-23 |
+| WP3 P02 immutable prompt catalog and verified assets | Phase 3 — WP3 | [P02 prompt catalog](phase_03_mail_calendar_packs/feature_wp3_p02_prompt_catalog.md) | Built | 2026-10-23 |
+| WP3 P03 bounded request context and request-scoped redaction | Phase 3 — WP3 | [P03 bounded context](phase_03_mail_calendar_packs/feature_wp3_p03_bounded_context_redaction.md) | Built | 2026-10-23 |
+| WP3 P04 per-attempt spend authority in exact units | Phase 3 — WP3 | [P04 spend authority](phase_03_mail_calendar_packs/feature_wp3_p04_spend_authority.md) | Deferred | 2026-10-23 (durable store gated on [W3-D03 review](file:///d:/Desktop/project/Probation/docs/wp3/W3_D03_SPEND_ACCOUNTING_REVIEW.md)) |
+| WP3 P05 transport authority, semantic cache and typed error semantics | Phase 3 — WP3 | [P05 transport and cache](phase_03_mail_calendar_packs/feature_wp3_p05_transport_cache_errors.md) | Built | 2026-10-23 (single-flight deferred with 7.3.7) |
+
 
 ## WP2 audit record - 23 October 2026
 
@@ -90,3 +104,30 @@ Governed by [`docs/BUILD_LOGGING_PROTOCOL.md`](file:///d:/Desktop/project/Probat
 |---|---|---|---|---|
 | WP2 audit repairs: horizon-enforced no-peeking harness, world-fidelity guards, C9 label-knowledge repair, unscannable-root fail-closed, drift review tolerance, fixture regeneration | Phase 2 — Synthetic generation & calibration | [Audit repairs](phase_02_synth_world_importers/feature_wp2_audit_repairs.md) | Built | 2026-10-23 |
 | Work Package 2: Synthetic Identity, Observation Chronology, and World Fidelity (superseded "no known issues" claim corrected) | Phase 2 — Synthetic generation & calibration | [Original WP2 log](phase_02_synth_world_importers/feature_wp2_synthetic_identity_chronology_fidelity.md) | Updated | 2026-10-23 |
+
+## WP3/WP4 integrated offline checkpoint - 23 October 2026
+
+591 tests passed after the P06 #1/#4/#5 corrections; full WP3/P11 remains blocked by W3-D03/W3-D04.
+
+| Feature | Phase | File | Status | Last Updated |
+|---|---|---|---|---|
+| Shared typed reader and semantic feature provenance | Phase 3 WP3 | [Log](phase_03_mail_calendar_packs/feature_wp3_p06_shared_reader.md) | Built | 2026-10-23 |
+| Shared prediction and counterfactual adapters | Phase 3 WP3 | [Log](phase_03_mail_calendar_packs/feature_wp3_p07_prediction_adapters.md) | Updated | 2026-10-23 |
+| Reply writer and validated historical examples | Phase 3 WP3 | [Log](phase_03_mail_calendar_packs/feature_wp3_p08_reply_writer.md) | Built | 2026-10-23 |
+| Remaining consumer migration | Phase 3 WP3 | [Log](phase_03_mail_calendar_packs/feature_wp3_p09_registered_consumers.md) | Updated | 2026-10-23 |
+| Atomic drafts and edited-operation binding component | Phase 3 WP3 | [Log](phase_03_mail_calendar_packs/feature_wp3_p10_draft_persistence.md) | Updated | 2026-10-23 |
+| Offline integration packaging and acceptance checkpoint | Phase 3 WP3 | [Log](phase_03_mail_calendar_packs/feature_wp3_p11_offline_acceptance.md) | Deferred | 2026-10-23 |
+| feature_ingestor_brain_features | Original phase retained | [Updated log](phase_03_mail_calendar_packs/feature_ingestor_brain_features.md) | Updated | 2026-10-23 |
+| feature_mail_pack | Original phase retained | [Updated log](phase_03_mail_calendar_packs/feature_mail_pack.md) | Updated | 2026-10-23 |
+| feature_calendar_pack | Original phase retained | [Updated log](phase_03_mail_calendar_packs/feature_calendar_pack.md) | Updated | 2026-10-23 |
+| feature_policy_novelty_lb | Original phase retained | [Updated log](phase_04_engine_core_backtest/feature_policy_novelty_lb.md) | Updated | 2026-10-23 |
+| feature_replay_engine | Original phase retained | [Updated log](phase_04_engine_core_backtest/feature_replay_engine.md) | Updated | 2026-10-23 |
+| feature_files_pack | Original phase retained | [Updated log](phase_06_files_pack/feature_files_pack.md) | Updated | 2026-10-23 |
+| feature_exam_board_engine_and_worker | Original phase retained | [Updated log](phase_07_exam_board/feature_exam_board_engine_and_worker.md) | Updated | 2026-10-23 |
+| feature_exam_operators_and_validators | Original phase retained | [Updated log](phase_07_exam_board/feature_exam_operators_and_validators.md) | Updated | 2026-10-23 |
+| feature_habit_mining_and_wording | Original phase retained | [Updated log](phase_08_chains_habits/feature_habit_mining_and_wording.md) | Updated | 2026-10-23 |
+| feature_links_quarantine | Original phase retained | [Updated log](phase_08b_radar_reading_triage/feature_links_quarantine.md) | Updated | 2026-10-23 |
+| feature_opportunity_radar | Original phase retained | [Updated log](phase_08b_radar_reading_triage/feature_opportunity_radar.md) | Updated | 2026-10-23 |
+| feature_eval_metrics_and_baselines | Original phase retained | [Updated log](phase_10_evaluation/feature_eval_metrics_and_baselines.md) | Updated | 2026-10-23 |
+| feature_synthetic_world_generator | Original phase retained | [Updated log](phase_02_synth_world_importers/feature_synthetic_world_generator.md) | Updated | 2026-10-23 |
+| feature_executor_worker_and_simworld | Original phase retained | [Updated log](phase_05_evidence_licences_gate_drift/feature_executor_worker_and_simworld.md) | Updated | 2026-10-23 |

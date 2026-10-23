@@ -1,6 +1,6 @@
 # WP3 acceptance and handoff
 
-Planning revision 1, 23 October 2026. Read with the [main plan](../WP3_IMPLEMENTATION_PLAN.md), [work packages](WORK_PACKAGES.md) and [audit](../reports/wp3-audit-2026-10-23.md). Every test below is **proposed**, not a claim that a test exists or passes. Names are acceptance identifiers; place tests in the appropriate existing module or a focused new module, keeping files manageable.
+Planning revision 1, 23 October 2026. Read with the [main plan](WP3_IMPLEMENTATION_PLAN.md), [work packages](WORK_PACKAGES.md) and [audit](../reports/wp3-audit-2026-10-23.md). Every test below is **proposed**, not a claim that a test exists or passes. Names are acceptance identifiers; place tests in the appropriate existing module or a focused new module, keeping files manageable.
 
 ## 1. Incoming state and test discipline
 

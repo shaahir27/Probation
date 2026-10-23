@@ -1,4 +1,4 @@
-# WP4 execution record and remaining gates
+# WP4 execution record and acceptance
 
 Approved scope: policy, chronological calibration, local-embedding novelty, bounded history, explanations and honest report cohorts. This records implementation of the user's approved four-section plan; it does not replace CONTRACT or the source WP4 requirements in CHANGES_IMPLEMENTATION_PLAN section 8.
 
@@ -9,10 +9,10 @@ Branch: `phase-4-wp4-policy-calibration`. Worktree: `data/wp4/worktree` relative
 1. W4-0: isolated branch and committed WP2 baseline, synthetic-only work, no credentials or provider calls.
 2. W4-1: encoder, canonical family labels, file folder/token vocabulary, explicit 200-row defaults, immutable historical training records.
 3. W4-2: purged five-block expanding calibration, exact decay weights, final fitting, full-precision complete model digest and component explanations.
-4. W4-3: injected bounded-memory novelty and explicit offline MiniLM artifact loader. Fake embeddings test math only; real runtime acceptance remains open.
-5. W4-4: bounded sender/file/calendar statistics, additive event-time index, synthetic scaling benchmark, explicit report denominators and nullable CLI presentation. Existing pack clue call sites await coordinated integration; helpers alone do not close this checkpoint.
-6. W4-5: **not started**. Requires final verified WP3 on main. Merge that baseline into this branch only at the authorized integration checkpoint; retain WP3's reader/provenance/gateway changes and WP4 algorithms. No wholesale replay replacement.
-7. W4-6: component/check evidence is in the checkpoint report. Full WP4 acceptance requires W4-5, actual offline MiniLM artifacts, remaining query/explanation wiring and the final integrated no-peeking tests.
+4. W4-3: injected bounded-memory novelty and explicit offline MiniLM artifact loader. Fake embeddings test math only; real runtime and shared snapshot acceptance now passed (see reports/phase-4.md).
+5. W4-4: bounded sender/file/calendar statistics, additive event-time index, synthetic scaling benchmark, explicit report denominators and nullable CLI presentation. Pack clue and explanation call sites are now integrated; final nine-case parity/plan evidence is in reports/phase-4.md.
+6. W4-5: implemented on this branch after verified WP3 commit 398729e reached main. Ten conflicts were resolved per hunk, retaining both WP4 algorithms and WP3 boundaries; no wholesale replay/history replacement.
+7. W4-6: real offline MiniLM, installed wheel, query/explanation wiring and 50 trained file/calibration/novelty/explanation cuts pass. Final full check and branch merge evidence is recorded in reports/phase-4.md.
 
 ## Integration contract for the WP3/WP4 owners
 
@@ -31,4 +31,8 @@ Branch: `phase-4-wp4-policy-calibration`. Worktree: `data/wp4/worktree` relative
 
 No dependency or model artifact was installed, no live request was made, no fixture regenerated, and no CONTRACT change was made. The only schema addition is `idx_ledger_kind_time` on existing ledger columns, adopted after query-plan inspection. Existing bootstrap index migration reads it from schema.sql, requires an unbound clean connection and preserves ledger bytes. A bootstrap-only rollback can drop this index; it must not alter ledger rows or remove WP1 objects.
 
-Do not merge this branch as a completed WP4 while W4-5 or real embedding acceptance is open. Update original feature logs and phase handoff after actual integration. Do not call passing isolated tests a release proof.
+Merge only after the final full-check evidence in reports/phase-4.md is accepted. This completes WP4 only; it does not establish full-product or live-provider release acceptance.
+
+## Final acceptance
+
+W4-0 through W4-6 complete: integrated branch check629 passed, strict typing/lint/format and protected hashes pass; actual offline MiniLM/shared snapshot, packaged assets, nine query benchmarks and trained file50-cut properties pass. Detailed eleven-requirement mapping and downstream limits: [Phase4 handoff](reports/phase-4.md). Git publication follows the owner-approved merge sequence.

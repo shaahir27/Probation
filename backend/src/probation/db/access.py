@@ -29,10 +29,23 @@ class Role(StrEnum):
     API = "api"
 
 
+# `budget_scopes` is deliberately absent from every role: a cap is provisioned only by an
+# operator-initiated administration step (W3-D03 section 4), and a worker that finds no row
+# for its scope denies the call rather than pricing itself.
 ROLE_ALLOWED_WRITE_TABLES: dict[Role, frozenset[str]] = {
     Role.INGESTOR: frozenset({"sources", "raw_items", "situations"}),
     Role.BRAIN: frozenset(
-        {"situations", "features", "llm_cache", "proposals", "drafts", "exposure_log", "ledger"}
+        {
+            "situations",
+            "features",
+            "llm_cache",
+            "proposals",
+            "drafts",
+            "exposure_log",
+            "ledger",
+            "llm_requests",
+            "llm_attempts",
+        }
     ),
     Role.RESOLVER: frozenset({"outcomes", "ledger"}),
     Role.EXAMINER: frozenset(
@@ -50,6 +63,8 @@ ROLE_ALLOWED_WRITE_TABLES: dict[Role, frozenset[str]] = {
             "ledger",
             "admin_commands",
             "drift_receipts",
+            "llm_requests",
+            "llm_attempts",
         }
     ),
     Role.WEBFACTS: frozenset(
@@ -61,6 +76,8 @@ ROLE_ALLOWED_WRITE_TABLES: dict[Role, frozenset[str]] = {
             "llm_cache",
             "exposure_log",
             "ledger",
+            "llm_requests",
+            "llm_attempts",
         }
     ),
     Role.EXECUTOR: frozenset({"actions", "outcomes", "ledger"}),
@@ -95,6 +112,8 @@ class RoleAccess:
 
     def execute_write(self, table: str, query: str, params: tuple[Any, ...] = ()) -> ReadCursor:
         """Execute write query after permission verification."""
+        if table in {"llm_requests", "llm_attempts"}:
+            raise AccessError("Spend writes require the row-scoped SpendStore")
         if self.role == Role.BRAIN and table == "situations":
             raise AccessError("Brain situation writes require the typed chain repository")
         if self.role == Role.EXECUTOR and table == "outcomes":
@@ -114,6 +133,8 @@ class RoleAccess:
         self, table: str, query: str, seq_of_params: list[tuple[Any, ...]]
     ) -> ReadCursor:
         """Execute batch write query after permission verification."""
+        if table in {"llm_requests", "llm_attempts"}:
+            raise AccessError("Spend writes require the row-scoped SpendStore")
         if self.role == Role.BRAIN and table == "situations":
             raise AccessError("Brain situation writes require the typed chain repository")
         if self.role == Role.EXECUTOR and table == "outcomes":

@@ -13,14 +13,12 @@ from probation.config import settings
 from probation.core.clock import Clock, format_timestamp, get_clock
 from probation.core.enums import GateDecision
 from probation.core.hashing import canonical_json, det_id
-from probation.core.types import ExamOperator
+from probation.core.types import ExamOperator, Situation
 from probation.db.access import Role, RoleAccess
-from probation.engine.caps import BASE_ACTION_CAPS, get_action_loss, is_recallable
+from probation.engine.exam_prediction import ExamPredictionContext
 from probation.engine.exam_storage import ExamRunResult as ExamRunResult
 from probation.engine.exam_storage import load_exam, persist_exam
-from probation.engine.gate import compute_audit_draw, decide_gate
 from probation.engine.policy import Policy
-from probation.llm.redact import redact_text
 from probation.packs.calendar.exam_ops import (
     CALENDAR_EXAM_OPERATORS,
     apply_calendar_operator,
@@ -169,6 +167,7 @@ def run_exam(
     model_id: str | None = None,
     clock: Clock | None = None,
     attempt_ordinal: int = 0,
+    prediction_context: ExamPredictionContext | None = None,
 ) -> ExamRunResult:
     """Execute counterfactual examination for a (class_key, action) pair.
 
@@ -197,12 +196,13 @@ def run_exam(
         FROM situations s
         JOIN outcomes o ON s.id = o.situation_id
         LEFT JOIN raw_items r ON s.raw_item_id = r.id
+        JOIN proposals p ON p.situation_id=s.id AND p.class_key=? AND p.action=?
         WHERE s.occurred_at COLLATE UTC_TIMESTAMP <= ?
           AND o.known_at COLLATE UTC_TIMESTAMP <= ?
           AND (r.known_at IS NULL OR r.known_at COLLATE UTC_TIMESTAMP <= ?)
         ORDER BY s.occurred_at COLLATE UTC_TIMESTAMP ASC, s.id;
         """,
-        (now_iso, now_iso, now_iso),
+        (class_key, action, now_iso, now_iso, now_iso),
     )
     all_situations = cur.fetchall()
     input_fingerprint = canonical_json(
@@ -218,6 +218,10 @@ def run_exam(
             "audit_fraction": settings.audit_fraction,
         }
     )
+    if prediction_context is not None:
+        if policy is not None and policy is not prediction_context.snapshot.policy:
+            raise ValueError("Exam policy and frozen prediction context disagree")
+        policy = prediction_context.snapshot.policy
     policy_version = str(getattr(policy, "policy_version", type(policy).__qualname__))
     edit_model = model_id or settings.model_exam_edits
     run_id = "exam-" + det_id(
@@ -253,50 +257,43 @@ def run_exam(
                 if len(sampled_rows) >= settings.exam_n:
                     break
 
-    loss = get_action_loss(action)
-    recallable = is_recallable(action)
-    cap = BASE_ACTION_CAPS.get(action.upper(), 3)
-
-    # 2. Filter base cases where gate decision at level_tested is action-taking (rank >= 2)
+    context = prediction_context.frozen() if prediction_context is not None else None
     valid_bases: list[dict[str, Any]] = []
+    if context is not None and context.history.as_of > now_iso:
+        raise ValueError("Exam history extends beyond exam time")
     for r in sampled_rows:
-        sit_id = str(r["id"])
-        sit_text = str(r["redacted_text"] or "")
-        audit_draw = compute_audit_draw(sit_id, seed=settings.audit_seed)
-
-        # Baseline gate prediction
-        base_p = 0.99
-        if policy is not None and hasattr(policy, "predict"):
-            _, base_p, _, _ = policy.predict({"text": sit_text})
-
-        base_gate_res = decide_gate(
-            action=action,
-            p=base_p,
-            novel=False,
-            licence_level=level_tested,
-            cap=cap,
-            hands_off=r["hands_off_reason"],
-            reader_required=False,
-            reader_ok=True,
-            deterministic_ok=True,
-            loss=loss,
-            attention_cost=1.0,
-            recallable=recallable,
-            audit_draw=audit_draw,
-            audit_fraction=settings.audit_fraction,
-            budget_ok=True,
+        if context is None:
+            continue  # no model/history/reader/novelty snapshot can never pass
+        sit = Situation(
+            id=str(r["id"]),
+            raw_item_id=str(r["raw_item_id"]),
+            pack=str(r["pack"]),
+            family=str(r["family"]),
+            occurred_at=str(r["occurred_at"]),
+            sender_key=r["sender_key"],
+            content_hash=str(r["content_hash"]),
+            redacted_text=r["redacted_text"],
+            hands_off_reason=r["hands_off_reason"],
+            created_at=str(r["occurred_at"]),
         )
-
-        base_rank = autonomy_rank(base_gate_res.decision)
-        if base_rank >= 2:
+        payload = json.loads(r["raw_payload_json"] or "{}")
+        base_prediction = context.predict(
+            sit, payload, str(payload.get("body") or sit.redacted_text or ""), level_tested
+        )
+        if (
+            base_prediction.class_key == class_key
+            and base_prediction.action == action
+            and autonomy_rank(base_prediction.gate) >= 2
+        ):
             valid_bases.append(
                 {
                     "row": r,
-                    "situation_id": sit_id,
-                    "text": sit_text,
-                    "gate": base_gate_res.decision.value,
-                    "action": action,
-                    "audit_draw": audit_draw,
+                    "situation": sit,
+                    "situation_id": sit.id,
+                    "text": str(payload.get("body") or sit.redacted_text or ""),
+                    "gate": base_prediction.gate.value,
+                    "action": base_prediction.action,
+                    "audit_draw": 0.0,
                 }
             )
 
@@ -325,6 +322,7 @@ def run_exam(
     # 3 & 4. Apply operators and evaluate whole pipeline on perturbed edits
     case_records: list[dict[str, Any]] = []
     discarded_edits = 0
+    pipeline_failures = 0
 
     for base in valid_bases:
         row = base["row"]
@@ -332,7 +330,6 @@ def run_exam(
         base_text = base["text"]
         base_act = base["action"]
         base_gate = base["gate"]
-        audit_draw = base["audit_draw"]
 
         raw_payload: dict[str, Any] = {}
         if row["raw_payload_json"]:
@@ -382,45 +379,22 @@ def run_exam(
                 continue
 
             # Run pipeline on perturbed case: redaction -> policy -> gate
-            redacted_mut, _, _ = redact_text(mut_text)
-
-            pert_act = base_act
-            pert_p = 0.99
-            pert_novel = False
-            hands_off = row["hands_off_reason"]
-
-            # Hands-off checks for executable files
-            if pack_name in ("file", "files") and op.name in (
-                "executable_extension",
-                "double_extension",
-            ):
-                hands_off = "executable_extension"
-
-            if policy is not None and hasattr(policy, "predict"):
-                pert_features: dict[str, Any] = {
-                    "text": redacted_mut,
-                    **mut_payload,
+            assert context is not None
+            prediction = context.predict(base["situation"], mut_payload, mut_text, level_tested)
+            pert_act, pert_gate = prediction.action, prediction.gate.value
+            if any(
+                reason
+                in {
+                    "featurization_failed",
+                    "novelty_unavailable",
+                    "prediction_invalid",
+                    "reader_failed",
+                    "budget_exceeded",
+                    "deterministic_failure",
                 }
-                pert_act, pert_p, _, _ = policy.predict(pert_features)
-
-            pert_gate_res = decide_gate(
-                action=pert_act,
-                p=pert_p,
-                novel=pert_novel,
-                licence_level=level_tested,
-                cap=cap,
-                hands_off=hands_off,
-                reader_required=False,
-                reader_ok=True,
-                deterministic_ok=True,
-                loss=loss,
-                attention_cost=1.0,
-                recallable=recallable,
-                audit_draw=audit_draw,
-                audit_fraction=settings.audit_fraction,
-                budget_ok=True,
-            )
-            pert_gate = pert_gate_res.decision.value
+                for reason in prediction.reasons
+            ):
+                pipeline_failures += 1
 
             # Determine violation
             violated = False
@@ -451,8 +425,11 @@ def run_exam(
         cases=case_records,
     )
 
+    if pipeline_failures:
+        eval_stats["passed"] = False
     details = {
         **eval_stats,
+        "pipeline_failures": pipeline_failures,
         "discarded_invalid_edits": discarded_edits,
         "valid_base_cases": len(valid_bases),
     }

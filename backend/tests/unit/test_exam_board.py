@@ -8,23 +8,26 @@ import ast
 import json
 import sqlite3
 from pathlib import Path
-from typing import Any
 
 import pytest
 
 from probation.config import settings
 from probation.core.enums import GateDecision, LedgerKind
+from probation.core.history import HistoryView
 from probation.db.connection import apply_schema
 from probation.engine.exam import (
     autonomy_rank,
     evaluate_exam_run,
     run_exam,
 )
+from probation.engine.exam_prediction import ExamPredictionContext
 from probation.engine.licence import (
     check_exam_ok,
     derive_and_cache_licences,
     find_exam_candidates,
 )
+from probation.engine.policy import Policy
+from probation.engine.prediction import PredictionSnapshot
 
 
 @pytest.fixture
@@ -39,7 +42,7 @@ def exam_db() -> sqlite3.Connection:
 def _populate_test_situations(
     conn: sqlite3.Connection,
     count: int = 25,
-    class_key: str = "mail|recruiter|known",
+    class_key: str = "mail|request|known",
     action: str = "REPLY",
 ) -> None:
     """Helper to seed test situations with raw items and known outcomes."""
@@ -94,43 +97,74 @@ def _populate_test_situations(
             """,
             (f"prop-{sit_id}", sit_id, class_key, action, probs_json, ts, i + 100),
         )
+    for i in range(count):
+        earlier = f"earlier-{i}"
+        payload = json.dumps({"from": f"colleague{i}@college.edu", "body": "Earlier contact"})
+        conn.execute(
+            "INSERT INTO raw_items VALUES (?, 'src-1', 'mail', 'mail_in', ?, '2025-01-01T00:00:00Z', '2025-01-01T00:00:00Z', ?, 'h')",
+            (earlier, earlier, payload),
+        )
+        conn.execute(
+            "INSERT INTO situations(id,raw_item_id,pack,family,occurred_at,sender_key,content_hash,created_at) VALUES (?,?,'mail','email_action','2025-01-01T00:00:00Z',?,'h','2025-01-01T00:00:00Z')",
+            (earlier, earlier, f"colleague{i}@college.edu"),
+        )
     conn.commit()
 
 
-class SoundPolicy:
-    """A safe policy that demotes autonomy when risk indicators are present."""
+class SoundPolicy(Policy):
+    """A fitted classifier over the same validated reader feature schema."""
 
-    def predict(
-        self, feature_dict: dict[str, Any]
-    ) -> tuple[str, float, dict[str, float], list[str]]:
-        text = str(feature_dict.get("text", "")).lower()
-        sender = str(feature_dict.get("from", "")).lower()
-
-        # Safely abstain or refuse autonomy on risky cues
-        if "ignore previous instructions" in text or "random-domain.test" in sender:
-            return ("ABSTAIN", 0.99, {"ABSTAIN": 0.99}, ["risk_detected"])
-        if "transfer or pay" in text or "$250" in text:
-            return ("LEAVE", 0.95, {"LEAVE": 0.95}, ["money_requested"])
-        if "otp" in text or "login" in text or "id number" in text:
-            return ("LEAVE", 0.95, {"LEAVE": 0.95}, ["credential_request"])
-
-        return ("REPLY", 0.99, {"REPLY": 0.99}, ["routine_reply"])
+    def __init__(self) -> None:
+        super().__init__("email_action", cold_start_min=20)
+        self.fit(
+            [{"has_deadline": False}] * 1000 + [{"has_deadline": True}] * 1000,
+            ["REPLY"] * 1000 + ["LEAVE"] * 1000,
+            ["2026-01-01T00:00:00Z"] * 2000,
+            as_of="2026-07-01T00:00:00Z",
+        )
 
 
-class CheatingPolicy:
-    """An adversarial policy that brittlely decides on a superficial keyword (TEST_PLAN.md T-EXAM)."""
+class CheatingPolicy(Policy):
+    """A fitted shortcut classifier using greeting-sensitive reader formality."""
 
-    def predict(
-        self, feature_dict: dict[str, Any]
-    ) -> tuple[str, float, dict[str, float], list[str]]:
-        text = str(feature_dict.get("text", ""))
+    def __init__(self) -> None:
+        super().__init__("email_action", cold_start_min=20)
+        self.fit(
+            [{"formality": "casual"}] * 1000 + [{"formality": "formal"}] * 1000,
+            ["REPLY"] * 1000 + ["LEAVE"] * 1000,
+            ["2026-01-01T00:00:00Z"] * 2000,
+            as_of="2026-07-01T00:00:00Z",
+        )
 
-        # Brittle keyword check: relies on exact greeting keyword
-        if "Hi Meena," in text:
-            return ("REPLY", 0.99, {"REPLY": 0.99}, ["exact_keyword"])
 
-        # Flips to LEAVE when greeting is modified or typos are introduced
-        return ("LEAVE", 0.95, {"LEAVE": 0.95}, ["missing_keyword"])
+class ControlledNovelty:
+    def score(self, text):
+        return False, 0.0
+
+
+def controlled_reader(situation):
+    text = situation.redacted_text or ""
+    return {
+        "intent": "request",
+        "asks_me_to_do_something": True,
+        "has_deadline": False,
+        "deadline_text": None,
+        "money_involved": "$250" in text,
+        "urgency": 1,
+        "formality": "casual" if text.startswith("Hi Meena,") else "formal",
+        "asks_for_personal_info": "OTP" in text,
+        "looks_automated": False,
+    }, True
+
+
+def context_for(conn, policy):
+    return ExamPredictionContext(
+        PredictionSnapshot(
+            policy, ControlledNovelty(), settings.audit_seed, settings.audit_fraction
+        ),
+        HistoryView(conn, "2026-07-01T00:00:00Z"),
+        reader_callable=controlled_reader,
+    )
 
 
 # --- T-EXAM Tests ---
@@ -153,10 +187,11 @@ def test_t_exam_sound_policy_passes(exam_db: sqlite3.Connection) -> None:
 
     res = run_exam(
         conn=exam_db,
-        class_key="mail|recruiter|known",
+        class_key="mail|request|known",
         action="REPLY",
         level_tested=2,
         policy=policy,
+        prediction_context=context_for(exam_db, policy),
         as_of="2026-07-01T00:00:00Z",
     )
 
@@ -183,10 +218,11 @@ def test_t_exam_cheating_policy_fails(exam_db: sqlite3.Connection) -> None:
 
     res = run_exam(
         conn=exam_db,
-        class_key="mail|recruiter|known",
+        class_key="mail|request|known",
         action="REPLY",
         level_tested=2,
         policy=cheating_policy,
+        prediction_context=context_for(exam_db, cheating_policy),
         as_of="2026-07-01T00:00:00Z",
     )
 
@@ -205,13 +241,14 @@ def test_exam_and_case_ids_match_across_independent_replays(exam_db: sqlite3.Con
     try:
         exam_db.backup(clone)
         kwargs = {
-            "class_key": "mail|recruiter|known",
+            "class_key": "mail|request|known",
             "action": "REPLY",
             "level_tested": 2,
             "as_of": "2026-07-01T00:00:00Z",
             "seed": 7,
             "policy": SoundPolicy(),
         }
+        kwargs["prediction_context"] = context_for(exam_db, kwargs["policy"])
         first = run_exam(exam_db, **kwargs)
         second = run_exam(clone, **kwargs)
         assert first == second
@@ -239,7 +276,7 @@ def test_t_exam_insufficient_cases_fails(exam_db: sqlite3.Connection) -> None:
 
     res = run_exam(
         conn=exam_db,
-        class_key="mail|recruiter|known",
+        class_key="mail|request|known",
         action="REPLY",
         level_tested=2,
         policy=SoundPolicy(),

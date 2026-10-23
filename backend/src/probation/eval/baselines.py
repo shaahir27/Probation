@@ -260,60 +260,13 @@ class LLMConfidenceBaseline:
                 reasons=[f"b3_cached_tau_{self.tau}"],
             )
 
-        # 2. If live LLM client provided, perform structured inference
-        if self.llm_client is not None:
-            # Build nearest examples context
-            examples_text = ""
-            if nearest_examples:
-                examples_text = "\n\nPast similar situations and user actions:\n" + "\n".join(
-                    f"- Text: {ex.get('text', '')} -> Action: {ex.get('action', '')}"
-                    for ex in nearest_examples[:10]
-                )
-
-            system_prompt = (
-                "You are an assistant predicting the user's action for a situation. "
-                "Output JSON with 'action' and 'confidence' (between 0.0 and 1.0)."
-            )
-            user_prompt = f"Situation text:\n{situation.redacted_text}\n{examples_text}"
-
-            try:
-                resp = self.llm_client.chat_json(
-                    kind="b3_baseline",
-                    model="model_reader",
-                    system=system_prompt,
-                    user=user_prompt,
-                    schema=self.B3_SCHEMA,
-                    cache_parts={
-                        "prompt_id": "b3_baseline",
-                        "prompt_version": "v1",
-                        "content_hash": situation.content_hash,
-                    },
-                )
-                act = str(resp.get("action", "REPLY")).upper()
-                conf = float(resp.get("confidence", 0.5))
-                is_auto = conf >= self.tau
-                gate = Gate.EXECUTE_UNDO if is_auto else Gate.ASK
-                return BaselineDecision(
-                    baseline_id=self.baseline_id,
-                    action=act,
-                    confidence=conf,
-                    gate=gate,
-                    is_autonomous=is_auto,
-                    reasons=[f"b3_live_tau_{self.tau}"],
-                )
-            except Exception:
-                pass
-
-        # 3. Deterministic heuristic fallback when offline
-        act = "REPLY" if situation.family == "email_action" else "LEAVE"
-        conf = 0.50
-        is_auto = conf >= self.tau
-        gate = Gate.EXECUTE_UNDO if is_auto else Gate.ASK
+        # A raw client or guessed heuristic cannot establish a B3 measurement.
+        # WP10 must supply frozen validated predictions with its ten-example cohort.
         return BaselineDecision(
             baseline_id=self.baseline_id,
-            action=act,
-            confidence=conf,
-            gate=gate,
-            is_autonomous=is_auto,
-            reasons=[f"b3_fallback_tau_{self.tau}"],
+            action="ABSTAIN",
+            confidence=0.0,
+            gate=Gate.ASK,
+            is_autonomous=False,
+            reasons=["b3_not_run_missing_validated_prediction"],
         )

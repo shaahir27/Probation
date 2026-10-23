@@ -22,6 +22,7 @@ from probation.core.types import (
     ReaderSpec,
     Situation,
 )
+from probation.llm.context import redaction_names
 from probation.llm.jobs import InviteReader
 from probation.llm.redact import redact
 from probation.packs.base import ExecutorIO, PackAdapter, WorldView
@@ -102,8 +103,10 @@ class CalendarPack(PackAdapter):
         desc = payload.get("description", "")
         full_text = f"Title: {title}\nDescription: {desc}"
 
-        # Redact before LLM egress (Invariant I-14)
-        redacted = redact(full_text, profile="invite")
+        # Redact before LLM egress (Invariant I-14). An invite names its people twice: an address
+        # and a display name, and only the second is a PERSON token.
+        names = redaction_names(payload.get("organizer"), payload.get("attendees"))
+        redacted = redact(full_text, profile="invite", display_names=names)
 
         source_ref = (
             (
@@ -137,22 +140,19 @@ class CalendarPack(PackAdapter):
 
     def deterministic_clues(self, s: Situation, hist: HistoryView) -> dict[str, float | str | bool]:
         """Compute all 12 deterministic clues strictly through HistoryView (Invariant I-6)."""
-        raw_items = hist.get_raw_items(pack=self.name)
-        payload = {}
-        for row in raw_items:
-            if row["id"] == s.raw_item_id:
-                try:
-                    payload = json.loads(row["payload_json"])
-                except Exception:
-                    pass
-                break
+        row = hist.get_raw_item(s.raw_item_id)
+        if row is None:
+            raise ValueError("Current source is not known at cutoff")
+        payload = json.loads(row["payload_json"])
+        if not isinstance(payload, dict):
+            raise ValueError("Invalid source payload")
         return extract_calendar_clues(s, hist, payload)
 
     def reader_spec(self) -> ReaderSpec:
         """Prompt descriptor for calendar reader."""
         return ReaderSpec(
             prompt_id="reader.invite",
-            prompt_version="v1",
+            prompt_version="v2",
             json_schema=CALENDAR_READER_SCHEMA,
             redaction_profile="invite",
         )

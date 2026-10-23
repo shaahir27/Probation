@@ -115,6 +115,16 @@ class NoveltyDetector:
         distance = float(np.mean(np.sort(distances, kind="stable")[: self.k]))
         return bool(distance > self.threshold), distance
 
+    def similarity_scores(self, text: str) -> dict[str, float]:
+        """Bounded one-query similarities for eligible example selection, not evidence."""
+        if not self.is_fitted or self.training_vectors is None:
+            return {}
+        query = self._vectors([text])[0]
+        if query.shape[0] != self.training_vectors.shape[1]:
+            raise NoveltyUnavailable("embedding_dimension_changed")
+        scores = self.training_vectors @ query
+        return {sid: float(score) for sid, score in zip(self.reference_ids, scores, strict=True)}
+
 
 def is_novel_point(
     point: list[float], reference_points: list[list[float]], threshold: float
