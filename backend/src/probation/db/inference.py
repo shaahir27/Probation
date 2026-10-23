@@ -7,6 +7,10 @@ from probation.core.hashing import canonical_json, det_id
 from probation.db.access import Role, RoleAccess
 from probation.llm.cache import store_cached_response
 
+# The exposure row id is derived from the cache key alone, so the durable attempt store can
+# find the row a request paid for without a foreign key (W3-D03 section 6).
+EXPOSURE_ID_PREFIX = "llm-exposure-v1"
+
 
 def record_inference(
     conn: sqlite3.Connection,
@@ -23,6 +27,7 @@ def record_inference(
     created_at: str,
     situation_id: str | None,
     redaction_counts: dict[str, int] | None,
+    cost_units: int | None = None,
 ) -> None:
     """A failed exposure insert must not leave a usable, unaccounted cache entry.
 
@@ -53,10 +58,10 @@ def record_inference(
             "exposure_log",
             """INSERT INTO exposure_log
             (id, situation_id, call_kind, model_id, tokens_in, tokens_out,
-             redaction_counts_json, cost_usd, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+             redaction_counts_json, cost_usd, cost_units, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
-                det_id("llm-exposure-v1", cache_key),
+                det_id(EXPOSURE_ID_PREFIX, cache_key),
                 situation_id,
                 kind,
                 model_id,
@@ -64,6 +69,7 @@ def record_inference(
                 tokens_out,
                 canonical_json(redaction_counts or {}),
                 cost_usd,
+                None if cost_units is None else int(cost_units),
                 created_at,
             ),
         )

@@ -1,5 +1,22 @@
 # Phase 3 Handoff: Reader & Writer LLM Pipeline (WP3)
 
+## Approved completion scope and accounting follow-up - 23 October 2026
+
+The owner supplied the approved durable-accounting handoff and authorized completion, push and merge of Phase 3 followed by Phase 4 integration. The owner then explicitly approved: production cold-start **200** (20 is test-only), CCR-002 limits below, and Reading/Chains visibly unavailable until their later production evidence suppliers exist. No live account, spending, deployment, new destination, credential or production dependency is authorized by this approval. CONTRACT.md is unchanged.
+
+CCR-002: file snippets 600 characters; reply examples at most 3; role output-token ceilings READER 200, WRITER 400, WORDING 120, EXAM_EDIT 500, SYNTH 800, QUARANTINE 500, BASELINE 200. DIGEST and HABIT are jobs, not invented model roles. Typed limits do not prove model quality or provider compatibility.
+
+W3-D03 implements three additive accounting tables and integer exposure cost. Normal worker writes to budget_scopes remain forbidden. Requests/attempts are typed-repository-only, with role and active attempt lease ownership checked; generic RoleAccess/raw dedicated cursors cannot bypass those checks. Every physical send commits a reservation before HTTP; no write lock spans HTTP. Shared account caps cover all models and applicable operational periods. Duplicate semantic requests, including NULL situation IDs, cannot reopen an already claimed request. Failed/ambiguous attempts stay audited and uncertain dispatch retains its hold. No automatic lease takeover or release is implemented.
+
+W3-D03 corrections beyond the handoff: removed both circular-import paths; compare integer exposure units directly rather than convert them as dollars; enforce exact forward SQL transitions and immutable request/attempt identities; reject generic spend-table writes; deny reserves on settled requests/foreign leases; serialize cross-model account caps; preserve a durable ambiguous hold after ConnectError once dispatch intent exists; bind provider/account when resolving scope; keep successful exposure/cache commits outside network operations. Invalid initial test fixtures were corrected to supply the required FK rows, deterministic exposure identity, and original-owner reconciliation; ownership assertions were strengthened, not relaxed.
+
+W3-D03 design deviations: a WHEN-clause transition trigger replaces the proposed blanket UPDATE abort. Bootstrap scope provisioning is recorded in the immutable scope row, not a fabricated ledger kind. The approved ledger kind CHECK and historical ledger bytes remain unchanged. Rollback removes only accounting tables/indexes/triggers via bootstrap administration; nullable exposure_log.cost_units remains. Export the cost audit before rollback, stop dispatch while accounting is absent, and restore it before any later paid use.
+
+7.3.7: parallel dispatch/supervisor lease takeover remains explicitly deferred to the later runtime work. Dispatch is sequential; llm_max_concurrency is not advertised as implemented. Conservative durable uniqueness refuses duplicates rather than waiting/reclaiming. This is not a throughput or automatic recovery claim. Reading/Chains suppliers and actual paid-provider compatibility remain visibly unavailable/gated. These boundaries must survive the merges.
+
+Final verification/commit/remote results are appended after the actual runs; the historical blocker text below describes the earlier checkpoint.
+
+
 **Branch:** `phase-3-wp3-reader-pipeline`  
 **Phase:** 3 — Mail, Calendar, and LLM Reader/Writer Pipeline (WP3)  
 **Commits:**
@@ -184,3 +201,11 @@
 
 - Obtain human sign-off on CCR-001, CCR-002, and the WP4 scope decision.
 - Proceed to Phase 4 policy, calibration, and backtest implementation on branch `phase-4-engine-backtest`.
+
+## W3-D03 final readiness verification - 23 October 2026
+
+- Final `C:/Users/shaah/miniconda3/python.exe -B scripts/check.py`: exit 0; **621 passed**, two existing Typer/Click deprecation warnings, 182.94 seconds. Ruff lint/format passed; application mypy 166 files and strict core/engine 34 files passed. Protected fixture/result hashes unchanged in source and isolated snapshot `data/checks/run-w6yu1n1f`.
+- Targeted durable store/boundaries/real subprocess suite: **30 passed**. Two real subprocesses contend for the last unit; only one reserves. A process terminated after durable dispatch leaves the hold in a new connection. No provider contacted.
+- Installed final wheel smoke outside checkout: 15 registered prompt assets, 32 tables, SpendStore imports/initialization pass. Wheel SHA-256 `d4a53ea66eaf3809a0991e58cfda0ab00c3e703ded9f789420eb58a27bbb8f51`; retained locally under `data/wp3-package/closure`. No dependency/network during wheel installation.
+- `graphify update .` succeeded, `git diff --check` passed, CONTRACT.md unchanged. Model artifacts remain ignored under project data. Operator smoke help passes; no --allow-live execution.
+- This completes the approved sequential offline accounting scope and clears the earlier W3-D03/CCR-002 blockers. Automatic lease takeover, parallel scheduler and live-provider validation remain explicitly deferred/gated; no claim that the expanded full product is complete.

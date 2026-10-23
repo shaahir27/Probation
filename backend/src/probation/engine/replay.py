@@ -148,7 +148,7 @@ def _run_replay(
     #    here would read an empty outcomes table and collapse them to their defaults
     #    (plan section 6.3.3).
     reader_client = (
-        None if reader_callable is not None else build_reader_client(clock, allow_live_llm)
+        None if reader_callable is not None else build_reader_client(clock, allow_live_llm, conn)
     )
 
     # 2. Query situations to replay

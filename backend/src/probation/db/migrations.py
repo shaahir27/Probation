@@ -9,6 +9,26 @@ _WP1_OBJECT = re.compile(
     r"^CREATE\s+(?:TABLE|INDEX|TRIGGER|VIEW)\s+IF\s+NOT\s+EXISTS\s+(\w+)",
     re.IGNORECASE | re.MULTILINE,
 )
+_SPEND_OBJECT = re.compile(
+    r"^CREATE\s+(?:TABLE|UNIQUE\s+INDEX|INDEX|TRIGGER)\s+IF\s+NOT\s+EXISTS\s+(\w+)",
+    re.IGNORECASE | re.MULTILINE,
+)
+# Rollback for the W3-D03 accounting objects. Dropping them restores the pre-P04 database:
+# no other table references them, and exposure_log.cost_units is left in place because it is
+# nullable and a DROP of a published column is not additive-reversible in SQLite.
+_SPEND_DROP = """DROP TRIGGER IF EXISTS llm_requests_no_history_update;
+DROP INDEX IF EXISTS llm_requests_semantic_identity;
+DROP TRIGGER IF EXISTS llm_attempts_no_history_update;
+DROP TRIGGER IF EXISTS llm_attempts_no_delete;
+DROP TRIGGER IF EXISTS llm_requests_no_delete;
+DROP TRIGGER IF EXISTS budget_scopes_immutable;
+DROP INDEX IF EXISTS llm_attempts_open_by_scope;
+DROP INDEX IF EXISTS llm_attempts_charged_by_scope;
+DROP INDEX IF EXISTS llm_attempts_ordinal;
+DROP TABLE IF EXISTS llm_attempts;
+DROP TABLE IF EXISTS llm_requests;
+DROP TABLE IF EXISTS budget_scopes;
+"""
 
 # sqlite_master is read positionally throughout: callers hand in plain sqlite3
 # connections as well as Row-factory ones, so nothing here may depend on row_factory.
@@ -66,6 +86,22 @@ def _wp1_applied(conn: sqlite3.Connection) -> bool:
     return all(name in present for name in declared)
 
 
+def _run_script(conn: sqlite3.Connection, script: str) -> None:
+    """Execute a multi-statement DDL script inside the caller's transaction.
+
+    `executescript` commits implicitly, which would publish a half-applied migration, so
+    statements are split the way SQLite itself splits them and run one at a time.
+    """
+    statement = ""
+    for line in script.splitlines(keepends=True):
+        statement += line
+        if sqlite3.complete_statement(statement):
+            conn.execute(statement)
+            statement = ""
+    if statement.strip():
+        raise ValueError("Incomplete migration")
+
+
 def migrate_wp1(conn: sqlite3.Connection) -> None:
     if conn.in_transaction or getattr(conn, "bound_role", None) is not None:
         raise ValueError("Migration requires a clean bootstrap connection")
@@ -76,14 +112,7 @@ def migrate_wp1(conn: sqlite3.Connection) -> None:
     script = Path(__file__).with_name("wp1.sql").read_text(encoding="utf-8")
     conn.execute("BEGIN IMMEDIATE")
     try:
-        statement = ""
-        for line in script.splitlines(keepends=True):
-            statement += line
-            if sqlite3.complete_statement(statement):
-                conn.execute(statement)
-                statement = ""
-        if statement.strip():
-            raise ValueError("Incomplete migration")
+        _run_script(conn, script)
         conn.execute(
             "SELECT id,kind,payload_json,status,result_json,requested_at,updated_at FROM admin_commands LIMIT 0"
         )
@@ -131,6 +160,89 @@ def migrate_indexes(conn: sqlite3.Connection) -> int:
         conn.rollback()
         raise
     return len(drift)
+
+
+def _spend_applied(conn: sqlite3.Connection) -> bool:
+    """Report whether every object spend.sql declares is already present."""
+    declared = _SPEND_OBJECT.findall(
+        Path(__file__).with_name("spend.sql").read_text(encoding="utf-8")
+    )
+    if not declared:
+        raise ValueError("No objects found in spend.sql")
+    present = {row[0] for row in conn.execute("SELECT name FROM sqlite_master")}
+    if not all(name in present for name in declared):
+        return False
+    script = Path(__file__).with_name("spend.sql").read_text(encoding="utf-8")
+    for trigger in re.findall(r"CREATE TRIGGER IF NOT EXISTS \w+ .*?END;", script, re.DOTALL):
+        name = trigger.split()[5]
+        stored = conn.execute("SELECT sql FROM sqlite_master WHERE name=?", (name,)).fetchone()
+        expected = trigger.replace("IF NOT EXISTS ", "", 1)
+        if stored is None or _normalize_ddl(str(stored[0])) != _normalize_ddl(expected):
+            return False
+    return True
+
+
+def _exposure_cost_units_present(conn: sqlite3.Connection) -> bool:
+    if not conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='exposure_log'"
+    ).fetchone():
+        return True
+    return "cost_units" in {row[1] for row in conn.execute("PRAGMA table_info(exposure_log)")}
+
+
+def migrate_spend_accounting(conn: sqlite3.Connection) -> bool:
+    """Additive W3-D03 migration: durable spend scope/request/attempt accounting.
+
+    Returns True when anything was created. Re-runnable, and it never rewrites a row that
+    already exists: an attempt row is the audit of money that may already have been billed.
+    """
+    if conn.in_transaction or getattr(conn, "bound_role", None) is not None:
+        raise ValueError("Migration requires a clean bootstrap connection")
+    if _spend_applied(conn) and _exposure_cost_units_present(conn):
+        return False
+
+    script = Path(__file__).with_name("spend.sql").read_text(encoding="utf-8")
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        # Upgrade an earlier reviewed trigger definition atomically; presence alone
+        # must not leave a weaker transition guard installed under the same name.
+        for name in re.findall(r"CREATE TRIGGER IF NOT EXISTS (\w+)", script):
+            conn.execute(f'DROP TRIGGER IF EXISTS "{name}"')
+        _run_script(conn, script)
+        if not _exposure_cost_units_present(conn):
+            conn.execute(
+                "ALTER TABLE exposure_log ADD COLUMN cost_units INTEGER "
+                "CHECK (cost_units IS NULL OR cost_units >= 0)"
+            )
+        conn.execute("SELECT scope_id,cap_units,price_version FROM budget_scopes LIMIT 0")
+        conn.execute("SELECT request_id,scope_id,owner_role,result_state FROM llm_requests LIMIT 0")
+        conn.execute(
+            "SELECT attempt_id,request_id,ordinal,stage,state,estimate_units,charged_units,"
+            "lease_owner,lease_token FROM llm_attempts LIMIT 0"
+        )
+        conn.commit()
+    except BaseException:
+        conn.rollback()
+        raise
+    return True
+
+
+def drop_spend_accounting(conn: sqlite3.Connection) -> None:
+    """Documented rollback: remove the W3-D03 objects and nothing else.
+
+    Operator-initiated only. Every other table is untouched, so a database rolled back this
+    way is the pre-P04 database plus a nullable `exposure_log.cost_units` column that no
+    reader requires.
+    """
+    if conn.in_transaction or getattr(conn, "bound_role", None) is not None:
+        raise ValueError("Migration requires a clean bootstrap connection")
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        _run_script(conn, _SPEND_DROP)
+        conn.commit()
+    except BaseException:
+        conn.rollback()
+        raise
 
 
 def migrate_features_provenance(conn: sqlite3.Connection) -> bool:

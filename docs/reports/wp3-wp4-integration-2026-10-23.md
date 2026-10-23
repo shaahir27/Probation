@@ -1,5 +1,8 @@
 # WP3 P06-P11 and WP4 integration handoff
 
+> Later continuation: the owner approved W3-D03/CCR-002 on 23 October 2026; durable accounting is now being verified. See [current Phase 3 handoff](phase-3.md). The earlier blocker and branch-state statements below describe the original checkpoint, not the later merge result.
+
+
 23 October 2026. Branch: `phase-3-wp3-reader-pipeline`. Starting observed HEAD: `5460951`. Status: **implementation integrated in this branch; offline acceptance verified; full WP3 closure remains blocked by the pre-existing P04/P05 accounting approval**. No main-branch merge, push, deployment or paid provider run is claimed.
 
 ## Done

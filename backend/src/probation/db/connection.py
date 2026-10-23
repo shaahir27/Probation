@@ -61,6 +61,7 @@ def get_role_connection(db_path: Path | str, role: "Role") -> sqlite3.Connection
     )
     if role.value == "executor":
         generic_tables = generic_tables - {"outcomes"}
+    generic_tables = generic_tables - {"llm_requests", "llm_attempts"}
     conn.role_authorizer = authorizer(generic_tables, role=role.value)
     sqlite3.Connection.set_authorizer(conn, conn.role_authorizer)
     return conn
@@ -77,12 +78,14 @@ def apply_schema(conn: sqlite3.Connection) -> None:
     from probation.db.migrations import (
         migrate_features_provenance,
         migrate_indexes,
+        migrate_spend_accounting,
         migrate_wp1,
     )
 
     migrate_wp1(conn)
     migrate_indexes(conn)
     migrate_features_provenance(conn)
+    migrate_spend_accounting(conn)
 
 
 def has_schema(conn: sqlite3.Connection) -> bool:
@@ -108,12 +111,14 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
     from probation.db.migrations import (
         migrate_features_provenance,
         migrate_indexes,
+        migrate_spend_accounting,
         migrate_wp1,
     )
 
     migrate_wp1(conn)
     migrate_indexes(conn)
     migrate_features_provenance(conn)
+    migrate_spend_accounting(conn)
 
 
 def init_db(db_path: Path | str | None = None) -> None:

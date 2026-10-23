@@ -286,6 +286,9 @@ CREATE TABLE exposure_log (
   tokens_out INTEGER NOT NULL,
   redaction_counts_json TEXT NOT NULL CHECK (json_valid(redaction_counts_json)),
   cost_usd REAL NOT NULL,
+  -- W3-D03: exact integer units of 1e-8 USD. cost_usd stays for compatibility and is never
+  -- the arithmetic input again; NULL only on rows written before this column existed.
+  cost_units INTEGER CHECK (cost_units IS NULL OR cost_units >= 0),
   created_at TEXT NOT NULL
 );
 

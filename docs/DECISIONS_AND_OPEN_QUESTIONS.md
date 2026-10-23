@@ -164,3 +164,7 @@ WP1 implementation decisions, 22 October 2026 (work remains in progress):
 | 3 Oct 2026 | Initial docs set created | |
 | 4 Oct 2026 | Tavily entity-facts service, Radar and Reading packs added (`TAVILY_AND_NEW_PACKS.md`, CCR-1) | |
 | 3 Oct 2026 | Consistency audit: fixed demotion rule, exam scheduling and cost, undo flow, chain situations, accept semantics, API additions; added `USER_FLOW.md` | |
+
+### Owner decisions - 23 October 2026 WP3/WP4 continuation
+
+Approved durable accounting as described in the supplied handoff; complete and push Phase 3, merge main, then integrate/verify Phase 4 on its own branch before merging/pushing main. Explicit follow-up approval: production cold-start 200 (20 only in controlled tests), CCR-002 listed prompt limits, Reading/Chains unavailable until their later evidence suppliers. Preserve CONTRACT.md; row-scoped accounting change request and exact deviations are recorded in reports/phase-3.md and wp3/W3_D03_SPEND_ACCOUNTING_REVIEW.md. No live provider/account deployment is approved.

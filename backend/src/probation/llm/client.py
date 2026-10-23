@@ -10,6 +10,8 @@ billed even when this process got nothing usable from it, and a request that nev
 socket gives its authorization back.
 """
 
+from __future__ import annotations
+
 import hashlib
 import logging
 import random
@@ -17,7 +19,7 @@ import sqlite3
 import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import httpx
 from pydantic import TypeAdapter
@@ -27,6 +29,9 @@ from probation.core.clock import Clock, get_clock
 from probation.core.enums import ClockMode
 from probation.core.hashing import canonical_json
 from probation.db.inference import record_inference
+
+if TYPE_CHECKING:
+    from probation.db.spend import AttemptReservation, SpendStore
 from probation.llm.budget import (
     BudgetGuard,
     cost_units,
@@ -65,6 +70,14 @@ REPAIR_INSTRUCTION = (
     "Output valid JSON only with all required fields."
 )
 _NO_ANSWER = "request ended without a usable answer"
+# The accounting store names a rung by what it bought, not by what this client calls it: the
+# first send of a stage is that stage, and every send after it inside the same stage is a retry.
+STAGE_LABELS = {
+    "structured": "structured",
+    "json_only": "format_fallback",
+    "repair": "repair",
+    "text": "structured",
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -185,6 +198,7 @@ class LLMClient:
         jitter_s: float = 0.0,
         jitter_seed: int = 0,
         max_physical_attempts: int | None = None,
+        spend_store: SpendStore | None = None,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
@@ -200,6 +214,10 @@ class LLMClient:
         self.jitter_s = jitter_s
         self._random = random.Random(jitter_seed)
         self.max_physical_attempts = max_physical_attempts
+        # Durable accounting (W3-D03): when bound, every physical attempt is reserved in the
+        # database and committed before its bytes leave, so the cap holds across processes and
+        # across a crash. A store that cannot record a reservation denies the dispatch.
+        self.spend_store = spend_store
         self._unsupported_structured_models: set[str] = set()
 
     @property
@@ -218,6 +236,115 @@ class LLMClient:
             headers=headers,
             timeout=self.timeout_s,
             transport=self.transport,
+        )
+
+    def _open_spend_request(
+        self,
+        *,
+        model: str,
+        content_hash: str,
+        prompt_id: str,
+        prompt_version: str,
+        cache_key: str,
+        situation_id: str | None,
+    ) -> str | None:
+        """Claim this logical request's durable identity, or None when no store is bound.
+
+        A missing scope, an unwritable table or an open caller transaction raises rather than
+        returning None: quietly falling back to in-process accounting is the exact failure the
+        durable store exists to prevent.
+        """
+        if self.spend_store is None:
+            if self.transport is None:
+                from probation.llm.budget import BudgetExceeded
+
+                raise BudgetExceeded(
+                    "Live dispatch requires durable accounting", code="accounting_store_unavailable"
+                )
+            return None
+        scope = self.spend_store.scope_for(model)
+        totals = self.spend_store.startup_totals(scope)
+        self.budget_guard.adopt_durable(
+            spent_units=totals.spent_units, held_units=totals.held_units
+        )
+        return self.spend_store.open_request(
+            scope,
+            semantic_digest=content_hash,
+            prompt_id=prompt_id,
+            prompt_version=prompt_version,
+            model_id=model,
+            cache_key=cache_key,
+            situation_id=situation_id,
+        )
+
+    def _settle_spend_request(self, request_id: str | None, *, succeeded: bool) -> None:
+        if self.spend_store is None or request_id is None:
+            return
+        self.spend_store.settle_request(
+            request_id, result_state="succeeded" if succeeded else "failed_closed"
+        )
+
+    def _dispatched_durable(self, reservation: AttemptReservation | None) -> None:
+        """Record that the bytes are leaving: from here the estimate is owed until settled."""
+        store = self.spend_store
+        if store is not None and reservation is not None:
+            store.mark_dispatched(reservation.attempt_id)
+
+    def _never_dispatched_durable(self, reservation: AttemptReservation | None) -> None:
+        """The only path that returns a hold to the cap: proof nothing reached the socket."""
+        store = self.spend_store
+        if store is not None and reservation is not None:
+            store.mark_never_dispatched(reservation.attempt_id)
+
+    def _ambiguous_durable(
+        self, reservation: AttemptReservation | None, *, denial_code: str | None = None
+    ) -> None:
+        """A dispatched attempt whose outcome was never learned keeps its hold."""
+        store = self.spend_store
+        if store is not None and reservation is not None:
+            store.mark_ambiguous(reservation.attempt_id, denial_code=denial_code)
+
+    def _reconcile_durable(
+        self,
+        reservation: AttemptReservation | None,
+        *,
+        charged_units: int,
+        usage_provenance: str,
+        tokens_in: int | None = None,
+        tokens_out: int | None = None,
+        denial_code: str | None = None,
+    ) -> None:
+        store = self.spend_store
+        if store is not None and reservation is not None:
+            store.reconcile(
+                reservation.attempt_id,
+                charged_units=charged_units,
+                usage_provenance=usage_provenance,
+                tokens_in=tokens_in,
+                tokens_out=tokens_out,
+                denial_code=denial_code,
+            )
+
+    def _reserve_durable(
+        self,
+        request_id: str | None,
+        *,
+        ordinal: int,
+        stage: str,
+        estimate_units: int,
+        tokens_in_bound: int,
+        tokens_out_bound: int,
+    ) -> AttemptReservation | None:
+        if self.spend_store is None or request_id is None:
+            return None
+        return self.spend_store.reserve(
+            request_id,
+            ordinal=ordinal,
+            stage=stage,
+            estimate_units=estimate_units,
+            tokens_in_bound=tokens_in_bound,
+            tokens_out_bound=tokens_out_bound,
+            runtime_cap_units=self.budget_guard.limit_units,
         )
 
     def _wait_before_retry(self, backoff: float, response: httpx.Response | None) -> float:
@@ -240,6 +367,7 @@ class LLMClient:
         tokens_out_bound: int,
         response: httpx.Response,
         held: int,
+        reservation: AttemptReservation | None,
     ) -> AttemptAccounting:
         """Book the attempt this call just made, usable answer or not.
 
@@ -247,6 +375,7 @@ class LLMClient:
         charged at the bound it was authorized with rather than an invented typical case,
         because a request that left this process may still have been billed.
         """
+        denial = None if response.status_code == 200 else "status"
         if response.status_code == 200:
             reported = _reported_usage(response)
             if reported is not None:
@@ -257,15 +386,31 @@ class LLMClient:
                         "LLM charge exceeded its authorization code=charge_over_estimate model=%s",
                         model,
                     )
+                settled = self.budget_guard.settle_units(held=held, charge_units=charge)
+                self._reconcile_durable(
+                    reservation,
+                    charged_units=settled,
+                    usage_provenance="reported",
+                    tokens_in=reported[0],
+                    tokens_out=reported[1],
+                )
                 return AttemptAccounting(
                     tokens_in=reported[0],
                     tokens_out=reported[1],
-                    charge_units=self.budget_guard.settle_units(held=held, charge_units=charge),
+                    charge_units=settled,
                     usage_provenance="reported",
                 )
             logger.warning("LLM usage absent code=usage_estimated model=%s", model)
         units = self.budget_guard.charge_bound(
             model, tokens_in=tokens_in, tokens_out_bound=tokens_out_bound, held=held
+        )
+        self._reconcile_durable(
+            reservation,
+            charged_units=units,
+            usage_provenance="estimated",
+            tokens_in=tokens_in,
+            tokens_out=tokens_out_bound,
+            denial_code=denial,
         )
         return AttemptAccounting(
             tokens_in=tokens_in,
@@ -283,6 +428,8 @@ class LLMClient:
         texts: Sequence[str],
         max_tokens: int,
         ledger: RequestLedger,
+        stage: str = "text",
+        spend_request: str | None = None,
     ) -> httpx.Response:
         """Send one stage, retrying only approved transients and never past the ceiling."""
         attempt = 0
@@ -298,11 +445,39 @@ class LLMClient:
             held = self.budget_guard.reserve_units(
                 model, tokens_in=bound_in, tokens_out_bound=max_tokens
             )
+            # The durable reservation is committed here, before the socket opens, and it is
+            # the object the cross-process cap is enforced against. If it cannot be recorded
+            # the in-process hold is given back and the send is denied.
+            try:
+                reservation = self._reserve_durable(
+                    spend_request,
+                    ordinal=ledger.sends + 1,
+                    stage=STAGE_LABELS.get(stage, "retry") if attempt == 1 else "retry",
+                    estimate_units=held,
+                    tokens_in_bound=bound_in,
+                    tokens_out_bound=max_tokens,
+                )
+            except Exception:
+                self.budget_guard.release_hold(held)
+                raise
+            try:
+                self._dispatched_durable(reservation)
+            except Exception:
+                # Nothing was sent, but the durable row is already holding this estimate and
+                # only a validated never-dispatched transition may lower a hold. Deny.
+                self.budget_guard.release_hold(held)
+                raise
             try:
                 response = http.post(ENDPOINT, json=payload)
             except (httpx.ConnectError, httpx.ConnectTimeout):
                 # A connect-phase failure never reached the socket, so none of it is owed back.
                 self.budget_guard.release_hold(held)
+                if reservation is not None:
+                    # Dispatch intent is already durable. Without provider proof, preserve
+                    # the hold; a connection exception cannot reverse that audit state.
+                    self._ambiguous_durable(reservation, denial_code="transport")
+                    raise
+                self._never_dispatched_durable(reservation)
                 ledger.sends += 1
                 if attempt > self.max_retries:
                     raise
@@ -310,13 +485,22 @@ class LLMClient:
                 backoff = self._wait_before_retry(backoff, None)
                 continue
             except (httpx.ReadTimeout, httpx.WriteTimeout):
+                units = self.budget_guard.charge_bound(
+                    model, tokens_in=bound_in, tokens_out_bound=max_tokens, held=held
+                )
+                self._reconcile_durable(
+                    reservation,
+                    charged_units=units,
+                    usage_provenance="estimated",
+                    tokens_in=bound_in,
+                    tokens_out=max_tokens,
+                    denial_code="transport",
+                )
                 ledger.absorb(
                     AttemptAccounting(
                         tokens_in=bound_in,
                         tokens_out=max_tokens,
-                        charge_units=self.budget_guard.charge_bound(
-                            model, tokens_in=bound_in, tokens_out_bound=max_tokens, held=held
-                        ),
+                        charge_units=units,
                         usage_provenance="estimated",
                     )
                 )
@@ -325,6 +509,11 @@ class LLMClient:
                 logger.warning("LLM timed out after dispatch on attempt %d. Backing off.", attempt)
                 backoff = self._wait_before_retry(backoff, None)
                 continue
+            except BaseException:
+                # The request left this process and its answer was never read: hold the money
+                # until something reconciles it, and never claim it was free.
+                self._ambiguous_durable(reservation, denial_code="transport")
+                raise
             ledger.absorb(
                 self._account(
                     model=model,
@@ -332,6 +521,7 @@ class LLMClient:
                     tokens_out_bound=max_tokens,
                     response=response,
                     held=held,
+                    reservation=reservation,
                 )
             )
             if is_transient(response) and attempt <= self.max_retries:
@@ -359,6 +549,7 @@ class LLMClient:
         response_format: dict[str, Any] | None,
         ledger: RequestLedger,
         stages: list[StageRecord],
+        spend_request: str | None = None,
     ) -> dict[str, Any] | None:
         """One rung: send it, classify it, and never re-bill a terminal model state.
 
@@ -377,7 +568,14 @@ class LLMClient:
             payload["response_format"] = response_format
         texts = [message["content"] for message in messages]
         response = self._send(
-            http, payload, model=model, texts=texts, max_tokens=max_tokens, ledger=ledger
+            http,
+            payload,
+            model=model,
+            texts=texts,
+            max_tokens=max_tokens,
+            ledger=ledger,
+            stage=stage,
+            spend_request=spend_request,
         )
         code = classify_response(response)
         if code is FailureCode.UNSUPPORTED_FORMAT:
@@ -443,6 +641,14 @@ class LLMClient:
                     raise LLMValidationError("Cached output fails current schema validation")
                 return JsonDispatch(cached, cache_key, True, 0, 0, 0, 0)
 
+        spend_request = self._open_spend_request(
+            model=model,
+            content_hash=content_hash,
+            prompt_id=prompt_id,
+            prompt_version=prompt_version,
+            cache_key=cache_key,
+            situation_id=situation_id,
+        )
         ledger = RequestLedger()
         stages: list[StageRecord] = []
         json_object: dict[str, Any] = {"type": "json_object"}
@@ -456,42 +662,48 @@ class LLMClient:
             plan.insert(0, "structured")
         data: dict[str, Any] | None = None
 
-        with self._http_client() as http:
-            for position, stage in enumerate(plan):
-                is_final = position == len(plan) - 1
-                if stage == "structured":
-                    messages, wire_format = self._messages(system, user), structured_format
-                elif stage == "json_only":
-                    messages, wire_format = self._messages(fallback_system, user), json_object
-                else:
-                    messages = self._messages(fallback_system, user)
-                    messages.append({"role": "assistant", "content": ledger.last_content})
-                    messages.append({"role": "user", "content": REPAIR_INSTRUCTION})
-                    wire_format = json_object
-                try:
-                    data = self._attempt_answer(
-                        http,
-                        messages,
-                        stage=stage,
-                        model=model,
-                        schema=request_schema,
-                        adapter=adapter,
-                        prompt_id=prompt_id,
-                        prompt_version=prompt_version,
-                        max_tokens=max_tokens,
-                        response_format=wire_format,
-                        ledger=ledger,
-                        stages=stages,
-                    )
-                except OutputFailure as failure:
-                    if is_final or failure.code in TERMINAL_OUTPUT_CODES:
-                        raise
-                    continue
-                if data is not None:
-                    break
+        settled = False
+        try:
+            with self._http_client() as http:
+                for position, stage in enumerate(plan):
+                    is_final = position == len(plan) - 1
+                    if stage == "structured":
+                        messages, wire_format = self._messages(system, user), structured_format
+                    elif stage == "json_only":
+                        messages, wire_format = self._messages(fallback_system, user), json_object
+                    else:
+                        messages = self._messages(fallback_system, user)
+                        messages.append({"role": "assistant", "content": ledger.last_content})
+                        messages.append({"role": "user", "content": REPAIR_INSTRUCTION})
+                        wire_format = json_object
+                    try:
+                        data = self._attempt_answer(
+                            http,
+                            messages,
+                            stage=stage,
+                            model=model,
+                            schema=request_schema,
+                            adapter=adapter,
+                            prompt_id=prompt_id,
+                            prompt_version=prompt_version,
+                            max_tokens=max_tokens,
+                            response_format=wire_format,
+                            ledger=ledger,
+                            stages=stages,
+                            spend_request=spend_request,
+                        )
+                    except OutputFailure as failure:
+                        if is_final or failure.code in TERMINAL_OUTPUT_CODES:
+                            raise
+                        continue
+                    if data is not None:
+                        break
 
-        if data is None:
-            raise LLMValidationError(_NO_ANSWER)
+            if data is None:
+                raise LLMValidationError(_NO_ANSWER)
+            settled = True
+        finally:
+            self._settle_spend_request(spend_request, succeeded=settled)
 
         sends, tokens_in, tokens_out, units = ledger.snapshot()
         if conn is not None:
@@ -506,10 +718,13 @@ class LLMClient:
                 tokens_in=tokens_in,
                 tokens_out=tokens_out,
                 cost_usd=float(units_to_usd(units)),
+                cost_units=units,
                 created_at=self.clock.now_iso(),
                 situation_id=situation_id,
                 redaction_counts=redaction_counts,
             )
+            if self.spend_store is not None:
+                conn.commit()
         return JsonDispatch(
             data, cache_key, False, sends, tokens_in, tokens_out, units, tuple(stages)
         )
@@ -541,6 +756,14 @@ class LLMClient:
                     raise LLMValidationError("Text output must be a nonempty string")
                 return TextDispatch(text, cache_key, True, 0, 0, 0, 0)
 
+        spend_request = self._open_spend_request(
+            model=model,
+            content_hash=content_hash,
+            prompt_id=prompt_id,
+            prompt_version=prompt_version,
+            cache_key=cache_key,
+            situation_id=situation_id,
+        )
         ledger = RequestLedger()
         payload: dict[str, Any] = {
             "model": model,
@@ -548,19 +771,24 @@ class LLMClient:
             "temperature": 0.0,
             "max_tokens": max_tokens,
         }
-        with self._http_client() as http:
-            response = self._send(
-                http,
-                payload,
-                model=model,
-                texts=(system, user),
-                max_tokens=max_tokens,
-                ledger=ledger,
-            )
-            code = classify_response(response)
-            if code is not None:
-                raise TransportFailure(_NO_ANSWER, code=code)
-            text = parse_text(response)
+        settled = False
+        try:
+            with self._http_client() as http:
+                response = self._send(
+                    http,
+                    payload,
+                    model=model,
+                    texts=(system, user),
+                    max_tokens=max_tokens,
+                    ledger=ledger,
+                )
+                code = classify_response(response)
+                if code is not None:
+                    raise TransportFailure(_NO_ANSWER, code=code)
+                text = parse_text(response)
+            settled = True
+        finally:
+            self._settle_spend_request(spend_request, succeeded=settled)
 
         sends, tokens_in, tokens_out, units = ledger.snapshot()
         if conn is not None:
@@ -575,10 +803,13 @@ class LLMClient:
                 tokens_in=tokens_in,
                 tokens_out=tokens_out,
                 cost_usd=float(units_to_usd(units)),
+                cost_units=units,
                 created_at=self.clock.now_iso(),
                 situation_id=situation_id,
                 redaction_counts=redaction_counts,
             )
+            if self.spend_store is not None:
+                conn.commit()
         return TextDispatch(text, cache_key, False, sends, tokens_in, tokens_out, units)
 
     def chat_json(

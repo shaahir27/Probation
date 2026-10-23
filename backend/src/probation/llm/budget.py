@@ -4,10 +4,11 @@ Authority: docs/CONTRACT.md invariant I-15, docs/wp3/WORK_PACKAGES.md P04.3-P04.
 
 This module decides whether *this process* may dispatch, and what one physical attempt
 cost. It is not a reservation: two workers holding this class cannot serialize on the
-last unit of the cap, and a process that dies takes its counters with it. The durable
-request/attempt store that makes the cap true across processes needs tables and role
-grants that CONTRACT section 3 does not name yet, so it is gated on the W3-D03 schema
-review (docs/wp3/W3_D03_SPEND_ACCOUNTING_REVIEW.md) rather than implemented here.
+last unit of the cap, and a process that dies takes its counters with it. That durable
+half lives in `probation/db/spend.py`, which stores one row per logical request and per
+physical attempt and derives both counters from sums rather than trusting a stored total;
+this guard adopts those sums at start-up (`adopt_durable`) and stays the per-attempt
+authority in between.
 """
 
 import json
@@ -185,6 +186,15 @@ class BudgetGuard:
         rows = conn.execute("SELECT cost_usd FROM exposure_log").fetchall()
         self.spent_units = sum(units_from_persisted(row[0]) for row in rows)
         return self.spent_units
+
+    def adopt_durable(self, *, spent_units: int, held_units: int) -> None:
+        """Adopt the durable store's sums, and never lower what this process already owes.
+
+        A restart must not forget money another worker is holding or money a dead worker took
+        with it, so both counters only ever rise here; the durable rows stay authoritative.
+        """
+        self.spent_units = max(self.spent_units, int(spent_units))
+        self.held_units = max(self.held_units, int(held_units))
 
     def reserve_units(self, model: str, *, tokens_in: int, tokens_out_bound: int) -> int:
         """Authorize one physical attempt against spent plus held, and hold its bound."""

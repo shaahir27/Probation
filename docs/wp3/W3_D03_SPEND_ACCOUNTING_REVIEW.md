@@ -1,19 +1,9 @@
 # W3-D03 — Spend accounting schema and role-ownership review request
 
-Status: **request for review. Nothing here is approved, migrated or implemented.** No table named in this
-file exists in `backend/src/probation/db/schema.sql`, no migration adds one, and no process writes one.
-This document exists because `backend/src/probation/llm/budget.py` says so in its module docstring, and
-because the alternative — creating the tables and the write grants quietly inside a WP3 package — is
-forbidden.
+Status: **approved by the owner on 23 October 2026; implemented and offline readiness verified (621 tests; 30 accounting/process cases).** The original proposal below is preserved for design provenance. Actual DDL is `backend/src/probation/db/spend.sql`, repository `db/spend.py` and additive bootstrap migration `db/migrations.py`. Final verification is recorded in `docs/reports/phase-3.md`.
 
-Authority chain: `docs/CONTRACT.md` §3 (process/table matrix, "a process MUST NOT write to tables outside
-its row"; "Connector/cursor/lease/budget/signing tables in the full specification are architectural
-proposals, not a blanket role-allowlist extension"), invariant I-15 (hard cap enforced in the LLM client),
-I-14 (every call in `exposure_log` with genuine counts), I-16 (cache key), I-8 (append-only ledger);
-`docs/CONTRACT_AMENDMENT_2026-10-22.md` FP-D3 ("Exact DDL/index/role matrix for each proposed
-connector/cursor/lease/budget table; no blanket table grants") and §3 ("existing worker code must not read a
-new schema until its compatibility/readiness gate passes"); `docs/wp3/WORK_PACKAGES.md` P04; the W3-D03 and
-W3-D04 rows of `docs/wp3/WP3_IMPLEMENTATION_PLAN.md` §9.
+Approved corrections: forward-transition WHEN trigger rather than blanket UPDATE rejection; bootstrap-only immutable scope provisioning rather than an unsupported ledger kind; shared account caps across models; NULL-safe semantic uniqueness; typed row/lease ownership and deny-on-duplicate behavior. No automatic reclaim, parallel dispatcher or live spend approval. Cold-start 200 and CCR-002 limits are approved; see the Phase 3 handoff.
+
 
 ## 1. What is already in place, and what it cannot promise
 
@@ -63,7 +53,7 @@ implemented, not complete**.
 * **Role rows, not role tables.** Per FP-D3, each grant below is row-scoped by an owner-role column that
   the typed repository and a SQLite `BEFORE UPDATE`/`INSERT` trigger both check.
 
-## 3. Proposed DDL (additive; nothing here is applied)
+## 3. Original proposed DDL (actual approved implementation is spend.sql)
 
 ```sql
 -- One row per provider/account/budget scope. Independent of persona, run, replay or situation.
@@ -239,7 +229,7 @@ AGENTS.md requires a change request rather than an edit when a rule must move. T
 > call, and W3-D08 (exact model ids, prices and request options) still needs its separately authorized
 > account-specific spike.
 >
-> **Until approved,** the durable half of P04 stays unimplemented and 7.3.6 stays partially implemented.
+> **Approval recorded 23 October 2026:** implement the reviewed accounting scope and prove its readiness tests. The original pending condition is superseded; verification is not inferred from approval.
 
 ## 9. What is deliberately *not* blocked on this review
 

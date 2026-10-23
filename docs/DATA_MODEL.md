@@ -497,3 +497,18 @@ FKs, indexes, role checks and schema compatibility before enabling a migration.
 Test as-of corrections, duplicate/conflicting responses, transaction rollback,
 restart, event immutability and unchanged historical ledger hashes (V03-V05,
 V08-V10, V16-V21). No raw draft text or recipient address enters ledger payloads.
+
+## WP3 durable spend accounting (W3-D03, approved 23 October 2026)
+
+Authoritative executable additive DDL: `backend/src/probation/db/spend.sql`; bootstrap migration `migrate_spend_accounting` in `db/migrations.py`.
+
+- `budget_scopes`: immutable provider/account/model/operational-period identity, integer cap, price version and creation time. Only clean unbound bootstrap administration provisions a scope. Worker roles can read but never write it. Missing scope denies dispatch. Every applicable account cap covers all its models; provisioning multiple models never multiplies the account allowance.
+- `llm_requests`: deterministic semantic/cache identity, scope/model/prompt, owner role, optional situation, created/settled operational times and open/succeeded/failed_closed/unavailable state. Global-per-scope semantic unique index handles NULL situation IDs. Existing requests are not reopened. Immutable identity and forward-only settlement triggers preserve history.
+- `llm_attempts`: one unique request/ordinal, stage, immutable estimate and token bounds, owner/lease, reserved/dispatched/reconciled/ambiguous/never_dispatched state, actual integer charge, usage provenance, safe denial code and operational timestamps. SQL forbids invalid transitions, identity changes and deletion. A foreign lease cannot advance or reserve under the request.
+- `exposure_log.cost_units INTEGER NULL CHECK(cost_units IS NULL OR cost_units >= 0)`: exact units of 1e-8 USD. Legacy REAL cost_usd remains presentation/compatibility only. Do not convert already-integer units as dollars. Legacy rows without exact units remain explicitly unverified rather than gaining fabricated precision.
+
+The cap is enforced by BEGIN IMMEDIATE + derived SUM(charged reconciled attempts) + SUM(open estimates) + next estimate, committed before HTTP. Shared account totals include all models; operational dates, not replay dates, determine periods. No prompts, bodies, URLs, credentials or private resource payloads are stored here. All roles except brain/examiner/webfacts are denied mutations; permitted roles use only typed SpendStore methods with role/lease checks. Generic RoleAccess and dedicated raw cursors cannot write these tables. No changes to outcome/proposal/ledger truth or event clocks.
+
+Unknown dispatch keeps its hold, including process death. A restarted worker does not steal leases, release uncertain charges or resend an already claimed semantic request. Sequential dispatch remains; automatic recovery/operator resolution and parallel supervisor scheduling are later runtime work.
+
+Rollback: stop paid workers, export/retain the accounting audit, use bootstrap-only drop_spend_accounting, verify all other rows/ledger remain unchanged. The nullable cost_units column is intentionally retained. Removing the cost audit requires operator control and cannot be used to reset/reopen a live budget. Missing accounting denies subsequent paid dispatch.

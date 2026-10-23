@@ -12,7 +12,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--allow-live", action="store_true")
     parser.add_argument(
-        "--db", type=Path, help="Explicit approved synthetic smoke exposure database"
+        "--db",
+        type=Path,
+        help="Approved synthetic database with an operator-provisioned budget scope",
     )
     args = parser.parse_args()
     if not args.allow_live:
@@ -21,7 +23,8 @@ def main() -> None:
         parser.error("Provide --db for the approved synthetic smoke namespace")
 
     from probation.core.clock import elapsed_seconds
-    from probation.db.connection import apply_schema, get_connection
+    from probation.db.connection import ensure_schema, get_connection
+    from probation.db.spend import SpendStore, default_lease_owner
     from probation.llm.budget import BudgetExceeded
     from probation.llm.catalog import resolve_job
     from probation.llm.client import LLMClient
@@ -31,9 +34,15 @@ def main() -> None:
     from probation.llm.prompt_loader import PromptAssetError
 
     conn = get_connection(args.db)
-    apply_schema(conn)
+    ensure_schema(conn)
     try:
-        client = LLMClient(max_physical_attempts=1, max_retries=0)
+        client = LLMClient(
+            max_physical_attempts=1,
+            max_retries=0,
+            spend_store=SpendStore(
+                conn, role="brain", lease_owner=default_lease_owner("brain")
+            ),
+        )
         consumer = RegisteredConsumer(
             JobGateway(client, conn=conn), transport_authority(client)
         )

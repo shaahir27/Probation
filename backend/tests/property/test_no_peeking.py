@@ -326,7 +326,8 @@ def test_t_nopeek_future_mutation_leaves_the_past_intact(
     monkeypatch.setattr(settings, "cold_start_min_situations", 20)
 
     def test_novelty(*args: Any, **kwargs: Any) -> NoveltyDetector:
-        return NoveltyDetector(*args, embedder=RecordedEmbeddings(), **kwargs)
+        kwargs["embedder"] = RecordedEmbeddings()
+        return NoveltyDetector(*args, **kwargs)
 
     monkeypatch.setattr(replay, "NoveltyDetector", test_novelty)
 

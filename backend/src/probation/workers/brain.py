@@ -26,12 +26,20 @@ logger = logging.getLogger(__name__)
 FEATURIZER_VERSION = "wp3-reader-v1"
 
 
-def build_reader_client(clock: Clock | None, allow_live_llm: bool) -> LLMClient | None:
+def build_reader_client(
+    clock: Clock | None,
+    allow_live_llm: bool,
+    conn: sqlite3.Connection | None = None,
+) -> LLMClient | None:
     """Build the live reader once per run, or return None when reading is deterministic.
 
     A replay featurizes one situation per event, so constructing the client inline would
     rebuild it hundreds of times. Callers that opt in to live reading build it once here
     and pass it to `extract_features_for_situations`.
+
+    Passing `conn` binds the durable spend store (W3-D03), which is what makes the hard cap
+    true across processes and across a crash. A store that cannot be built means accounting
+    is unavailable, and the reader fails closed rather than spending unaccounted money.
     """
     if not settings.llm_api_key:
         return None
@@ -41,10 +49,26 @@ def build_reader_client(clock: Clock | None, allow_live_llm: bool) -> LLMClient 
             "deterministically. Pass allow_live_llm=True to spend against the reader model."
         )
         return None
+    from probation.db.spend import SpendStore, default_lease_owner
     from probation.llm.budget import BudgetExceeded
 
     try:
-        return LLMClient(api_key=settings.llm_api_key, clock=clock or get_clock())
+        if conn is None:
+            raise BudgetExceeded(
+                "Live reading requires durable accounting", code="accounting_store_unavailable"
+            )
+        store = (
+            None
+            if conn is None
+            else SpendStore(
+                conn,
+                role=Role.BRAIN.value,
+                lease_owner=default_lease_owner(Role.BRAIN.value),
+            )
+        )
+        return LLMClient(
+            api_key=settings.llm_api_key, clock=clock or get_clock(), spend_store=store
+        )
     except BudgetExceeded:
         logger.warning("Reader accounting unavailable; required reader will fail closed")
         return None
@@ -78,7 +102,7 @@ def extract_features_for_situations(
         # A per-situation call inside a replay is handed the run's client by its caller, so
         # it must not rebuild one (or re-warn) for every situation on the timeline.
         if allow_live_llm or situation_id is None:
-            llm_client = build_reader_client(clock, allow_live_llm)
+            llm_client = build_reader_client(clock, allow_live_llm, conn)
 
     # Find situations without features
     query = """
@@ -162,6 +186,10 @@ def extract_features_for_situations(
                 features.provenance_json,
             ),
         )
+        # Commit before the next situation is featurized. A live dispatch reserves its spend
+        # in a transaction that must be committed before the socket opens (W3-D03 section 5),
+        # and it denies rather than reserve inside a caller's open write transaction.
+        access_conn.commit()
         count += 1
 
     return count
