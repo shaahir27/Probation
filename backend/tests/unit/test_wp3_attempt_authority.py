@@ -12,17 +12,39 @@ import httpx
 import pytest
 
 from probation.llm.budget import BudgetExceeded, BudgetGuard, cost_units, input_token_bound
-from probation.llm.client import LLMClient, LLMValidationError
+from probation.llm.client import REPAIR_INSTRUCTION, LLMClient, LLMValidationError, json_mode_system
 
 MODEL = "nvidia/priced"
 TABLE = {MODEL: (Decimal("0.06"), Decimal("0.24"))}
 SYSTEM = "Validator"
 USER = "Validate this item"
 MAX_TOKENS = 64
+SCHEMA: dict[str, object] = {"type": "object"}
 
-# The worst case this request can cost: two tokens per egress character plus the full ceiling.
+# Each rung of the ladder egresses its own text, so each one is authorized against its own worst
+# case: the JSON-only stage carries the schema it was refused, and the repair carries both.
+FALLBACK_SYSTEM = json_mode_system(SYSTEM, SCHEMA)
 BOUND_IN = input_token_bound(len(SYSTEM) + len(USER))
 BOUND = cost_units(BOUND_IN, MAX_TOKENS, *TABLE[MODEL])
+STAGE_BOUNDS = (
+    cost_units(BOUND_IN, MAX_TOKENS, *TABLE[MODEL]),
+    cost_units(input_token_bound(len(FALLBACK_SYSTEM) + len(USER)), MAX_TOKENS, *TABLE[MODEL]),
+    cost_units(
+        input_token_bound(len(FALLBACK_SYSTEM) + len(USER) + len(REPAIR_INSTRUCTION)),
+        MAX_TOKENS,
+        *TABLE[MODEL],
+    ),
+)
+LADDER_UNITS = sum(STAGE_BOUNDS)
+
+# docs/wp3/WORK_PACKAGES.md P05.5: only a provider-specific rejection of the response format may
+# start the next format, so a ladder test has to be given one rather than a bare status code.
+FORMAT_REJECTION = {
+    "error": {
+        "message": "response_format of type json_schema is not supported by this model",
+        "code": "unsupported_response_format",
+    }
+}
 
 
 def _ok(content: object, *, usage: dict[str, int] | None = None) -> httpx.Response:
@@ -57,7 +79,7 @@ def _json_args(**kwargs: object) -> dict[str, object]:
         "model": MODEL,
         "system": SYSTEM,
         "user": USER,
-        "schema": {"type": "object"},
+        "schema": SCHEMA,
         "cache_parts": {"content_hash": "hash_attempt_authority"},
         "max_tokens": MAX_TOKENS,
     }
@@ -91,14 +113,14 @@ def test_failed_attempts_are_charged_so_totals_count_physical_attempts(
     def handler(request: httpx.Request) -> httpx.Response:
         nonlocal calls
         calls += 1
-        return httpx.Response(400, text="nope")
+        return httpx.Response(400, json=FORMAT_REJECTION)
 
     client, guard = _client(handler)
     with pytest.raises(LLMValidationError):
         client.chat_json(**_json_args(conn=memory_db, situation_id="sit_a"))  # type: ignore[arg-type]
     assert calls == 3
     assert guard.held_units == 0
-    assert guard.spent_units == 3 * BOUND
+    assert guard.spent_units == LADDER_UNITS
     assert memory_db.execute("SELECT COUNT(*) FROM exposure_log").fetchone()[0] == 0
 
 
@@ -140,15 +162,19 @@ def test_reported_usage_is_charged_exactly_and_a_larger_charge_is_not_hidden(
 
 def test_each_attempt_in_the_ladder_needs_its_own_authorization() -> None:
     """A cap that affords one physical request must deny the fallback request, not allow it."""
+    calls = 0
 
     def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(400, text="unsupported")
+        nonlocal calls
+        calls += 1
+        return httpx.Response(400, json=FORMAT_REJECTION)
 
     limit = f"{Decimal(BOUND) * 2 - Decimal(1)}e-8"
     client, guard = _client(handler, limit=limit)
     with pytest.raises(BudgetExceeded) as denial:
         client.chat_json(**_json_args())  # type: ignore[arg-type]
     assert denial.value.code == "cap_exceeded"
+    assert calls == 1, "the second format is denied before its bytes are built or sent"
     assert guard.spent_units == BOUND  # only the first, already-answered-for attempt is booked
 
 

@@ -1,21 +1,30 @@
-"""LLM client interface for Nebius Token Factory with schema validation and budget guard.
+"""LLM transport for Nebius Token Factory: per-attempt spend authority and classified failures.
 
-Authority: docs/CONTRACT.md section 6, invariants I-1, I-3, I-14, I-15, I-16.
+Authority: docs/CONTRACT.md section 6, invariants I-1, I-3, I-14, I-15, I-16;
+docs/wp3/WORK_PACKAGES.md P05.5-P05.9.
+
+Every physical request reserves its own worst-case cost before its bytes leave, is booked after
+it returns whatever the answer looks like, and is classified before anything decides whether to
+send again. That ordering is the whole design: a request that reached the socket may have been
+billed even when this process got nothing usable from it, and a request that never reached the
+socket gives its authorization back.
 """
 
 import hashlib
-import json
 import logging
+import random
 import sqlite3
 import time
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, TypeVar
+from typing import Any
 
 import httpx
-from pydantic import BaseModel
+from pydantic import TypeAdapter
 
 from probation.config import settings
 from probation.core.clock import Clock, get_clock
+from probation.core.enums import ClockMode
 from probation.core.hashing import canonical_json
 from probation.db.inference import record_inference
 from probation.llm.budget import (
@@ -26,19 +35,36 @@ from probation.llm.budget import (
     units_to_usd,
 )
 from probation.llm.cache import compute_cache_key, get_cached_response
-from probation.llm.jobs import validate_job_output
+from probation.llm.content import (
+    TERMINAL_OUTPUT_CODES,
+    parse_json,
+    parse_text,
+    safe_content,
+)
+from probation.llm.errors import (
+    BACKOFF_FACTOR,
+    INITIAL_BACKOFF_S,
+    MAX_TREE_STAGES,
+    LLMValidationError,
+    OutputFailure,
+    TransportFailure,
+    bounded_wait,
+    classify_response,
+    is_transient,
+)
+from probation.llm.results import FailureCode
 from probation.llm.schema import UnsupportedSchema, compile_schema
 from probation.llm.schema import validate_json_schema as validate_json_schema
 
 logger = logging.getLogger(__name__)
 
-T = TypeVar("T", bound=BaseModel)
-
-
-class LLMValidationError(Exception):
-    """Raised when LLM output fails schema validation or repair."""
-
-    pass
+ENDPOINT = "/chat/completions"
+JSON_MODE_SUFFIX = "\nYou MUST return a JSON object adhering strictly to this schema: "
+REPAIR_INSTRUCTION = (
+    "The previous output was not valid JSON conforming to the schema. "
+    "Output valid JSON only with all required fields."
+)
+_NO_ANSWER = "request ended without a usable answer"
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,6 +75,68 @@ class AttemptAccounting:
     tokens_out: int
     charge_units: int
     usage_provenance: str
+
+
+@dataclass(slots=True)
+class RequestLedger:
+    """Everything this logical request did: sends, egress and cost, summed per attempt."""
+
+    sends: int = 0
+    tokens_in: int = 0
+    tokens_out: int = 0
+    units: int = 0
+    last_content: str = ""
+
+    def absorb(self, charge: AttemptAccounting) -> None:
+        self.sends += 1
+        self.tokens_in += charge.tokens_in
+        self.tokens_out += charge.tokens_out
+        self.units += charge.charge_units
+
+    def snapshot(self) -> tuple[int, int, int, int]:
+        return self.sends, self.tokens_in, self.tokens_out, self.units
+
+
+@dataclass(frozen=True, slots=True)
+class StageRecord:
+    """One rung of the bounded ladder, recorded whether or not it produced an answer."""
+
+    stage: str
+    sends: int
+    outcome: str
+
+
+@dataclass(frozen=True, slots=True)
+class JsonDispatch:
+    """A JSON request's answer with the accounting that bought it."""
+
+    data: dict[str, Any]
+    cache_key: str
+    cache_hit: bool
+    physical_attempts: int
+    tokens_in: int
+    tokens_out: int
+    cost_units: int
+    stages: tuple[StageRecord, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class TextDispatch:
+    """A text request's answer with the accounting that bought it."""
+
+    text: str
+    cache_key: str
+    cache_hit: bool
+    physical_attempts: int
+    tokens_in: int
+    tokens_out: int
+    cost_units: int
+    stages: tuple[StageRecord, ...] = ()
+
+
+def json_mode_system(system: str, schema: Mapping[str, Any]) -> str:
+    """The JSON-only stage's system text: the same schema, now as visible instructions."""
+    return f"{system}{JSON_MODE_SUFFIX}{canonical_json(schema)}"
 
 
 def _reported_usage(response: httpx.Response) -> tuple[int, int] | None:
@@ -68,32 +156,20 @@ def _reported_usage(response: httpx.Response) -> tuple[int, int] | None:
     return counts[0], counts[1]
 
 
-def extract_json_from_text(text: str) -> dict[str, Any]:
-    """Clean text and parse JSON, handling thought tags and markdown code blocks."""
-    cleaned = text.strip()
-    if "<thought>" in cleaned and "</thought>" in cleaned:
-        cleaned = cleaned.split("</thought>", 1)[-1].strip()
-    elif "<think>" in cleaned and "</think>" in cleaned:
-        cleaned = cleaned.split("</think>", 1)[-1].strip()
-
-    if "```json" in cleaned:
-        cleaned = cleaned.split("```json", 1)[1].split("```", 1)[0].strip()
-    elif "```" in cleaned:
-        cleaned = cleaned.split("```", 1)[1].split("```", 1)[0].strip()
-
-    first_brace = cleaned.find("{")
-    last_brace = cleaned.rfind("}")
-    if first_brace != -1 and last_brace != -1 and last_brace > first_brace:
-        cleaned = cleaned[first_brace : last_brace + 1]
-
-    parsed = json.loads(cleaned)
-    if not isinstance(parsed, dict):
-        raise ValueError(f"Parsed JSON must be an object/dict, got {type(parsed).__name__}")
-    return parsed
+def _identity(cache_parts: Mapping[str, str], user: str) -> tuple[str, str, str]:
+    """(content_hash, prompt_id, prompt_version) for the contract's four-part outer key."""
+    content_hash = cache_parts.get(
+        "content_hash", hashlib.sha256(user.encode("utf-8")).hexdigest()[:16]
+    )
+    return (
+        content_hash,
+        cache_parts.get("prompt_id", "prompt"),
+        cache_parts.get("prompt_version", "v1"),
+    )
 
 
 class LLMClient:
-    """Client for Nebius Token Factory inference with budget guard, retries, and schema fallback."""
+    """Budget-guarded, retry-bounded inference for one approved endpoint."""
 
     def __init__(
         self,
@@ -104,6 +180,11 @@ class LLMClient:
         max_retries: int = settings.llm_max_retries,
         transport: httpx.BaseTransport | None = None,
         clock: Clock | None = None,
+        sleeper: Callable[[float], None] | None = None,
+        operational_clock: Clock | None = None,
+        jitter_s: float = 0.0,
+        jitter_seed: int = 0,
+        max_physical_attempts: int | None = None,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
@@ -112,14 +193,26 @@ class LLMClient:
         self.max_retries = max_retries
         self.transport = transport
         self.clock = clock or get_clock()
+        # Retry timing and a provider's Retry-After deadline are operational facts, never event
+        # time: they get their own clock so a replay jump cannot age a paid reservation.
+        self.operational_clock = operational_clock or Clock(mode=ClockMode.LIVE)
+        self.sleeper = sleeper or time.sleep
+        self.jitter_s = jitter_s
+        self._random = random.Random(jitter_seed)
+        self.max_physical_attempts = max_physical_attempts
         self._unsupported_structured_models: set[str] = set()
 
-    def _get_http_client(self) -> httpx.Client:
-        """Create an HTTP client with authorization headers."""
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
-        }
+    @property
+    def default_attempt_ceiling(self) -> int:
+        """The whole tree, declared: each stage may send its own bounded set of attempts."""
+        return MAX_TREE_STAGES * (self.max_retries + 1)
+
+    @property
+    def attempt_ceiling(self) -> int:
+        return self.max_physical_attempts or self.default_attempt_ceiling
+
+    def _http_client(self) -> httpx.Client:
+        headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
         return httpx.Client(
             base_url=self.base_url,
             headers=headers,
@@ -127,77 +220,17 @@ class LLMClient:
             transport=self.transport,
         )
 
-    def _post_with_retries(
-        self,
-        client: httpx.Client,
-        endpoint: str,
-        payload: dict[str, Any],
-        *,
-        model: str,
-        tokens_in: int,
-    ) -> tuple[httpx.Response, int]:
-        """Send one authorized physical attempt, retrying it at most `max_retries` times.
-
-        Each send reserves its own worst-case cost before the bytes leave. A retry that was
-        rejected by status or that timed out after dispatch stays charged at that bound; only
-        a request that never reached the socket gives its reservation back, because a live
-        request may have been billed whatever its outcome looked like from here.
-        """
-        attempt = 0
-        backoff = 0.5
-        max_tokens = int(payload.get("max_tokens") or 0)
-
-        while True:
-            attempt += 1
-            held = self.budget_guard.reserve_units(
-                model, tokens_in=tokens_in, tokens_out_bound=max_tokens
+    def _wait_before_retry(self, backoff: float, response: httpx.Response | None) -> float:
+        """Sleep the authorized interval, or deny the next send when the hint cannot be obeyed."""
+        now = self.operational_clock.now()
+        hint = backoff if response is None else bounded_wait(response, now=now, backoff=backoff)
+        if hint is None:
+            raise TransportFailure(
+                "provider asked for a wait this job will not take",
+                code=FailureCode.ATTEMPT_BUDGET_EXHAUSTED,
             )
-            try:
-                response = client.post(endpoint, json=payload)
-            except httpx.ConnectError:
-                self.budget_guard.release_hold(held)
-                if attempt <= self.max_retries:
-                    logger.warning("LLM connect failed on attempt %d. Backing off.", attempt)
-                    time.sleep(backoff)
-                    backoff *= 2.0
-                    continue
-                raise
-            except (httpx.ReadTimeout, httpx.WriteTimeout):
-                self.budget_guard.charge_bound(
-                    model, tokens_in=tokens_in, tokens_out_bound=max_tokens, held=held
-                )
-                if attempt <= self.max_retries:
-                    logger.warning(
-                        "LLM timed out after dispatch on attempt %d. Backing off.", attempt
-                    )
-                    time.sleep(backoff)
-                    backoff *= 2.0
-                    continue
-                raise
-            if response.status_code in (429, 500, 502, 503, 504) and attempt <= self.max_retries:
-                self._account(
-                    model=model,
-                    tokens_in=tokens_in,
-                    tokens_out_bound=max_tokens,
-                    response=response,
-                    held=held,
-                )
-                retry_after = response.headers.get("Retry-After")
-                sleep_time = (
-                    float(retry_after)
-                    if retry_after and retry_after.replace(".", "", 1).isdigit()
-                    else backoff
-                )
-                logger.warning(
-                    "LLM call received status %d on attempt %d. Backing off for %.2fs.",
-                    response.status_code,
-                    attempt,
-                    sleep_time,
-                )
-                time.sleep(sleep_time)
-                backoff *= 2.0
-                continue
-            return response, held
+        self.sleeper(hint + self.jitter_s * self._random.random())
+        return backoff * BACKOFF_FACTOR
 
     def _account(
         self,
@@ -241,6 +274,313 @@ class LLMClient:
             usage_provenance="estimated",
         )
 
+    def _send(
+        self,
+        http: httpx.Client,
+        payload: dict[str, Any],
+        *,
+        model: str,
+        texts: Sequence[str],
+        max_tokens: int,
+        ledger: RequestLedger,
+    ) -> httpx.Response:
+        """Send one stage, retrying only approved transients and never past the ceiling."""
+        attempt = 0
+        backoff = INITIAL_BACKOFF_S
+        bound_in = input_token_bound(sum(len(text) for text in texts))
+        while True:
+            attempt += 1
+            if ledger.sends >= self.attempt_ceiling:
+                raise TransportFailure(
+                    "attempt ceiling reached before the next send",
+                    code=FailureCode.ATTEMPT_BUDGET_EXHAUSTED,
+                )
+            held = self.budget_guard.reserve_units(
+                model, tokens_in=bound_in, tokens_out_bound=max_tokens
+            )
+            try:
+                response = http.post(ENDPOINT, json=payload)
+            except (httpx.ConnectError, httpx.ConnectTimeout):
+                # A connect-phase failure never reached the socket, so none of it is owed back.
+                self.budget_guard.release_hold(held)
+                ledger.sends += 1
+                if attempt > self.max_retries:
+                    raise
+                logger.warning("LLM connect failed on attempt %d. Backing off.", attempt)
+                backoff = self._wait_before_retry(backoff, None)
+                continue
+            except (httpx.ReadTimeout, httpx.WriteTimeout):
+                ledger.absorb(
+                    AttemptAccounting(
+                        tokens_in=bound_in,
+                        tokens_out=max_tokens,
+                        charge_units=self.budget_guard.charge_bound(
+                            model, tokens_in=bound_in, tokens_out_bound=max_tokens, held=held
+                        ),
+                        usage_provenance="estimated",
+                    )
+                )
+                if attempt > self.max_retries:
+                    raise
+                logger.warning("LLM timed out after dispatch on attempt %d. Backing off.", attempt)
+                backoff = self._wait_before_retry(backoff, None)
+                continue
+            ledger.absorb(
+                self._account(
+                    model=model,
+                    tokens_in=bound_in,
+                    tokens_out_bound=max_tokens,
+                    response=response,
+                    held=held,
+                )
+            )
+            if is_transient(response) and attempt <= self.max_retries:
+                logger.warning(
+                    "LLM received status %d on attempt %d. Retrying.",
+                    response.status_code,
+                    attempt,
+                )
+                backoff = self._wait_before_retry(backoff, response)
+                continue
+            return response
+
+    def _attempt_answer(
+        self,
+        http: httpx.Client,
+        messages: list[dict[str, str]],
+        *,
+        stage: str,
+        model: str,
+        schema: dict[str, Any],
+        adapter: TypeAdapter[Any],
+        prompt_id: str,
+        prompt_version: str,
+        max_tokens: int,
+        response_format: dict[str, Any] | None,
+        ledger: RequestLedger,
+        stages: list[StageRecord],
+    ) -> dict[str, Any] | None:
+        """One rung: send it, classify it, and never re-bill a terminal model state.
+
+        Returns None only when the provider itself rejected the response format, which is the
+        single fact that authorizes the next format. An unusable answer raises, so the caller
+        cannot mistake "answered badly" for "may be asked differently".
+        """
+        before = ledger.sends
+        payload: dict[str, Any] = {
+            "model": model,
+            "messages": messages,
+            "temperature": 0.0,
+            "max_tokens": max_tokens,
+        }
+        if response_format is not None:
+            payload["response_format"] = response_format
+        texts = [message["content"] for message in messages]
+        response = self._send(
+            http, payload, model=model, texts=texts, max_tokens=max_tokens, ledger=ledger
+        )
+        code = classify_response(response)
+        if code is FailureCode.UNSUPPORTED_FORMAT:
+            if stage == "structured":
+                self._unsupported_structured_models.add(model)
+            stages.append(StageRecord(stage, ledger.sends - before, code.value))
+            return None
+        if code is not None:
+            stages.append(StageRecord(stage, ledger.sends - before, code.value))
+            raise TransportFailure(_NO_ANSWER, code=code)
+        try:
+            answer = parse_json(
+                response,
+                schema=schema,
+                adapter=adapter,
+                prompt_id=prompt_id,
+                prompt_version=prompt_version,
+            )
+        except OutputFailure as failure:
+            stages.append(StageRecord(stage, ledger.sends - before, failure.code.value))
+            ledger.last_content = safe_content(response)
+            raise
+        stages.append(StageRecord(stage, ledger.sends - before, "accepted"))
+        return answer
+
+    def _messages(self, system: str, user: str) -> list[dict[str, str]]:
+        return [{"role": "system", "content": system}, {"role": "user", "content": user}]
+
+    def dispatch_json(
+        self,
+        *,
+        kind: str,
+        model: str,
+        system: str,
+        user: str,
+        schema: Mapping[str, Any],
+        cache_parts: Mapping[str, str],
+        conn: sqlite3.Connection | None = None,
+        situation_id: str | None = None,
+        redaction_counts: dict[str, int] | None = None,
+        max_tokens: int = 1000,
+        check_cache: bool = True,
+    ) -> JsonDispatch:
+        """Run the bounded ladder for one JSON request and return the answer it paid for.
+
+        Three stages in order: structured output, JSON-only, then exactly one repair of the
+        JSON-only answer. A stage is entered only because the previous one was answered and that
+        answer was unusable, or because the provider rejected the format. A transport, authority
+        or terminal-model-state failure stops the request where it stands.
+        """
+        request_schema = dict(schema)
+        try:
+            adapter = compile_schema(request_schema)
+        except UnsupportedSchema as exc:
+            raise LLMValidationError("Unsupported output schema") from exc
+        content_hash, prompt_id, prompt_version = _identity(cache_parts, user)
+        cache_key = compute_cache_key(content_hash, prompt_id, prompt_version, model)
+        if conn is not None and check_cache:
+            cached = get_cached_response(conn, cache_key)
+            if cached is not None:
+                valid, _ = validate_json_schema(cached, request_schema)
+                if not valid:
+                    raise LLMValidationError("Cached output fails current schema validation")
+                return JsonDispatch(cached, cache_key, True, 0, 0, 0, 0)
+
+        ledger = RequestLedger()
+        stages: list[StageRecord] = []
+        json_object: dict[str, Any] = {"type": "json_object"}
+        structured_format: dict[str, Any] = {
+            "type": "json_schema",
+            "json_schema": {"name": "response", "strict": True, "schema": request_schema},
+        }
+        fallback_system = json_mode_system(system, request_schema)
+        plan = ["json_only", "repair"]
+        if model not in self._unsupported_structured_models:
+            plan.insert(0, "structured")
+        data: dict[str, Any] | None = None
+
+        with self._http_client() as http:
+            for position, stage in enumerate(plan):
+                is_final = position == len(plan) - 1
+                if stage == "structured":
+                    messages, wire_format = self._messages(system, user), structured_format
+                elif stage == "json_only":
+                    messages, wire_format = self._messages(fallback_system, user), json_object
+                else:
+                    messages = self._messages(fallback_system, user)
+                    messages.append({"role": "assistant", "content": ledger.last_content})
+                    messages.append({"role": "user", "content": REPAIR_INSTRUCTION})
+                    wire_format = json_object
+                try:
+                    data = self._attempt_answer(
+                        http,
+                        messages,
+                        stage=stage,
+                        model=model,
+                        schema=request_schema,
+                        adapter=adapter,
+                        prompt_id=prompt_id,
+                        prompt_version=prompt_version,
+                        max_tokens=max_tokens,
+                        response_format=wire_format,
+                        ledger=ledger,
+                        stages=stages,
+                    )
+                except OutputFailure as failure:
+                    if is_final or failure.code in TERMINAL_OUTPUT_CODES:
+                        raise
+                    continue
+                if data is not None:
+                    break
+
+        if data is None:
+            raise LLMValidationError(_NO_ANSWER)
+
+        sends, tokens_in, tokens_out, units = ledger.snapshot()
+        if conn is not None:
+            record_inference(
+                conn,
+                cache_key=cache_key,
+                kind=kind,
+                model_id=model,
+                prompt_id=prompt_id,
+                prompt_version=prompt_version,
+                response_data=data,
+                tokens_in=tokens_in,
+                tokens_out=tokens_out,
+                cost_usd=float(units_to_usd(units)),
+                created_at=self.clock.now_iso(),
+                situation_id=situation_id,
+                redaction_counts=redaction_counts,
+            )
+        return JsonDispatch(
+            data, cache_key, False, sends, tokens_in, tokens_out, units, tuple(stages)
+        )
+
+    def dispatch_text(
+        self,
+        *,
+        kind: str,
+        model: str,
+        system: str,
+        user: str,
+        cache_parts: Mapping[str, str],
+        max_tokens: int = 400,
+        conn: sqlite3.Connection | None = None,
+        situation_id: str | None = None,
+        redaction_counts: dict[str, int] | None = None,
+        check_cache: bool = True,
+    ) -> TextDispatch:
+        """One text request: prose has no format to fall back to and no schema to repair."""
+        content_hash, prompt_id, prompt_version = _identity(cache_parts, user)
+        cache_key = compute_cache_key(content_hash, prompt_id, prompt_version, model)
+        if conn is not None and check_cache:
+            cached = get_cached_response(conn, cache_key)
+            if cached is not None:
+                if not isinstance(cached, dict) or set(cached) != {"text"}:
+                    raise LLMValidationError("Invalid cached text shape")
+                text = cached["text"]
+                if not isinstance(text, str) or not text.strip():
+                    raise LLMValidationError("Text output must be a nonempty string")
+                return TextDispatch(text, cache_key, True, 0, 0, 0, 0)
+
+        ledger = RequestLedger()
+        payload: dict[str, Any] = {
+            "model": model,
+            "messages": self._messages(system, user),
+            "temperature": 0.0,
+            "max_tokens": max_tokens,
+        }
+        with self._http_client() as http:
+            response = self._send(
+                http,
+                payload,
+                model=model,
+                texts=(system, user),
+                max_tokens=max_tokens,
+                ledger=ledger,
+            )
+            code = classify_response(response)
+            if code is not None:
+                raise TransportFailure(_NO_ANSWER, code=code)
+            text = parse_text(response)
+
+        sends, tokens_in, tokens_out, units = ledger.snapshot()
+        if conn is not None:
+            record_inference(
+                conn,
+                cache_key=cache_key,
+                kind=kind,
+                model_id=model,
+                prompt_id=prompt_id,
+                prompt_version=prompt_version,
+                response_data={"text": text},
+                tokens_in=tokens_in,
+                tokens_out=tokens_out,
+                cost_usd=float(units_to_usd(units)),
+                created_at=self.clock.now_iso(),
+                situation_id=situation_id,
+                redaction_counts=redaction_counts,
+            )
+        return TextDispatch(text, cache_key, False, sends, tokens_in, tokens_out, units)
+
     def chat_json(
         self,
         *,
@@ -255,230 +595,19 @@ class LLMClient:
         redaction_counts: dict[str, int] | None = None,
         max_tokens: int = 1000,
     ) -> dict[str, Any]:
-        """Execute structured JSON inference with schema validation and fallback."""
-        try:
-            compile_schema(schema)
-        except UnsupportedSchema as exc:
-            raise LLMValidationError("Unsupported output schema") from exc
-        content_hash = cache_parts.get(
-            "content_hash", hashlib.sha256(user.encode("utf-8")).hexdigest()[:16]
-        )
-        prompt_id = cache_parts.get("prompt_id", "prompt")
-        prompt_version = cache_parts.get("prompt_version", "v1")
-        cache_key = compute_cache_key(content_hash, prompt_id, prompt_version, model)
-
-        # Check deterministic cache
-        if conn is not None:
-            cached = get_cached_response(conn, cache_key)
-            if cached is not None:
-                valid, _ = validate_json_schema(cached, schema)
-                if not valid or not validate_job_output(cached, prompt_id, prompt_version):
-                    raise LLMValidationError("Cached output fails current schema validation")
-                logger.debug("LLM cache hit for key %s", cache_key)
-                return cached
-
-        # Every physical attempt below reserves this bound before it sends.
-        tokens_in_bound = input_token_bound(len(system) + len(user))
-        accounting: AttemptAccounting
-
-        with self._get_http_client() as client:
-            data: dict[str, Any] | None = None
-            body: dict[str, Any] = {}
-            last_content: str = ""
-
-            # 1. Attempt JSON-schema structured output if model supports it
-            if model not in self._unsupported_structured_models:
-                structured_payload: dict[str, Any] = {
-                    "model": model,
-                    "messages": [
-                        {"role": "system", "content": system},
-                        {"role": "user", "content": user},
-                    ],
-                    "temperature": 0.0,
-                    "max_tokens": max_tokens,
-                    "response_format": {
-                        "type": "json_schema",
-                        "json_schema": {
-                            "name": "response",
-                            "strict": True,
-                            "schema": schema,
-                        },
-                    },
-                }
-
-                resp, held = self._post_with_retries(
-                    client,
-                    "/chat/completions",
-                    structured_payload,
-                    model=model,
-                    tokens_in=tokens_in_bound,
-                )
-                accounting = self._account(
-                    model=model,
-                    tokens_in=tokens_in_bound,
-                    tokens_out_bound=max_tokens,
-                    response=resp,
-                    held=held,
-                )
-                if resp.status_code == 200:
-                    body = resp.json()
-                    choices = body.get("choices", [])
-                    if choices:
-                        msg = choices[0].get("message", {})
-                        last_content = msg.get("content") or msg.get("reasoning_content") or ""
-                        try:
-                            candidate = extract_json_from_text(last_content)
-                            is_valid, _ = validate_json_schema(candidate, schema)
-                            if is_valid and validate_job_output(
-                                candidate, prompt_id, prompt_version
-                            ):
-                                data = candidate
-                        except Exception:
-                            data = None
-                else:
-                    self._unsupported_structured_models.add(model)
-
-            # 2. Fallback to JSON mode if structured output rejected or failed validation
-            if data is None:
-                logger.info("JSON-schema rejected or unparseable. Falling back to JSON-only mode.")
-                fallback_system = (
-                    f"{system}\nYou MUST return a JSON object adhering strictly to this schema: "
-                    f"{canonical_json(schema)}"
-                )
-                fallback_payload: dict[str, Any] = {
-                    "model": model,
-                    "messages": [
-                        {"role": "system", "content": fallback_system},
-                        {"role": "user", "content": user},
-                    ],
-                    "temperature": 0.0,
-                    "max_tokens": max_tokens,
-                    "response_format": {"type": "json_object"},
-                }
-
-                resp_fb, held_fb = self._post_with_retries(
-                    client,
-                    "/chat/completions",
-                    fallback_payload,
-                    model=model,
-                    tokens_in=tokens_in_bound,
-                )
-                accounting = self._account(
-                    model=model,
-                    tokens_in=tokens_in_bound,
-                    tokens_out_bound=max_tokens,
-                    response=resp_fb,
-                    held=held_fb,
-                )
-                if resp_fb.status_code == 200:
-                    body = resp_fb.json()
-                    choices = body.get("choices", [])
-                    if choices:
-                        msg = choices[0].get("message", {})
-                        last_content = msg.get("content") or msg.get("reasoning_content") or ""
-                        try:
-                            candidate = extract_json_from_text(last_content)
-                            is_valid, _ = validate_json_schema(candidate, schema)
-                            if is_valid and validate_job_output(
-                                candidate, prompt_id, prompt_version
-                            ):
-                                data = candidate
-                        except Exception:
-                            data = None
-
-                # 3. Exactly one repair retry
-                if data is None:
-                    repair_messages = [
-                        {"role": "system", "content": fallback_system},
-                        {"role": "user", "content": user},
-                        {"role": "assistant", "content": last_content},
-                        {
-                            "role": "user",
-                            "content": (
-                                "The previous output was not valid JSON conforming to the schema. "
-                                "Output valid JSON only with all required fields."
-                            ),
-                        },
-                    ]
-                    repair_payload = {
-                        "model": model,
-                        "messages": repair_messages,
-                        "temperature": 0.0,
-                        "max_tokens": max_tokens,
-                        "response_format": {"type": "json_object"},
-                    }
-                    resp_rep, held_rep = self._post_with_retries(
-                        client,
-                        "/chat/completions",
-                        repair_payload,
-                        model=model,
-                        tokens_in=tokens_in_bound,
-                    )
-                    accounting = self._account(
-                        model=model,
-                        tokens_in=tokens_in_bound,
-                        tokens_out_bound=max_tokens,
-                        response=resp_rep,
-                        held=held_rep,
-                    )
-                    if resp_rep.status_code == 200:
-                        body = resp_rep.json()
-                        choices = body.get("choices", [])
-                        if choices:
-                            msg = choices[0].get("message", {})
-                            rep_content = msg.get("content") or msg.get("reasoning_content") or ""
-                            try:
-                                candidate = extract_json_from_text(rep_content)
-                                is_valid, err = validate_json_schema(candidate, schema)
-                                if is_valid and validate_job_output(
-                                    candidate, prompt_id, prompt_version
-                                ):
-                                    data = candidate
-                                else:
-                                    raise LLMValidationError(
-                                        f"Repair retry failed schema validation: {err}"
-                                    )
-                            except Exception as err:
-                                if isinstance(err, LLMValidationError):
-                                    raise
-                                raise LLMValidationError(
-                                    f"Repair retry failed to parse JSON: {err}"
-                                ) from err
-                        else:
-                            raise LLMValidationError("Repair retry returned empty choices")
-                    else:
-                        raise LLMValidationError(
-                            f"Repair retry failed with status {resp_rep.status_code}"
-                        )
-
-            if data is None:
-                raise LLMValidationError(
-                    "Failed to obtain valid JSON schema response from LLM endpoint."
-                )
-
-            tokens_in = accounting.tokens_in
-            tokens_out = accounting.tokens_out
-
-            now_iso = self.clock.now_iso()
-
-            if conn is not None:
-                record_inference(
-                    conn,
-                    cache_key=cache_key,
-                    kind=kind,
-                    model_id=model,
-                    prompt_id=prompt_id,
-                    prompt_version=prompt_version,
-                    response_data=data,
-                    tokens_in=tokens_in,
-                    tokens_out=tokens_out,
-                    cost_usd=float(units_to_usd(accounting.charge_units)),
-                    created_at=now_iso,
-                    situation_id=situation_id,
-                    redaction_counts=redaction_counts,
-                )
-
-            return data
+        """Diagnostic JSON call: the ladder's answer, with its accounting kept in the ledger."""
+        return self.dispatch_json(
+            kind=kind,
+            model=model,
+            system=system,
+            user=user,
+            schema=schema,
+            cache_parts=cache_parts,
+            conn=conn,
+            situation_id=situation_id,
+            redaction_counts=redaction_counts,
+            max_tokens=max_tokens,
+        ).data
 
     def chat_text(
         self,
@@ -493,78 +622,15 @@ class LLMClient:
         situation_id: str | None = None,
         redaction_counts: dict[str, int] | None = None,
     ) -> str:
-        """Execute text generation (for drafts or wording) with budget and caching."""
-        content_hash = cache_parts.get(
-            "content_hash", hashlib.sha256(user.encode("utf-8")).hexdigest()[:16]
-        )
-        prompt_id = cache_parts.get("prompt_id", "prompt")
-        prompt_version = cache_parts.get("prompt_version", "v1")
-        cache_key = compute_cache_key(content_hash, prompt_id, prompt_version, model)
-
-        if conn is not None:
-            cached = get_cached_response(conn, cache_key)
-            if cached is not None:
-                if not isinstance(cached, dict) or set(cached) != {"text"}:
-                    raise LLMValidationError("Invalid cached text shape")
-                text = cached["text"]
-                if not isinstance(text, str) or not text.strip():
-                    raise LLMValidationError("Text output must be a nonempty string")
-                return text
-
-        tokens_in_bound = input_token_bound(len(system) + len(user))
-
-        with self._get_http_client() as client:
-            payload = {
-                "model": model,
-                "messages": [
-                    {"role": "system", "content": system},
-                    {"role": "user", "content": user},
-                ],
-                "temperature": 0.0,
-                "max_tokens": max_tokens,
-            }
-            resp, held = self._post_with_retries(
-                client, "/chat/completions", payload, model=model, tokens_in=tokens_in_bound
-            )
-            accounting = self._account(
-                model=model,
-                tokens_in=tokens_in_bound,
-                tokens_out_bound=max_tokens,
-                response=resp,
-                held=held,
-            )
-            if resp.status_code != 200:
-                raise LLMValidationError(
-                    f"LLM text completion failed with status {resp.status_code}"
-                )
-
-            body = resp.json()
-            try:
-                text_result = body["choices"][0]["message"]["content"]
-            except (KeyError, IndexError, TypeError) as exc:
-                raise LLMValidationError("Invalid text response shape") from exc
-            if not isinstance(text_result, str) or not text_result.strip():
-                raise LLMValidationError("Text output must be a nonempty string")
-            tokens_in = accounting.tokens_in
-            tokens_out = accounting.tokens_out
-
-            now_iso = self.clock.now_iso()
-
-            if conn is not None:
-                record_inference(
-                    conn,
-                    cache_key=cache_key,
-                    kind=kind,
-                    model_id=model,
-                    prompt_id=prompt_id,
-                    prompt_version=prompt_version,
-                    response_data={"text": text_result},
-                    tokens_in=tokens_in,
-                    tokens_out=tokens_out,
-                    cost_usd=float(units_to_usd(accounting.charge_units)),
-                    created_at=now_iso,
-                    situation_id=situation_id,
-                    redaction_counts=redaction_counts,
-                )
-
-            return text_result
+        """Diagnostic text call: one request for prose, or a typed failure."""
+        return self.dispatch_text(
+            kind=kind,
+            model=model,
+            system=system,
+            user=user,
+            max_tokens=max_tokens,
+            cache_parts=cache_parts,
+            conn=conn,
+            situation_id=situation_id,
+            redaction_counts=redaction_counts,
+        ).text

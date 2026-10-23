@@ -85,7 +85,7 @@ Governed by [`docs/BUILD_LOGGING_PROTOCOL.md`](file:///d:/Desktop/project/Probat
 
 ## WP3 implementation record - 23 October 2026
 
-Branch `phase-3-wp3-reader-pipeline`, packages P00-P04 of `docs/wp3/WORK_PACKAGES.md`. Requirement
+Branch `phase-3-wp3-reader-pipeline`, packages P00-P05 of `docs/wp3/WORK_PACKAGES.md`. Requirement
 statuses and what remains are tracked per requirement in
 [`docs/reports/wp3-requirements-coverage-2026-10-23.csv`](file:///d:/Desktop/project/Probation/docs/reports/wp3-requirements-coverage-2026-10-23.csv).
 
@@ -95,6 +95,7 @@ statuses and what remains are tracked per requirement in
 | WP3 P02 immutable prompt catalog and verified assets | Phase 3 — WP3 | [P02 prompt catalog](phase_03_mail_calendar_packs/feature_wp3_p02_prompt_catalog.md) | Built | 2026-10-23 |
 | WP3 P03 bounded request context and request-scoped redaction | Phase 3 — WP3 | [P03 bounded context](phase_03_mail_calendar_packs/feature_wp3_p03_bounded_context_redaction.md) | Built | 2026-10-23 |
 | WP3 P04 per-attempt spend authority in exact units | Phase 3 — WP3 | [P04 spend authority](phase_03_mail_calendar_packs/feature_wp3_p04_spend_authority.md) | Deferred | 2026-10-23 (durable store gated on [W3-D03 review](file:///d:/Desktop/project/Probation/docs/wp3/W3_D03_SPEND_ACCOUNTING_REVIEW.md)) |
+| WP3 P05 transport authority, semantic cache and typed error semantics | Phase 3 — WP3 | [P05 transport and cache](phase_03_mail_calendar_packs/feature_wp3_p05_transport_cache_errors.md) | Built | 2026-10-23 (single-flight deferred with 7.3.7) |
 
 
 ## WP2 audit record - 23 October 2026

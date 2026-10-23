@@ -33,6 +33,7 @@ class FailureCode(StrEnum):
     TOOL_CALLS = "tool_calls"
     TRUNCATED = "truncated"
     INVALID_OUTPUT = "invalid_output"
+    CACHE_PROVENANCE = "cache_provenance"
     HEADER_CONFLICT = "header_conflict"
     CLUES_INVALID = "clues_invalid"
     DRAFT_UNAVAILABLE = "draft_unavailable"
