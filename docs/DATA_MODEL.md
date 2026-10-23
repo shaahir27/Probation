@@ -79,7 +79,8 @@ CREATE TABLE features (
   model_id TEXT,
   prompt_version TEXT,
   features_hash TEXT NOT NULL,
-  created_at TEXT NOT NULL
+  created_at TEXT NOT NULL,
+  provenance_json TEXT CHECK (provenance_json IS NULL OR json_valid(provenance_json))
 );
 
 -- Deterministic LLM response cache (CONTRACT I-16)

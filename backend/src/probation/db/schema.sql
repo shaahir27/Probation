@@ -66,7 +66,8 @@ CREATE TABLE features (
   model_id TEXT,
   prompt_version TEXT,
   features_hash TEXT NOT NULL,
-  created_at TEXT NOT NULL
+  created_at TEXT NOT NULL,
+  provenance_json TEXT CHECK (provenance_json IS NULL OR json_valid(provenance_json))
 );
 
 -- Deterministic LLM response cache (CONTRACT I-16)
@@ -355,3 +356,6 @@ CREATE TABLE clock_state (
   speed REAL NOT NULL DEFAULT 1.0,
   running INTEGER NOT NULL DEFAULT 0
 );
+
+-- WP4: bounded immutable event projection by subject; no ledger bytes are changed.
+CREATE INDEX idx_ledger_kind_time ON ledger(kind, created_at COLLATE UTC_TIMESTAMP);

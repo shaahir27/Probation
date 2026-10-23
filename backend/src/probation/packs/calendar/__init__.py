@@ -140,22 +140,19 @@ class CalendarPack(PackAdapter):
 
     def deterministic_clues(self, s: Situation, hist: HistoryView) -> dict[str, float | str | bool]:
         """Compute all 12 deterministic clues strictly through HistoryView (Invariant I-6)."""
-        raw_items = hist.get_raw_items(pack=self.name)
-        payload = {}
-        for row in raw_items:
-            if row["id"] == s.raw_item_id:
-                try:
-                    payload = json.loads(row["payload_json"])
-                except Exception:
-                    pass
-                break
+        row = hist.get_raw_item(s.raw_item_id)
+        if row is None:
+            raise ValueError("Current source is not known at cutoff")
+        payload = json.loads(row["payload_json"])
+        if not isinstance(payload, dict):
+            raise ValueError("Invalid source payload")
         return extract_calendar_clues(s, hist, payload)
 
     def reader_spec(self) -> ReaderSpec:
         """Prompt descriptor for calendar reader."""
         return ReaderSpec(
             prompt_id="reader.invite",
-            prompt_version="v1",
+            prompt_version="v2",
             json_schema=CALENDAR_READER_SCHEMA,
             redaction_profile="invite",
         )

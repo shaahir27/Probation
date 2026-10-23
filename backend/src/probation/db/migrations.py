@@ -131,3 +131,30 @@ def migrate_indexes(conn: sqlite3.Connection) -> int:
         conn.rollback()
         raise
     return len(drift)
+
+
+def migrate_features_provenance(conn: sqlite3.Connection) -> bool:
+    """Additive migration: add provenance_json column to features table if absent."""
+    if conn.in_transaction or getattr(conn, "bound_role", None) is not None:
+        raise ValueError("Migration requires a clean bootstrap connection")
+
+    has_features = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='features'"
+    ).fetchone()
+    if not has_features:
+        return False
+
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(features)").fetchall()}
+    if "provenance_json" in cols:
+        return False
+
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        conn.execute(
+            "ALTER TABLE features ADD COLUMN provenance_json TEXT CHECK (provenance_json IS NULL OR json_valid(provenance_json));"
+        )
+        conn.commit()
+        return True
+    except BaseException:
+        conn.rollback()
+        raise

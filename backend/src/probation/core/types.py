@@ -49,6 +49,7 @@ class Features(BaseDomainModel):
     prompt_version: str | None = None
     features_hash: str
     created_at: str = ""
+    provenance_json: str | None = None
 
 
 class Proposal(BaseDomainModel):

@@ -118,6 +118,10 @@ class ReaderOutcome:
     def usable_fields(self) -> Mapping[str, Any] | None:
         return self.fields if self.status is ReaderStatus.VALIDATED else None
 
+    @property
+    def reason(self) -> str | None:
+        return self.safe_reason
+
     @classmethod
     def failed(
         cls, required: bool, provenance: Provenance, failure: FailureCode, reason: str

@@ -4,7 +4,6 @@ Authority: docs/CONTRACT.md section 3 and docs/ENGINE_SPEC.md sections 1-3.
 Enforces Role.BRAIN database write boundaries.
 """
 
-import hashlib
 import logging
 import sqlite3
 from collections.abc import Callable
@@ -17,11 +16,14 @@ from probation.core.history import HistoryView
 from probation.core.types import Situation
 from probation.db.access import Role, RoleAccess
 from probation.llm.client import LLMClient
+from probation.llm.consumers import RegisteredConsumer, offline_consumer
+from probation.llm.feature_pipeline import compute_features
+from probation.llm.gateway import JobGateway, transport_authority
 from probation.packs.registry import registry
 
 logger = logging.getLogger(__name__)
 
-FEATURIZER_VERSION = "v1.0"
+FEATURIZER_VERSION = "wp3-reader-v1"
 
 
 def build_reader_client(clock: Clock | None, allow_live_llm: bool) -> LLMClient | None:
@@ -39,7 +41,13 @@ def build_reader_client(clock: Clock | None, allow_live_llm: bool) -> LLMClient 
             "deterministically. Pass allow_live_llm=True to spend against the reader model."
         )
         return None
-    return LLMClient(api_key=settings.llm_api_key, clock=clock or get_clock())
+    from probation.llm.budget import BudgetExceeded
+
+    try:
+        return LLMClient(api_key=settings.llm_api_key, clock=clock or get_clock())
+    except BudgetExceeded:
+        logger.warning("Reader accounting unavailable; required reader will fail closed")
+        return None
 
 
 def extract_features_for_situations(
@@ -49,6 +57,7 @@ def extract_features_for_situations(
     allow_live_llm: bool = False,
     situation_id: str | None = None,
     llm_client: LLMClient | None = None,
+    until: str | None = None,
 ) -> int:
     """Compute and store features for unfeaturized situations.
 
@@ -78,16 +87,28 @@ def extract_features_for_situations(
         LEFT JOIN features f ON s.id = f.situation_id
         WHERE f.situation_id IS NULL
         """
-    params: tuple[Any, ...] = ()
+    params: list[Any] = []
     if situation_id is not None:
         query += " AND s.id = ?"
-        params = (situation_id,)
+        params.append(situation_id)
+    if until is not None:
+        query += " AND s.occurred_at <= ?"
+        params.append(until)
     query += " ORDER BY s.occurred_at COLLATE UTC_TIMESTAMP ASC;"
-    read_cursor.execute(query, params)
+    read_cursor.execute(query, tuple(params))
     rows = read_cursor.fetchall()
     count = 0
 
     clk = clock or get_clock()
+
+    consumer = (
+        offline_consumer(conn)
+        if llm_client is None
+        else RegisteredConsumer(
+            JobGateway(llm_client, conn=conn),
+            transport_authority(llm_client, allow_live_dispatch=allow_live_llm),
+        )
+    )
 
     for row in rows:
         sit = Situation(
@@ -105,70 +126,19 @@ def extract_features_for_situations(
         )
 
         try:
-            pack = registry.get_descriptor(sit.pack)
+            registry.get_descriptor(sit.pack)
         except KeyError:
             continue
 
         # Invariant I-6: History bounded strictly by as_of=occurred_at
         hist = HistoryView(conn, as_of=sit.occurred_at)
-        det_clues = pack.deterministic_clues(sit, hist)
 
-        reader_dict: dict[str, Any] | None = None
-        reader_ok = True
-        model_id: str | None = None
-        prompt_version: str | None = None
-
-        if reader_callable is not None:
-            reader_dict, reader_ok = reader_callable(sit)
-            model_id = "stub"
-            prompt_version = "v1"
-        elif llm_client is not None:
-            reader_spec_fn = getattr(pack, "reader_spec", None)
-            rs = (
-                reader_spec_fn()
-                if (reader_spec_fn is not None and callable(reader_spec_fn))
-                else None
-            )
-            if rs is not None:
-                prompt_id = str(rs.prompt_id)
-                prompt_version = str(rs.prompt_version)
-                model_id = settings.model_reader
-                cache_parts: dict[str, str] = {
-                    "content_hash": str(sit.content_hash),
-                    "prompt_id": prompt_id,
-                    "prompt_version": prompt_version,
-                }
-                system = (
-                    f"You are a form-filling tool. You read ONE {sit.pack} item "
-                    "and fill a JSON form adhering strictly to the schema."
-                )
-                try:
-                    reader_dict = llm_client.chat_json(
-                        kind="reader",
-                        model=model_id,
-                        system=system,
-                        user=sit.redacted_text or "",
-                        schema=rs.json_schema,
-                        cache_parts=cache_parts,
-                        conn=conn,
-                        situation_id=sit.id,
-                        max_tokens=800,
-                    )
-                    reader_ok = True
-                except Exception as exc:
-                    logger.warning("Live LLM reader failed for situation %s: %s", sit.id, exc)
-                    reader_dict = None
-                    reader_ok = False
-            else:
-                reader_dict = None
-                reader_ok = True
-
-        det_json = canonical_json(det_clues)
-        reader_json = canonical_json(reader_dict) if reader_dict is not None else None
-
-        # Compute deterministic features_hash
-        raw_hash_input = f"{det_json}|{reader_json or '{}'}|{FEATURIZER_VERSION}".encode()
-        features_hash = hashlib.sha256(raw_hash_input).hexdigest()
+        features = compute_features(sit, hist, consumer=consumer, reader_callable=reader_callable)
+        det_json = canonical_json(features.deterministic)
+        reader_json = canonical_json(features.reader) if features.reader is not None else None
+        reader_ok = features.reader_ok
+        model_id, prompt_version = features.model_id, features.prompt_version
+        features_hash = features.features_hash
 
         now_iso = clk.now_iso()
 
@@ -176,19 +146,20 @@ def extract_features_for_situations(
             "features",
             """
             INSERT OR IGNORE INTO features
-            (situation_id, deterministic_json, reader_json, reader_ok, featurizer_version, model_id, prompt_version, features_hash, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+            (situation_id, deterministic_json, reader_json, reader_ok, featurizer_version, model_id, prompt_version, features_hash, created_at, provenance_json)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
             """,
             (
                 sit.id,
                 det_json,
                 reader_json,
                 1 if reader_ok else 0,
-                FEATURIZER_VERSION,
+                features.featurizer_version,
                 model_id,
                 prompt_version,
                 features_hash,
                 now_iso,
+                features.provenance_json,
             ),
         )
         count += 1

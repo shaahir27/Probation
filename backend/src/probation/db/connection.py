@@ -74,10 +74,15 @@ def apply_schema(conn: sqlite3.Connection) -> None:
         schema_sql = f.read()
     conn.executescript(schema_sql)
     conn.commit()
-    from probation.db.migrations import migrate_indexes, migrate_wp1
+    from probation.db.migrations import (
+        migrate_features_provenance,
+        migrate_indexes,
+        migrate_wp1,
+    )
 
     migrate_wp1(conn)
     migrate_indexes(conn)
+    migrate_features_provenance(conn)
 
 
 def has_schema(conn: sqlite3.Connection) -> bool:
@@ -100,10 +105,15 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
     if not has_schema(conn):
         apply_schema(conn)
         return
-    from probation.db.migrations import migrate_indexes, migrate_wp1
+    from probation.db.migrations import (
+        migrate_features_provenance,
+        migrate_indexes,
+        migrate_wp1,
+    )
 
     migrate_wp1(conn)
     migrate_indexes(conn)
+    migrate_features_provenance(conn)
 
 
 def init_db(db_path: Path | str | None = None) -> None:
