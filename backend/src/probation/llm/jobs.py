@@ -170,9 +170,16 @@ class RadarDigest(JobOutput):
     digest: Annotated[str, Field(max_length=700)]
 
 
+class BaselineEstimate(JobOutput):
+    """The registered B3 transport contract. Its measurement semantics are validated in WP10."""
+
+    action: Literal["ARCHIVE", "TRASH", "LEAVE", "REPLY", "FORWARD"]
+    confidence: Annotated[float, Field(ge=0.0, le=1.0)]
+
+
 JOB_MODELS: dict[tuple[str, str], type[JobOutput]] = {
-    ("reader.mail", "v2"): MailReader,
-    ("reader.invite", "v1"): InviteReader,
+    ("reader.mail", "v3"): MailReader,
+    ("reader.invite", "v2"): InviteReader,
     ("reader.file", "v1"): FileReader,
     ("writer.reply", "v1"): ReplyWriter,
     ("wording", "v1"): Wording,
@@ -185,6 +192,7 @@ JOB_MODELS: dict[tuple[str, str], type[JobOutput]] = {
     ("extract.opportunity", "v1"): OpportunityExtraction,
     ("extract.link", "v1"): LinkExtraction,
     ("radar.digest", "v1"): RadarDigest,
+    ("b3.baseline", "v1"): BaselineEstimate,
 }
 
 

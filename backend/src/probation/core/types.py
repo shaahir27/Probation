@@ -216,11 +216,20 @@ class Source(BaseDomainModel):
 
 
 class RedactionResult(BaseDomainModel):
-    """Output of local PII redaction pipeline."""
+    """Output of local PII redaction pipeline.
+
+    `counts` are replacements actually performed in the sent text; `unique` is how many
+    distinct values each type covered. Only tokens listed in `restorable` may ever be
+    mapped back, and a placeholder-shaped token that was already in the source text is
+    excluded from it, so injected text cannot earn restoration authority.
+    """
 
     text: str
     counts: dict[str, int]
     restore_map: dict[str, str]
+    unique: dict[str, int] = Field(default_factory=dict)
+    restorable: frozenset[str] = frozenset()
+    truncated: bool = False
 
     def __iter__(self) -> Any:
         return iter((self.text, self.restore_map, self.counts))

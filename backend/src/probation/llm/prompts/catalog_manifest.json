@@ -1,0 +1,110 @@
+{
+  "assets": {
+    "b3.baseline.v1": {
+      "asset": "b3.baseline.v1.md",
+      "max_tokens": 200,
+      "model_role": "baseline",
+      "schema_fingerprint": "0ad7b5f6bdde61aa",
+      "sha256": "9003edcb2ef3efabb8e57f6c42253e82408db80c574d75c8dc2a69b55ab9dd29"
+    },
+    "exam.add_money_request.v1": {
+      "asset": "exam.add_money_request.v1.md",
+      "max_tokens": 500,
+      "model_role": "exam_edit",
+      "schema_fingerprint": "560869d98e893f50",
+      "sha256": "b517c658016b47f63c52ce3cc28ec3ad130d392c0d5fbbbd34e177b80e013411"
+    },
+    "exam.add_personal_info_request.v1": {
+      "asset": "exam.add_personal_info_request.v1.md",
+      "max_tokens": 500,
+      "model_role": "exam_edit",
+      "schema_fingerprint": "560869d98e893f50",
+      "sha256": "ecd0cd8b3be7e34febbd1cac9f233e723ce026daada4a8b224f2d01110255387"
+    },
+    "exam.paraphrase.v1": {
+      "asset": "exam.paraphrase.v1.md",
+      "max_tokens": 500,
+      "model_role": "exam_edit",
+      "schema_fingerprint": "560869d98e893f50",
+      "sha256": "d679744c6d89c583cf3802f26819e27ac84bce91b620f364b32b7a7fd3597a86"
+    },
+    "extract.link.v1": {
+      "asset": "extract.link.v1.md",
+      "max_tokens": 500,
+      "model_role": "quarantine",
+      "schema_fingerprint": "1b5fe7b5d426d75b",
+      "sha256": "0b3c8ab1e7106f02d776e0b4e7eace6870681b72d3aefea2aca9219d2406cc54"
+    },
+    "extract.opportunity.v1": {
+      "asset": "extract.opportunity.v1.md",
+      "max_tokens": 500,
+      "model_role": "quarantine",
+      "schema_fingerprint": "f79c96438da73dee",
+      "sha256": "cd16eca912deb30f4ba380513a5da38fc4e7f6033cc8414dd826035e8dd56f00"
+    },
+    "radar.digest.v1": {
+      "asset": "radar.digest.v1.md",
+      "max_tokens": 400,
+      "model_role": "writer",
+      "schema_fingerprint": "a31aa35c1435f767",
+      "sha256": "cc2673d232185126f3fc01eda27575945ee1d33b13523bc54df16f5453e4191b"
+    },
+    "reader.file.v1": {
+      "asset": "reader.file.v1.md",
+      "max_tokens": 200,
+      "model_role": "reader",
+      "schema_fingerprint": "2e6cb1bc246686b5",
+      "sha256": "9d7e4ba206029cdd58eefee062c96f31d237c4607e532893c1d89e2246b8180b"
+    },
+    "reader.invite.v2": {
+      "asset": "reader.invite.v2.md",
+      "max_tokens": 200,
+      "model_role": "reader",
+      "schema_fingerprint": "2166717c4ecf0e11",
+      "sha256": "fbeed87bd5c4218440626ca158859f42b775ab965f16c3f2a8a4876107e8f293"
+    },
+    "reader.mail.v3": {
+      "asset": "reader.mail.v3.md",
+      "max_tokens": 200,
+      "model_role": "reader",
+      "schema_fingerprint": "4bd534b5a5c2cfa9",
+      "sha256": "66e510f5ae8b425175792af611d3af69b6f6cca2a9235a1181238b413ab6b8a2"
+    },
+    "reader.opportunity.v1": {
+      "asset": "reader.opportunity.v1.md",
+      "max_tokens": 200,
+      "model_role": "reader",
+      "schema_fingerprint": "105180baf3e4a2c9",
+      "sha256": "ace464ef19e4b7b87b6108a0d37d999eea9ffb513ba8b22e7037bdf61a826436"
+    },
+    "synth.invite.v1": {
+      "asset": "synth.invite.v1.md",
+      "max_tokens": 800,
+      "model_role": "synth",
+      "schema_fingerprint": "ee0cfad6ab0f6b00",
+      "sha256": "517168090c1800ec2ee075cc9165c177deade8853028a228332e199fb69a060c"
+    },
+    "synth.mail_body.v1": {
+      "asset": "synth.mail_body.v1.md",
+      "max_tokens": 800,
+      "model_role": "synth",
+      "schema_fingerprint": "ecd7fe7fada00535",
+      "sha256": "5f1ed49d082d131c1edcb65d3ad2a0418f0489210aa7592c3a72ac3975bf9164"
+    },
+    "wording.v1": {
+      "asset": "wording.v1.md",
+      "max_tokens": 120,
+      "model_role": "wording",
+      "schema_fingerprint": "ea54143c581b8025",
+      "sha256": "c83eb3660e8ed80c3a6a7eb0b49c5b801988a9b44b296963e77a284530d2e9be"
+    },
+    "writer.reply.v1": {
+      "asset": "writer.reply.v1.md",
+      "max_tokens": 600,
+      "model_role": "writer",
+      "schema_fingerprint": "54a7a43a3b14569f",
+      "sha256": "f1d12a925cd0c095411e1209d1e17ca8e6ea03e8849c8238b3bbdf89dc7cc7bb"
+    }
+  },
+  "version": "wp3-1"
+}
