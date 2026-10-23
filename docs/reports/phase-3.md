@@ -1,119 +1,182 @@
-# Phase 3 Handoff: Mail and Calendar Domain Packs
+# Phase 3 Handoff: Reader & Writer LLM Pipeline (WP3)
 
-**Branch:** `phase-3-mail-cal`  
-**Phase:** 3 — Mail and Calendar Packs  
-**Lane:** Lane A (Member 1)  
-
----
-
-## Done
-1. **Core Domain Types & Pack Protocol**: Extended `backend/src/probation/core/types.py` with `ActionSpec`, `ReaderSpec`, `ExamOperator`, and `ExecResult`. Updated `backend/src/probation/packs/base.py` with `WorldView`, `ExecutorIO`, and the full `PackAdapter` protocol matching `CONTRACT.md` Section 5.
-2. **Mail Domain Pack (`packs/mail/`)**:
-   - Implemented situation extraction (`email_action`) skipping user-sent, draft, or spam messages, and redacting message body before storage.
-   - Built deterministic clue extraction computing all 16 binding clues (`sender_tier`, `sender_domain_class`, `n_prior_in`, `n_prior_replied`, `reply_rate_sender`, `median_reply_hours_sender`, `has_unsubscribe`, `is_noreply`, `hour_of_day`, `weekday`, `is_weekend`, `n_recipients`, `has_attachment`, `in_thread_user_participated`, `thread_length`, `body_len_bucket`) strictly through `HistoryView(as_of=s.occurred_at)`.
-   - Built priority-ordered outcome resolution (`REPLY` > `FORWARD` > `TRASH` > `ARCHIVE` > `LEAVE`) with 7-day observation window and right-censoring.
-   - Built `SimWorld` execution and undo operations for labels and sent messages.
-   - Built 10 exam perturbation operators and validators.
-   - Configured prompt template and schema at `backend/src/probation/llm/prompts/reader.mail.v2.md`.
-3. **Calendar Domain Pack (`packs/calendar/`)**:
-   - Implemented situation extraction (`invite_rsvp`) for inbound invitations with initial `NEEDS-ACTION` status.
-   - Built deterministic clue extraction computing all 12 binding clues (`organizer_tier` across mail + calendar, `start_hour_bucket`, `start_weekday`, `duration_min`, `lead_days`, `n_attendees`, `is_recurring`, `conflicts_count`, `adjacent_conflict`, `accept_rate_organizer`, `accept_rate_hour_bucket`, `has_location_or_link`) strictly through `HistoryView`.
-   - Built outcome resolution (`ACCEPT`, `DECLINE`, `TENTATIVE`, `NO_RESPONSE`) bounded by `min(event_start, occurred_at + 7 days)` with right-censoring.
-   - Built `SimWorld` execution and undo operations for attendee status and `BLOCK_TIME`.
-   - Built 6 exam perturbation operators and validators.
-   - Configured prompt template and schema at `backend/src/probation/llm/prompts/reader.invite.v1.md`.
-4. **Pack Registry**: Built `PackRegistry` in `backend/src/probation/packs/registry.py` with structural conformance validation and automatic registration of `mail_pack` and `calendar_pack`.
-5. **Worker Ingestion Pipeline**:
-   - Built `ingest_situations` in `backend/src/probation/workers/ingestor.py` parsing raw items under `Role.INGESTOR`.
-   - Built `extract_features_for_situations` in `backend/src/probation/workers/brain.py` featurizing situations under `Role.BRAIN`.
-   - Wired `probation ingest` subcommand in `backend/src/probation/cli.py`.
-6. **Testing & Stubs Harness**:
-   - Built `StubReader` in `backend/tests/stubs/stub_reader.py` deriving reader fields from synthetic truth without live LLM calls, preserving static AST isolation.
-   - Built `test_pack_conformance.py` covering all 7 `T-PACK` checks.
-   - Built `test_outcome_resolvers.py` covering all `T-RESOLVE` priority rankings and window cutoffs.
-   - Built `test_ingestor_and_features.py` validating 100% featurization on `tiny_synth`.
+**Branch:** `phase-3-wp3-reader-pipeline`  
+**Phase:** 3 — Mail, Calendar, and LLM Reader/Writer Pipeline (WP3)  
+**Commits:**
+- `2db263d`: `phase-3: reader pipeline, strict requirements, header conflict enforcement, and provenance persistence` (P06/P07)
+- `69832fc`: `phase-3: reply writer, draft validation, consumers migration, and executor hydration` (P08–P10)
 
 ---
 
-## Files Changed / Created
-- `backend/src/probation/core/types.py` (updated)
-- `backend/src/probation/packs/base.py` (updated)
-- `backend/src/probation/packs/registry.py` (updated)
-- `backend/src/probation/packs/mail/clues.py` (updated)
-- `backend/src/probation/packs/mail/resolver.py` (updated)
-- `backend/src/probation/packs/mail/executor.py` (updated)
-- `backend/src/probation/packs/mail/exam_ops.py` (updated)
-- `backend/src/probation/packs/mail/__init__.py` (updated)
-- `backend/src/probation/packs/calendar/clues.py` (updated)
-- `backend/src/probation/packs/calendar/resolver.py` (updated)
-- `backend/src/probation/packs/calendar/executor.py` (updated)
-- `backend/src/probation/packs/calendar/exam_ops.py` (updated)
-- `backend/src/probation/packs/calendar/__init__.py` (updated)
-- `backend/src/probation/llm/prompts/reader.mail.v2.md` (new)
-- `backend/src/probation/llm/prompts/reader.invite.v1.md` (new)
-- `backend/src/probation/workers/ingestor.py` (updated)
-- `backend/src/probation/workers/brain.py` (updated)
-- `backend/src/probation/cli.py` (updated)
-- `backend/tests/stubs/__init__.py` (new)
-- `backend/tests/stubs/stub_reader.py` (new)
-- `backend/tests/unit/test_pack_conformance.py` (new)
-- `backend/tests/unit/test_outcome_resolvers.py` (new)
-- `backend/tests/unit/test_ingestor_and_features.py` (new)
-- `build_history/phase_03_mail_calendar_packs/feature_mail_pack.md` (new)
-- `build_history/phase_03_mail_calendar_packs/feature_calendar_pack.md` (new)
-- `build_history/phase_03_mail_calendar_packs/feature_ingestor_brain_features.md` (new)
-- `build_history/phase_03_mail_calendar_packs/phase_03_summary.md` (new)
-- `build_history/index.md` (updated)
-- `docs/reports/phase-3.md` (new)
+## 1. Done
+
+1. **Reader Requirement Single Source of Truth (P06 #1)**:
+   - Aligned `reader_required(pack)` in `backend/src/probation/llm/reader.py` with `registry.get_descriptor(pack).reader_spec() is not None`.
+   - `reading` and `chains` now evaluate to `required=False` (`ReaderStatus.OPTIONAL_DISABLED`), cleanly resolving the contradiction with `engine/prediction.py` and ensuring no record with missing reader fields can bypass the fail-closed gate.
+
+2. **Authoritative Header Conflict Enforcement (P06 #4)**:
+   - Implemented real mail header consistency check in `read_situation`: validates `data["looks_automated"] == (clues["sender_tier"] == "automated")`.
+   - On mismatch, emits `ReaderOutcome.failed` with `FailureCode.HEADER_CONFLICT` and `reason="reader_header_conflict"`.
+   - In `feature_pipeline.py`, header conflict marks `__deterministic_ok = False` and sets `__reader_failure_reason = "reader_header_conflict"`.
+   - In `engine/prediction.py`, `evaluate_prediction` appends `__reader_failure_reason` and gates to `ASK`.
+
+3. **Features Provenance Persistence & Migration (P06 #5/#6)**:
+   - Added `provenance_json TEXT CHECK (provenance_json IS NULL OR json_valid(provenance_json))` to `CREATE TABLE features` in `schema.sql`.
+   - Documented the column in `docs/DATA_MODEL.md`.
+   - Added additive schema migration `migrate_features_provenance` in `migrations.py` and hooked into `connection.py` schema initialization.
+   - Attached event cutoff (`situation.occurred_at`), template hash, schema fingerprint, transport, and redaction counts into `provenance_json`.
+   - In `replay.py`, enforced cutoff validation on feature reuse (`prov.get("cutoff") <= s_row["occurred_at"]`).
+
+4. **Catalog and Pack Version Alignment**:
+   - Aligned `mail_pack.reader_spec().prompt_version` to `"v3"` matching `READER_JOBS[("reader.mail", "v3")]`.
+   - Aligned `calendar_pack.reader_spec().prompt_version` to `"v2"` matching `READER_JOBS[("reader.invite", "v2")]`.
+   - Aligned `radar_pack.reader_spec().redaction_profile` to `"mail"`.
+
+5. **Fail-Closed Context Validation (P06 #5)**:
+   - Eliminated silent fallback defaults (`"other"`, `0`, `"unknown"`) in `reader.py`.
+   - Mandatory context clues (`sender_domain_class` for mail; `organizer_domain_class`, `duration_min`, `start_hour_bucket` for calendar) are strictly validated before reader dispatch.
+   - Missing clues return `ReaderOutcome.failed` with `FailureCode.CLUES_INVALID` and specific reasons (`"missing_mail_context"` / `"missing_calendar_context"`).
+
+6. **Worker Hygiene and Bounded Extraction**:
+   - Hoisted per-row internal imports to top-level in `workers/brain.py`.
+   - Added `until: str | None = None` parameter to `extract_features_for_situations` with bounded SQL filter `AND s.occurred_at <= ?` to eliminate future materialization via CLI/worker paths.
+
+7. **Reply Writer & Draft Persistence (P08–P10)**:
+   - Implemented bounded reply writer in `llm/writer.py` with style example extraction (`reply_examples.py`), draft schema validation (`draft_validation.py`), and atomic storage (`draft_persistence.py`).
+   - Wired `persist_proposal(..., draft=)` in `db/proposals.py` and Executor draft hydration in `workers/executor.py`.
+
+8. **Unified Registered Consumers Migration (P09)**:
+   - Replaced ad-hoc LLM calls with `RegisteredConsumer` across exam operators, resolvers, habit mining wording, radar digest, links quarantine extractor, synthetic data jobs, and evaluation baselines.
 
 ---
 
-## Tests
-- `.\make.cmd check`:
-  - `ruff check backend`: Passed (0 errors).
-  - `ruff format --check backend`: Passed (111 files clean).
-  - `mypy --config-file backend/pyproject.toml backend/src/probation`: Passed (0 errors across 91 source files).
-  - `pytest -q backend/tests -m "not live"`: 52 passed in 7.37s.
-- **Contract Tests Satisfied**:
-  - `T-PACK`: All 7 conformance checks pass for both `mail` and `calendar` packs.
-  - `T-RESOLVE`: Priority order (reply beats forward beats trash beats archive beats leave), censoring windows, and `known_at` accuracy verified.
-  - `T-ID`: Ingestor and brain worker operations are 100% idempotent.
-  - `T-SYNTH (Static Isolation)`: `StubReader` lives in `tests/stubs/`, ensuring zero references to `truth.json` in production source code.
+## 2. Files Changed / Created
+
+### New Files Created
+- `backend/src/probation/llm/reader.py`: Strict reader seam with header conflict enforcement and clue validation.
+- `backend/src/probation/llm/feature_pipeline.py`: Bounded feature extraction adapter and semantic version digest.
+- `backend/src/probation/engine/prediction.py`: Pure prediction evaluation and reason assembly.
+- `backend/src/probation/engine/exam_prediction.py`: Counterfactual prediction evaluation.
+- `backend/src/probation/workers/prediction.py`: Role-level composition for live ticks.
+- `backend/src/probation/llm/writer.py`: Prompted reply writer with strict schema validation.
+- `backend/src/probation/llm/draft_validation.py`: Draft recipient, length, and content constraints.
+- `backend/src/probation/llm/reply_examples.py`: Historical style examples bounded by HistoryView.
+- `backend/src/probation/llm/consumers.py`: Registered typed LLM consumers.
+- `backend/src/probation/llm/draft_persistence.py`: Draft persistence and verification.
+- `backend/src/probation/db/reply_payload.py`: Reply payload data structures.
+- `backend/src/probation/links/extractor_jobs.py`: Quarantined link extraction consumer.
+- `backend/src/probation/synth/llm_jobs.py`: Synthetic generator LLM jobs.
+- `backend/tests/unit/test_wp3_reader_prediction.py`: 12 regression tests for reader requirements, header conflict, provenance, and clue validation.
+- `backend/tests/unit/test_wp3_writer_component.py`: Writer and draft persistence tests.
+- `backend/tests/unit/test_wp3_consumer_migration.py`: Consumer migration tests across packs.
+
+### Modified Files
+- `backend/src/probation/core/types.py`: Added `provenance_json` to `Features`.
+- `backend/src/probation/db/schema.sql`: Added `provenance_json` column to `features` table DDL.
+- `backend/src/probation/db/migrations.py`: Added `migrate_features_provenance` migration.
+- `backend/src/probation/db/connection.py`: Integrated provenance migration in schema application.
+- `backend/src/probation/db/proposals.py`: Added draft parameter to proposal persistence.
+- `backend/src/probation/engine/replay.py`: Added cutoff validation and stale featurizer rejection.
+- `backend/src/probation/engine/habits.py`: Migrated wording to RegisteredConsumer.
+- `backend/src/probation/engine/exam.py`: Migrated exam generation to RegisteredConsumer.
+- `backend/src/probation/eval/baselines.py`: Migrated baselines to RegisteredConsumer.
+- `backend/src/probation/llm/results.py`: Added reason property alias on `ReaderOutcome`.
+- `backend/src/probation/llm/gateway.py`: Updated error mappings and transport authority.
+- `backend/src/probation/packs/mail/__init__.py`: Aligned prompt_version to "v3".
+- `backend/src/probation/packs/mail/exam_ops.py`: Migrated to RegisteredConsumer.
+- `backend/src/probation/packs/mail/resolver.py`: Migrated to RegisteredConsumer.
+- `backend/src/probation/packs/calendar/__init__.py`: Aligned prompt_version to "v2".
+- `backend/src/probation/packs/calendar/exam_ops.py`: Migrated to RegisteredConsumer.
+- `backend/src/probation/packs/calendar/resolver.py`: Migrated to RegisteredConsumer.
+- `backend/src/probation/packs/radar/__init__.py`: Aligned redaction_profile to "mail".
+- `backend/src/probation/packs/radar/digest.py`: Migrated to RegisteredConsumer.
+- `backend/src/probation/packs/radar/out_of_band.py`: Migrated to RegisteredConsumer.
+- `backend/src/probation/workers/brain.py`: Hoisted imports, rewired to compute_features, added bounded until query.
+- `backend/src/probation/workers/executor.py`: Implemented draft hydration.
+- `docs/DATA_MODEL.md`: Documented `provenance_json` on `features` table.
 
 ---
 
-## Invariants Touched
-- **I-6 (No peeking / Temporal Isolation)**: Every deterministic clue queries `HistoryView(as_of=s.occurred_at)` only; verified against mutated future data.
-- **I-10 (Role write boundaries)**: Ingestor worker writes strictly to `situations` under `Role.INGESTOR`; brain worker writes strictly to `features` under `Role.BRAIN`.
-- **I-14 (Redaction before egress)**: Message bodies and invite titles/descriptions are redacted before storage in `situations.redacted_text`.
-- **I-17 (World Isolation)**: Execution and undo run directly against `SimWorld` (`world.db`), decoupled from the engine ledger.
+## 3. Tests
+
+- **Command Run**: `python scripts/check.py`
+- **Result**:
+  - `ruff check backend scripts/check.py`: Passed (0 errors).
+  - `ruff format --check backend scripts/check.py`: Passed (261 files already formatted).
+  - `mypy --config-file backend/pyproject.toml backend/src/probation`: Passed (0 issues across 164 source files).
+  - `mypy --strict --config-file backend/pyproject.toml backend/src/probation/core backend/src/probation/engine`: Passed (0 issues across 34 source files).
+  - `pytest -q -c backend/pyproject.toml backend/tests -m "not live"`: **590 passed**, 2 warnings in 168.56s.
+  - Fixture and result hashes: Verified unchanged.
+- **Contract Test IDs Satisfied**:
+  - `T-LLM`: Registered catalog resolution, schema validation, and typed failures pass.
+  - `T-REDACT`: Bounded request context and redaction before LLM egress pass.
+  - `T-NOPEEK`: HistoryView cutoff enforcement and replay cutoff checks pass.
+  - `T-GATE`: Header conflict, clue absence, and missing reader fail closed to `ASK`.
+  - `T-PACK`: Conformance and reader specifications pass for all packs.
+  - `T-RESOLVE`: Priority order and observation window cutoffs verified.
+  - `T-LEDGER`: Hash-chained append-only ledger untouched; proposal/draft persistence verified.
 
 ---
 
-## Deviations and Assumptions
-- None. All implementations match `CONTRACT.md` and `PACKS_SPEC.md` verbatim.
+## 4. Invariants Touched
+
+- **I-1 (LLM output is data only)**: Every reader and writer response is schema-validated before entering features or drafts.
+- **I-2 (Executor authority)**: Only the Executor performs side-effects; writer drafts require Executor hydration.
+- **I-6 (Temporal Isolation / No peeking)**: HistoryView(as_of=t) bounds all feature extraction and style example queries; replay refuses features whose provenance cutoff exceeds the situation occurred_at.
+- **I-7 (Fail closed)**: Missing reader, header conflict, or missing mandatory clues immediately yield `ASK`.
+- **I-10 (Role write boundaries)**: Brain worker writes strictly to `features` and `proposals`.
+- **I-14 (Redaction before egress)**: Message text and names are redacted via approved profiles before transport dispatch.
+- **I-16 (Ledger immutability)**: The ledger remains append-only and hash-chained; additive schema change on `features` avoids any ledger modifications.
 
 ---
 
-## Contract Change Requests
-- None.
+## 5. Deviations and Assumptions
+
+- **W3-D03 (Durable spend accounting / failed attempt exposure)**: Kept marked as deferred per WP3 plan; full physical reservation storage requires the multi-process supervisor scheduled for Phase 12.
+- **W3-D04 (Cross-worker single flight)**: Single-flight concurrency locking across separate worker processes is deferred to Phase 12 runtime supervision.
 
 ---
 
-## New Dependencies
-- None.
+## 6. Contract Change Requests (CCRs)
+
+### CCR-001: Additive `features.provenance_json` Column
+- **Document Affected**: `docs/DATA_MODEL.md` (and SQLite `features` table).
+- **Proposal**: Add nullable `provenance_json TEXT CHECK (provenance_json IS NULL OR json_valid(provenance_json))` to `features`.
+- **Rationale**: Durable storage of template hash, schema fingerprint, model ID, transport mode, redaction counts, and the event-time cutoff is required to verify counterfactual reproducibility and prevent feature reuse across temporal horizons without mutating the immutable hash-chained ledger.
+- **Contract Impact**: Invariant I-16 is strictly preserved; no ledger schema or transaction logic is modified.
+
+### CCR-002: Formal Sign-off on Context Limits and Role Max Tokens (W3-D07)
+- **Document Affected**: `docs/ENGINE_SPEC.md` and `docs/PACKS_SPEC.md`.
+- **Limits**:
+  - `FILE_SNIPPET_MAX_CHARS`: 2,000 characters.
+  - `MAX_REPLY_EXAMPLES`: 3 examples.
+  - Max token limits: `READER`: 512, `WRITER`: 1024, `DIGEST`: 1024, `QUARANTINE`: 512, `HABIT`: 512.
+- **Rationale**: Bounding request sizes guarantees that LLM egress stays strictly within token budget guards and prevents context overflow.
 
 ---
 
-## LLM Cost Incurred
-- $0.00 USD (All automated tests utilize `StubReader` test double).
+## 7. New Dependencies
+
+- **For Phase 3 (WP3)**: None. All components use standard library, Pydantic, and existing SQLite/Pytest tooling.
+- **Scope Item for User Review (WP4 Artifacts)**:
+  - WP4 exploration brought an uncommitted 88 MB MiniLM model into `data/` and several uncommitted files (`core/history_wp4.py`, `history_statistics.py`, `training_labels.py`, `engine/{training,calibration,vocabulary}.py`, `local_embeddings.py`).
+  - These files are kept completely uncommitted and separate from Phase 3 commits `2db263d` and `69832fc`.
 
 ---
 
-## Open Questions
-- None.
+## 8. LLM Cost Incurred
+
+- **$0.00 USD**: All automated tests execute offline using deterministic test doubles, synthetic fixtures, and registered stub consumers.
 
 ---
 
-## Suggested Next Step
-- Phase 3 is complete and fully verified. Proceed to **Phase 4: Engine core and backtest** (`phase-4-engine-backtest`).
+## 9. Open Questions
+
+1. **WP4 Branch Segregation**: Confirm that WP4 files and the downloaded MiniLM model should be branched into `phase-4-wp4-embeddings` rather than committed to the Phase 3 pipeline.
+
+---
+
+## 10. Suggested Next Step
+
+- Obtain human sign-off on CCR-001, CCR-002, and the WP4 scope decision.
+- Proceed to Phase 4 policy, calibration, and backtest implementation on branch `phase-4-engine-backtest`.
