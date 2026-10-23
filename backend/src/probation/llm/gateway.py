@@ -136,7 +136,7 @@ def _asset_failure(exc: PromptAssetError) -> JobFailure:
 class JobGateway:
     """The only route a registered production job may take to the model."""
 
-    def __init__(self, client: LLMClient, *, conn: sqlite3.Connection | None = None) -> None:
+    def __init__(self, client: LLMClient | None, *, conn: sqlite3.Connection | None = None) -> None:
         self.client = client
         self.conn = conn
         self._sequence = 0
@@ -208,6 +208,10 @@ class JobGateway:
 
         if not authority.granted:
             raise authority.deny()
+        if self.client is None:
+            raise JobFailure(
+                "offline gateway has no dispatch client", code=FailureCode.NO_TRANSPORT_AUTHORITY
+            )
 
         self._sequence += 1
         request_id = det_id(REQUEST_ID_PREFIX, f"{envelope.cache_key()}:{self._sequence}")

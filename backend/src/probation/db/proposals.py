@@ -70,10 +70,12 @@ def persist_proposal(
         if existing is not None:
             if any(existing[key] != value for key, value in values.items()):
                 raise ValueError("Retry would change an immutable proposal")
+            saved = access.conn.execute(
+                "SELECT * FROM drafts WHERE proposal_id = ?", (proposal.id,)
+            ).fetchone()
+            if (draft is None) != (saved is None):
+                raise ValueError("Retry would change immutable draft presence")
             if draft is not None:
-                saved = access.conn.execute(
-                    "SELECT * FROM drafts WHERE proposal_id = ?", (proposal.id,)
-                ).fetchone()
                 if saved is None or any(
                     saved[key] != value for key, value in draft.model_dump().items()
                 ):

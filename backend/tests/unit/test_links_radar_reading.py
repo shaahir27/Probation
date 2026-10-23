@@ -308,6 +308,7 @@ def test_t_radar_out_of_band_and_query_construction() -> None:
                 conn=world.conn,
                 client=client,
                 mail_deadline="2026-10-01",
+                official_domains=frozenset({"thielfellowship.org"}),
             )
             assert res_match["verified"] is True
             assert res_match["link_mismatch"] is False
@@ -322,6 +323,7 @@ def test_t_radar_out_of_band_and_query_construction() -> None:
                 conn=world.conn,
                 client=client,
                 mail_deadline="2026-10-01",
+                official_domains=frozenset({"thielfellowship.org"}),
             )
             assert res_mismatch["verified"] is True
             assert res_mismatch["link_mismatch"] is True

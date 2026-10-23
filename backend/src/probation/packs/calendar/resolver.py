@@ -91,7 +91,7 @@ def resolve_calendar_outcome(
     event_obj: dict[str, Any] | None = None
     if uid:
         try:
-            event_obj = world.get_event(uid, as_of=now_iso)  # type: ignore[call-arg]
+            event_obj = world.get_event(uid, as_of=now_iso)
         except TypeError:
             event_obj = world.get_event(uid)
 

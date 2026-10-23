@@ -219,6 +219,14 @@ class Executor:
                 continue
 
             try:
+                if pack_name == "mail" and parse_action(act_type).type == "REPLY":
+                    from probation.db.reply_payload import load_reply_params
+
+                    action_obj = action_obj.model_copy(
+                        update={
+                            "params": load_reply_params(self.role_access, prop_id, as_of=now_iso)
+                        }
+                    )
                 pack_obj = registry.get(pack_name)
                 exec_res = pack_obj.execute(action_obj, self.world)
             except Exception as e:

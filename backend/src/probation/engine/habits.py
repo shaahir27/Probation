@@ -53,7 +53,15 @@ def validate_wording_sentence(template: str, candidate: str) -> bool:
     t_nums = extract_numbers(template)
     c_nums = extract_numbers(candidate)
 
-    return Counter(t_nums) == Counter(c_nums)
+    def semantic_tokens(text: str) -> Counter[str]:
+        text = text.casefold().replace("turned down", "declined")
+        text = re.sub(r"\b[a-z_]+=", "", text)
+        ignore = {"you", "of", "out", "with", "the", "calendar", "morning"}
+        return Counter(w for w in re.findall(r"[\w]+", text) if w not in ignore)
+
+    return Counter(t_nums) == Counter(c_nums) and semantic_tokens(template) == semantic_tokens(
+        candidate
+    )
 
 
 def build_habit_template(
@@ -92,28 +100,19 @@ def reword_statement(
     clock: Clock | None = None,
 ) -> str:
     """Reword template statement via LLM wording.v1 with strict fallback."""
-    if llm_client is None:
+    from probation.llm.consumers import RegisteredConsumer
+    from probation.llm.gateway import JobFailure
+    from probation.llm.prompt_loader import PromptAssetError
+
+    if not isinstance(llm_client, RegisteredConsumer):
         return template
-
-    prompt_sys = (
-        "Reword the template into one clear English sentence. Keep every number exactly as "
-        'written. Add no new facts and no new numbers. Output ONLY JSON: {"sentence": string}.'
-    )
-    user_msg = f"<template>{template}</template>"
-
     try:
-        resp = llm_client.complete_json(
-            prompt_id="wording.v1",
-            system_prompt=prompt_sys,
-            user_message=user_msg,
-            model_id=settings.model_wording,
-        )
-        candidate = str(resp.get("sentence", "")).strip()
+        result = llm_client.call("wording", {"template": template}, purpose="habit_wording")
+        candidate = str(result.data["sentence"]).strip()
         if validate_wording_sentence(template, candidate):
             return candidate
-    except Exception:
+    except (JobFailure, PromptAssetError):
         pass
-
     return template
 
 

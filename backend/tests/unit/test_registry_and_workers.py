@@ -142,7 +142,17 @@ class _RecordingLLMClient:
     built: ClassVar[list["_RecordingLLMClient"]] = []
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
+        from probation.config import settings
+
+        self.base_url = settings.llm_base_url
+        self.api_key = kwargs.get("api_key", "")
         type(self).built.append(self)
+
+    def dispatch_json(self, *args: Any, **kwargs: Any) -> Any:
+        from probation.llm.gateway import JobFailure
+        from probation.llm.results import FailureCode
+
+        raise JobFailure("Synthetic unavailable transport", code=FailureCode.TRANSPORT)
 
     def chat_json(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
         return {}

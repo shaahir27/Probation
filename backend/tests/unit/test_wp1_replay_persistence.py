@@ -19,13 +19,28 @@ def _replay_db(tmp_path: Path, seed: sqlite3.Connection, sit: Situation) -> Path
         "UPDATE raw_items SET payload_json=? WHERE id=?",
         (json.dumps({"message_id": "synthetic-message"}), sit.raw_item_id),
     )
+    from probation.llm.feature_pipeline import semantic_feature_version
+
     seed.execute(
         """INSERT INTO features(situation_id, deterministic_json, reader_json, reader_ok,
-                 featurizer_version, features_hash, created_at) VALUES (?, ?, ?, 1, 'wp1', 'wp1-hash', ?)""",
+                 featurizer_version, features_hash, created_at) VALUES (?, ?, ?, 1, ?, 'wp1-hash', ?)""",
         (
             sit.id,
             json.dumps({"sender_tier": "known"}),
-            json.dumps({"intent": "other"}),
+            json.dumps(
+                {
+                    "intent": "other",
+                    "asks_me_to_do_something": False,
+                    "has_deadline": False,
+                    "deadline_text": None,
+                    "money_involved": False,
+                    "urgency": 1,
+                    "formality": "neutral",
+                    "asks_for_personal_info": False,
+                    "looks_automated": False,
+                }
+            ),
+            semantic_feature_version(),
             sit.occurred_at,
         ),
     )
@@ -45,7 +60,8 @@ def _force_candidate(monkeypatch: pytest.MonkeyPatch) -> Any:
         lambda self, features: ("ARCHIVE", 0.99, {"ARCHIVE": 0.99, "LEAVE": 0.01}, []),
     )
     monkeypatch.setattr(
-        replay, "decide_gate", lambda **kwargs: GateResult(GateDecision.EXECUTE_UNDO)
+        "probation.engine.prediction.decide_gate",
+        lambda **kwargs: GateResult(GateDecision.EXECUTE_UNDO),
     )
     return replay
 
