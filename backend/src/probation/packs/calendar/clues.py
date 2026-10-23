@@ -4,7 +4,6 @@ Authority: docs/PACKS_SPEC.md sections 0.3 and 2.1-2.2.
 Enforces Invariant I-6: History is read strictly through HistoryView(as_of=t).
 """
 
-import json
 from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -12,7 +11,7 @@ from zoneinfo import ZoneInfo
 from probation.config import settings
 from probation.core.clock import get_clock
 from probation.core.history import HistoryView
-from probation.core.identity import normalize_address, normalize_user_addresses
+from probation.core.identity import normalize_address
 from probation.core.types import Situation
 
 
@@ -78,105 +77,18 @@ def extract_calendar_clues(
         location.strip() or ("http://" in description) or ("https://" in description)
     )
 
-    # Count interactions with this organiser across BOTH calendar AND mail (Section 0.3)
-    prior_cal_items = hist.get_raw_items(pack="calendar")
-    prior_mail_items = hist.get_raw_items(pack="mail")
-    prior_situations = {row["id"]: row for row in hist.get_situations(pack="calendar")}
-    prior_outcomes = {row["situation_id"]: row for row in hist.get_outcomes()}
-
-    n_prior_organizer_events = 0
-    n_prior_accepted_organizer = 0
-
-    n_prior_bucket_events = 0
-    n_prior_accepted_bucket = 0
-
-    conflicts_count = 0
-    adjacent_conflict = False
-
-    # 1. Check mail interactions with organizer
-    n_prior_mail_with_organizer = 0
-    for m in prior_mail_items:
-        try:
-            m_payload = json.loads(m["payload_json"])
-            m_from = normalize_address(m_payload.get("from", ""))
-            # A To header can list several addresses, so it is parsed as a list and compared
-            # exactly. `organizer_key in m_to` on a single string is substring membership: it
-            # would credit "ba@x.com" as the organizer "a@x.com" (plan section 6.1.3).
-            m_recipients = set(
-                normalize_user_addresses(
-                    [str(m_payload.get("to", "")), str(m_payload.get("cc", ""))]
-                )
-            )
-            if m_from == organizer_key or (organizer_key and organizer_key in m_recipients):
-                n_prior_mail_with_organizer += 1
-        except Exception:
-            continue
-
-    # 2. Check calendar events
-    for c in prior_cal_items:
-        if c["id"] == s.raw_item_id:
-            continue
-        try:
-            c_payload = json.loads(c["payload_json"])
-        except Exception:
-            continue
-
-        c_org = normalize_address(c_payload.get("organizer", ""))
-        c_status = str(c_payload.get("my_status") or c_payload.get("status", "")).upper()
-
-        c_start_str = c_payload.get("start_time") or ""
-        c_end_str = c_payload.get("end_time") or c_start_str
-        try:
-            c_start = datetime.fromisoformat(c_start_str.replace("Z", "+00:00")).astimezone(user_tz)
-            c_end = datetime.fromisoformat(c_end_str.replace("Z", "+00:00")).astimezone(user_tz)
-        except Exception:
-            c_start = None
-            c_end = None
-
-        # Check outcome if this event had a situation
-        is_accepted = "ACCEPT" in c_status
-        for sit_id, sit_row in prior_situations.items():
-            if sit_row["raw_item_id"] == c["id"]:
-                out = prior_outcomes.get(sit_id)
-                if out and out["observed_action"] == "ACCEPT":
-                    is_accepted = True
-                break
-
-        # Check overlap conflicts with this new event if already accepted
-        if is_accepted and c_start and c_end:
-            # Overlap: max(start1, start2) < min(end1, end2)
-            if max(start_dt, c_start) < min(end_dt, c_end):
-                conflicts_count += 1
-
-            # Adjacent conflict: within 30 minutes before or after
-            gap_before = (start_dt - c_end).total_seconds() / 60.0
-            gap_after = (c_start - end_dt).total_seconds() / 60.0
-            if (0 <= gap_before <= 30) or (0 <= gap_after <= 30):
-                adjacent_conflict = True
-
-        if c_org == organizer_key:
-            n_prior_organizer_events += 1
-            if is_accepted:
-                n_prior_accepted_organizer += 1
-
-        # Check hour bucket rate
-        if c_start:
-            c_bucket = get_start_hour_bucket(c_start.hour)
-            if c_bucket == start_hour_bucket:
-                n_prior_bucket_events += 1
-                if is_accepted:
-                    n_prior_accepted_bucket += 1
-
-    total_prior_organizer = n_prior_organizer_events + n_prior_mail_with_organizer
-    if total_prior_organizer >= 10:
-        organizer_tier = "frequent"
-    elif total_prior_organizer >= 1:
-        organizer_tier = "known"
-    else:
-        organizer_tier = "unknown"
-
-    accept_rate_organizer = (n_prior_accepted_organizer + 1.0) / (n_prior_organizer_events + 2.0)
-    accept_rate_hour_bucket = (n_prior_accepted_bucket + 1.0) / (n_prior_bucket_events + 2.0)
+    aggregate = hist.calendar_statistics(
+        organizer_key,
+        current_id=s.id,
+        start=start_dt.isoformat(),
+        end=end_dt.isoformat(),
+        timezone=tz_str,
+    )
+    organizer_tier = str(aggregate["organizer_tier"])
+    conflicts_count = int(aggregate["conflicts_count"])
+    adjacent_conflict = bool(aggregate["adjacent_conflict"])
+    accept_rate_organizer = float(aggregate["accept_rate_organizer"])
+    accept_rate_hour_bucket = float(aggregate["accept_rate_hour_bucket"])
 
     return {
         "organizer_tier": organizer_tier,

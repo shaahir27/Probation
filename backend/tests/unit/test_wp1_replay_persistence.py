@@ -23,7 +23,8 @@ def _replay_db(tmp_path: Path, seed: sqlite3.Connection, sit: Situation) -> Path
 
     seed.execute(
         """INSERT INTO features(situation_id, deterministic_json, reader_json, reader_ok,
-                 featurizer_version, features_hash, created_at) VALUES (?, ?, ?, 1, ?, 'wp1-hash', ?)""",
+                 featurizer_version, features_hash, created_at, provenance_json)
+                 VALUES (?, ?, ?, 1, ?, 'wp1-hash', ?, ?)""",
         (
             sit.id,
             json.dumps({"sender_tier": "known"}),
@@ -42,6 +43,9 @@ def _replay_db(tmp_path: Path, seed: sqlite3.Connection, sit: Situation) -> Path
             ),
             semantic_feature_version(),
             sit.occurred_at,
+            # Replay reuses a stored row only when its provenance cutoff equals the
+            # situation's event time, so a synthetic row must carry that provenance.
+            json.dumps({"cutoff": sit.occurred_at}),
         ),
     )
     seed.commit()

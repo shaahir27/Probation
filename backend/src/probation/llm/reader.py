@@ -23,15 +23,41 @@ READER_JOBS = {
     "radar": ("reader.opportunity", "v1"),
 }
 
+# P06 #1: packs the contract requires a read for even though no reader job applies.
+# `quarantine` is the external quarantined extractor result, `inherited` the trigger
+# situation's validated reader context. Absence of either is not a reader success (W3-T03).
+READER_READINESS = {"reading": "quarantine", "chains": "inherited"}
+READINESS_REASONS = {"quarantine": "quarantine_unavailable", "inherited": "inherited_unavailable"}
+
+
+def _readiness_fields(readiness: str, clues: Mapping[str, Any]) -> dict[str, Any] | None:
+    """Validated non-reader evidence, or None when the pack's readiness is absent."""
+    if readiness == "quarantine":
+        fields = clues.get("quarantine_fields")
+        if clues.get("quarantine_ready") is True and isinstance(fields, Mapping) and fields:
+            return dict(fields)
+        return None
+    inherited = clues.get("inherited_reader_context")
+    if isinstance(inherited, Mapping) and inherited:
+        return dict(inherited)
+    return None
+
 
 def reader_required(pack: str) -> bool:
+    """The single authority for the gate's `reader_required` input.
+
+    `reader_spec() is None` is not the contract on its own: `files` is optional only while
+    its reader is disabled, readiness packs are always required, and an unregistered pack
+    fails closed instead of silently skipping the read.
+    """
     from probation.packs.registry import registry
 
+    if pack in READER_READINESS:
+        return True
     try:
-        desc = registry.get_descriptor(pack)
-        return desc.reader_spec() is not None
+        return registry.get_descriptor(pack).reader_spec() is not None
     except KeyError:
-        return False
+        return True
 
 
 def read_situation(
@@ -45,8 +71,9 @@ def read_situation(
 ) -> ReaderOutcome:
     required = reader_required(situation.pack)
     key = READER_JOBS.get(situation.pack)
+    readiness = READER_READINESS.get(situation.pack)
     provenance = Provenance(
-        key[0] if key else "unregistered",
+        key[0] if key else f"readiness.{readiness}" if readiness else "unregistered",
         key[1] if key else "none",
         None,
         None,
@@ -55,6 +82,16 @@ def read_situation(
         "wp3-reader-v1",
         situation.pack,
     )
+    if readiness is not None:
+        evidence = _readiness_fields(readiness, clues)
+        if evidence is None:
+            return ReaderOutcome.failed(
+                required=True,
+                provenance=provenance,
+                failure=FailureCode.CLUES_INVALID,
+                reason=READINESS_REASONS[readiness],
+            )
+        return ReaderOutcome(ReaderStatus.VALIDATED, True, evidence, provenance)
     if not required:
         return ReaderOutcome(ReaderStatus.OPTIONAL_DISABLED, False, None, provenance)
     if key is None:

@@ -1,3 +1,5 @@
+> Later WP3/WP4 integration checkpoint: [23 October 2026 handoff](wp3-wp4-integration-2026-10-23.md). The historical report below is preserved; full WP3/P11 remains blocked by W3-D03/W3-D04.
+
 # Phase 4 Handoff: Engine Core and Backtest
 
 **Branch:** `phase-4-engine-core-backtest`  

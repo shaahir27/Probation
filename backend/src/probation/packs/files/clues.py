@@ -5,7 +5,6 @@ Enforces Invariant I-6: History is read strictly through HistoryView(as_of=t).
 """
 
 import re
-from collections import Counter
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -16,6 +15,7 @@ import publicsuffix2
 
 from probation.config import settings
 from probation.core.clock import get_clock
+from probation.core.file_tokens import tokenize_name
 from probation.core.history import HistoryView
 from probation.core.types import Situation
 
@@ -162,12 +162,6 @@ def extract_size_bucket(size_bytes: int) -> str:
     return "l"
 
 
-def tokenize_name(name: str) -> set[str]:
-    """Tokenize filename into alphanumeric tokens."""
-    stem = Path(name).stem.lower()
-    return set(re.findall(r"[a-z0-9]+", stem))
-
-
 def extract_files_clues(
     s: Situation,
     hist: HistoryView,
@@ -198,42 +192,16 @@ def extract_files_clues(
     name_len = len(filename)
 
     # History queries strictly bounded by HistoryView(as_of=s.occurred_at)
-    prior_sits = hist.get_situations(pack="files")
-    prior_ids_for_origin: list[str] = []
-    for sit_row in prior_sits:
-        if sit_row["id"] == s.id:
-            continue
-        if sit_row["sender_key"] == origin_group:
-            prior_ids_for_origin.append(sit_row["id"])
-
-    n_prior_from_origin = len(prior_ids_for_origin)
-    top_folder_for_origin = "none"
-    top_folder_share = 0.0
-
-    if prior_ids_for_origin:
-        outcomes = hist.get_outcomes(situation_ids=prior_ids_for_origin)
-        destinations: list[str] = []
-        for o in outcomes:
-            act = str(o["observed_action"])
-            if act.startswith("MOVE_TO_FOLDER:"):
-                dest = act.split("MOVE_TO_FOLDER:", 1)[1].strip()
-                if dest:
-                    destinations.append(dest)
-
-        if destinations:
-            counts = Counter(destinations)
-            top_dest, top_count = counts.most_common(1)[0]
-            top_folder_for_origin = top_dest
-            top_folder_share = (top_count + 1.0) / (n_prior_from_origin + 2.0)
-        else:
-            top_folder_share = 1.0 / (n_prior_from_origin + 2.0)
-    else:
-        top_folder_share = 0.5  # Neutral Laplace smoothing: (0+1)/(0+2) = 0.5
+    aggregate = hist.file_statistics(origin_group, exclude_situation_id=s.id)
+    n_prior_from_origin = int(aggregate["n_prior_from_origin"])
+    top_folder_for_origin = str(aggregate["top_folder_for_origin"])
+    top_folder_share = float(aggregate["top_folder_share"])
 
     name_tokens = tokenize_name(filename)
 
     clues: dict[str, float | str | bool] = {
         "origin_group": origin_group,
+        "__name_tokens": " ".join(sorted(name_tokens)),
         "ext_group": ext_group,
         "size_bucket": size_bucket,
         "name_has_digits": name_has_digits,

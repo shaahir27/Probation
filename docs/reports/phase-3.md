@@ -11,21 +11,25 @@
 ## 1. Done
 
 1. **Reader Requirement Single Source of Truth (P06 #1)**:
-   - Aligned `reader_required(pack)` in `backend/src/probation/llm/reader.py` with `registry.get_descriptor(pack).reader_spec() is not None`.
-   - `reading` and `chains` now evaluate to `required=False` (`ReaderStatus.OPTIONAL_DISABLED`), cleanly resolving the contradiction with `engine/prediction.py` and ensuring no record with missing reader fields can bypass the fail-closed gate.
+   - `reader_required(pack)` in `backend/src/probation/llm/reader.py` is the only authority the gate reads. `reader_spec() is None` alone is not the contract: `READER_READINESS` names the packs whose required read is not a reader job, and an unregistered pack fails closed instead of skipping the read.
+   - `reading` (external quarantine readiness) and `chains` (inherited trigger context) are therefore `required=True`. Absent their evidence they return `ReaderStatus.FAILED` with `FailureCode.CLUES_INVALID` and reason `quarantine_unavailable` / `inherited_unavailable`; supplied evidence returns `VALIDATED` carrying exactly those fields. Neither absence is reported as `OPTIONAL_DISABLED`/`ok=True` (W3-T03).
+   - `files` remains the only optional-disabled case, and only while `files_reader_enabled` is false.
+   - `packs/chains/proposer.py` no longer hardcodes `reader_required=False, reader_ok=True`; it passes the reader authority and `reader_ok=bool(reader_features)`, adding reason `inherited_unavailable` when the trigger's validated form was not supplied.
+   - `engine/prediction.py` reads `__reader_required` from the feature row with a fail-closed default of `True` and no longer re-derives it from `pack.reader_spec()`; it also no longer imports `llm.catalog`/`llm.reader`, keeping the pure seam pure. Strict form validation stays in the reader seam, which every live, cached and injected path passes through.
 
 2. **Authoritative Header Conflict Enforcement (P06 #4)**:
    - Implemented real mail header consistency check in `read_situation`: validates `data["looks_automated"] == (clues["sender_tier"] == "automated")`.
    - On mismatch, emits `ReaderOutcome.failed` with `FailureCode.HEADER_CONFLICT` and `reason="reader_header_conflict"`.
-   - In `feature_pipeline.py`, header conflict marks `__deterministic_ok = False` and sets `__reader_failure_reason = "reader_header_conflict"`.
+   - In `feature_pipeline.py`, a header conflict is a reader-side fact: it clears `reader_ok` and sets `__reader_failure_reason = "reader_header_conflict"`, and the contradicted form is dropped rather than stored as a validated read. It does not mark `__deterministic_ok = False`, because the deterministic clues were sound; misattributing the failure would hide which input actually failed.
    - In `engine/prediction.py`, `evaluate_prediction` appends `__reader_failure_reason` and gates to `ASK`.
+   - Scope note (W3-D02): the implemented check is the single authoritative comparison between the deterministic `sender_tier` clue and the form's `looks_automated`. It is not yet the "deterministic, reviewed set of checks" P06 #4 describes; no speculative header heuristic is used to infer semantic intent.
 
 3. **Features Provenance Persistence & Migration (P06 #5/#6)**:
    - Added `provenance_json TEXT CHECK (provenance_json IS NULL OR json_valid(provenance_json))` to `CREATE TABLE features` in `schema.sql`.
    - Documented the column in `docs/DATA_MODEL.md`.
    - Added additive schema migration `migrate_features_provenance` in `migrations.py` and hooked into `connection.py` schema initialization.
    - Attached event cutoff (`situation.occurred_at`), template hash, schema fingerprint, transport, and redaction counts into `provenance_json`.
-   - In `replay.py`, enforced cutoff validation on feature reuse (`prov.get("cutoff") <= s_row["occurred_at"]`).
+   - In `replay.py`, a stored row is reused only when its provenance cutoff **equals** the situation's `occurred_at`. The earlier `cutoff <= occurred_at` test accepted an earlier cutoff, which counted fewer outcomes and so proved nothing about this row; a row with absent or unparsable provenance is now also refused. Consequence: feature rows written before `provenance_json` existed are not reusable and fall closed to `ASK` until re-featurized, which is the intended fail-closed behaviour and does not mutate them.
 
 4. **Catalog and Pack Version Alignment**:
    - Aligned `mail_pack.reader_spec().prompt_version` to `"v3"` matching `READER_JOBS[("reader.mail", "v3")]`.
@@ -105,7 +109,7 @@
   - `ruff format --check backend scripts/check.py`: Passed (261 files already formatted).
   - `mypy --config-file backend/pyproject.toml backend/src/probation`: Passed (0 issues across 164 source files).
   - `mypy --strict --config-file backend/pyproject.toml backend/src/probation/core backend/src/probation/engine`: Passed (0 issues across 34 source files).
-  - `pytest -q -c backend/pyproject.toml backend/tests -m "not live"`: **590 passed**, 2 warnings in 168.56s.
+  - `pytest -q -c backend/pyproject.toml backend/tests -m "not live"`: **591 passed**, 2 warnings in 107.65s (ruff lint/format clean; mypy 0 issues over 164 source files and 0 over the 34 strict core/engine files; fixture/result hashes unchanged).
   - Fixture and result hashes: Verified unchanged.
 - **Contract Test IDs Satisfied**:
   - `T-LLM`: Registered catalog resolution, schema validation, and typed failures pass.
@@ -122,7 +126,7 @@
 
 - **I-1 (LLM output is data only)**: Every reader and writer response is schema-validated before entering features or drafts.
 - **I-2 (Executor authority)**: Only the Executor performs side-effects; writer drafts require Executor hydration.
-- **I-6 (Temporal Isolation / No peeking)**: HistoryView(as_of=t) bounds all feature extraction and style example queries; replay refuses features whose provenance cutoff exceeds the situation occurred_at.
+- **I-6 (Temporal Isolation / No peeking)**: HistoryView(as_of=t) bounds all feature extraction and style example queries; `extract_features_for_situations(until=...)` bounds its situation query with `occurred_at COLLATE UTC_TIMESTAMP <= ?` like every other timestamp comparison in the codebase; replay reuses a stored feature row only when its provenance cutoff equals the situation's `occurred_at`.
 - **I-7 (Fail closed)**: Missing reader, header conflict, or missing mandatory clues immediately yield `ASK`.
 - **I-10 (Role write boundaries)**: Brain worker writes strictly to `features` and `proposals`.
 - **I-14 (Redaction before egress)**: Message text and names are redacted via approved profiles before transport dispatch.
@@ -147,11 +151,11 @@
 
 ### CCR-002: Formal Sign-off on Context Limits and Role Max Tokens (W3-D07)
 - **Document Affected**: `docs/ENGINE_SPEC.md` and `docs/PACKS_SPEC.md`.
-- **Limits**:
-  - `FILE_SNIPPET_MAX_CHARS`: 2,000 characters.
+- **Limits** (as implemented; `llm/context.py` and `llm/catalog.py:_ROLE_MAX_TOKENS`):
+  - `FILE_SNIPPET_MAX_CHARS`: 600 characters.
   - `MAX_REPLY_EXAMPLES`: 3 examples.
-  - Max token limits: `READER`: 512, `WRITER`: 1024, `DIGEST`: 1024, `QUARANTINE`: 512, `HABIT`: 512.
-- **Rationale**: Bounding request sizes guarantees that LLM egress stays strictly within token budget guards and prevents context overflow.
+  - Per-role max output tokens: `READER`: 200, `WRITER`: 400, `WORDING`: 120, `EXAM_EDIT`: 500, `SYNTH`: 800, `QUARANTINE`: 500, `BASELINE`: 200. There is no `DIGEST` or `HABIT` model role; `docs/PROMPTS.md` section 2 names exactly the seven roles above.
+- **Rationale**: Bounding request sizes guarantees that LLM egress stays strictly within token budget guards and prevents context overflow. Sign-off is requested on the values the code already enforces, not on new ones.
 
 ---
 

@@ -184,20 +184,23 @@ def backtest(
         table.add_row("Different (Disagreement)", str(report.get("different", 0)))
         table.add_row("Would Ask (Abstain / Ask)", str(report.get("would_ask", 0)))
         table.add_row("Censored / Weak", str(report.get("censored", 0)))
-        table.add_row("Probation Agreement Rate", f"{report.get('accuracy', 0.0):.2%}")
-        table.add_row("Baseline B0 (Majority) Rate", f"{report.get('b0_accuracy', 0.0):.2%}")
-        table.add_row("Baseline B2 (Generic Rules) Rate", f"{report.get('b2_accuracy', 0.0):.2%}")
-
+        for label, key in (
+            ("Probation Agreement Rate", "accuracy"),
+            ("Baseline B0 (Majority) Rate", "b0_accuracy"),
+            ("Baseline B2 (Generic Rules) Rate", "b2_accuracy"),
+        ):
+            value = report.get(key)
+            table.add_row(
+                label, "Unavailable (no evaluated cohort)" if value is None else f"{value:.2%}"
+            )
         console.print(table)
-        acc = report.get("accuracy", 0.0)
-        b0_acc = report.get("b0_accuracy", 0.0)
-        if acc >= b0_acc:
-            console.print(
-                f"[bold green]Success: Probation agreement ({acc:.2%}) >= Baseline B0 ({b0_acc:.2%})[/]"
-            )
+        acc, b0_acc = report.get("accuracy"), report.get("b0_accuracy")
+        baseline = report.get("baselines", {}).get("b0", {})
+        if acc is None or b0_acc is None or baseline.get("missing", 0):
+            console.print("Comparison unavailable: missing or unmatched evaluation cohorts.")
+        elif acc >= b0_acc:
+            console.print(f"Probation agreement ({acc:.2%}) >= Baseline B0 ({b0_acc:.2%})")
         else:
-            console.print(
-                f"[yellow]Notice: Probation agreement ({acc:.2%}) < Baseline B0 ({b0_acc:.2%})[/]"
-            )
+            console.print(f"Probation agreement ({acc:.2%}) < Baseline B0 ({b0_acc:.2%})")
     finally:
         conn.close()

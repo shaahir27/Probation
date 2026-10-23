@@ -107,7 +107,7 @@ statuses and what remains are tracked per requirement in
 
 ## WP3/WP4 integrated offline checkpoint - 23 October 2026
 
-590 tests passed; full WP3/P11 remains blocked by W3-D03/W3-D04.
+591 tests passed after the P06 #1/#4/#5 corrections; full WP3/P11 remains blocked by W3-D03/W3-D04.
 
 | Feature | Phase | File | Status | Last Updated |
 |---|---|---|---|---|

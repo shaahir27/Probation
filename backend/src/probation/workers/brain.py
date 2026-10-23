@@ -92,7 +92,7 @@ def extract_features_for_situations(
         query += " AND s.id = ?"
         params.append(situation_id)
     if until is not None:
-        query += " AND s.occurred_at <= ?"
+        query += " AND s.occurred_at COLLATE UTC_TIMESTAMP <= ?"
         params.append(until)
     query += " ORDER BY s.occurred_at COLLATE UTC_TIMESTAMP ASC;"
     read_cursor.execute(query, tuple(params))

@@ -98,9 +98,10 @@ def extract_mail_clues(
     )
 
     # High-performance indexed lookups strictly bounded by hist.as_of (Invariant I-6)
-    n_prior_in = hist.count_prior_sender_messages(sender_key, exclude_situation_id=s.id)
-    n_prior_replied = hist.count_prior_sender_replies(sender_key, exclude_situation_id=s.id)
-    reply_deltas_hours = hist.get_prior_sender_reply_deltas(sender_key, exclude_situation_id=s.id)
+    sender_stats = hist.sender_statistics(sender_key, exclude_situation_id=s.id)
+    n_prior_in = int(sender_stats["messages"])
+    n_prior_replied = int(sender_stats["replies"])
+    reply_deltas_hours = sender_stats["reply_hours"]
     n_prior_sent = hist.count_prior_sent_to_recipient(sender_key)
     n_prior_total = n_prior_in + n_prior_sent
 

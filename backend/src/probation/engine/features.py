@@ -26,11 +26,18 @@ def compute_features_hash(
     return hashlib.sha256(combined.encode("utf-8")).hexdigest()
 
 
+class FeatureValidationError(ValueError):
+    """Invalid numeric/categorical input; callers must fail closed."""
+
+
 class FeatureEncoder:
-    """Standardizes numeric features and one-hot encodes categoricals for policy training."""
+    """One ordered fitted column specification for names and values."""
 
     def __init__(self, featurizer_version: str = "v1") -> None:
         self.featurizer_version = featurizer_version
+        self._reset()
+
+    def _reset(self) -> None:
         self.fitted = False
         self.numeric_means: dict[str, float] = {}
         self.numeric_scales: dict[str, float] = {}
@@ -38,71 +45,66 @@ class FeatureEncoder:
         self.encoded_feature_names: list[str] = []
 
     def fit(self, rows: list[dict[str, Any]]) -> "FeatureEncoder":
-        """Fit scaler on training numeric rows and discover categorical levels."""
-        if not rows:
+        self._reset()
+        try:
+            for key in sorted({key for row in rows for key in row}):
+                values = [r[key] for r in rows if r.get(key) is not None]
+                if not values:
+                    continue
+                if all(isinstance(v, str) for v in values):
+                    self.categorical_levels[key] = sorted(set(values))
+                elif all(isinstance(v, (int, float, bool)) for v in values):
+                    numbers = [float(v) for v in values]
+                    if not all(math.isfinite(v) for v in numbers):
+                        raise FeatureValidationError("nonfinite_feature")
+                    mean = sum(numbers) / len(numbers)
+                    scale = math.sqrt(sum((v - mean) ** 2 for v in numbers) / len(numbers))
+                    if not math.isfinite(mean) or not math.isfinite(scale):
+                        raise FeatureValidationError("nonfinite_scaler")
+                    self.numeric_means[key] = mean
+                    self.numeric_scales[key] = scale if scale > 1e-6 else 1.0
+                else:
+                    raise FeatureValidationError("incompatible_feature_types")
+            self.encoded_feature_names = list(self.numeric_means) + [
+                f"{key}={level}"
+                for key, levels in self.categorical_levels.items()
+                for level in levels
+            ]
             self.fitted = True
             return self
-
-        # Discover all unique feature keys
-        all_keys = sorted({k for r in rows for k in r.keys()})
-
-        self.numeric_means = {}
-        self.numeric_scales = {}
-        self.categorical_levels = {}
-        self.encoded_feature_names = []
-
-        for key in all_keys:
-            sample_vals = [r[key] for r in rows if key in r and r[key] is not None]
-            if not sample_vals:
-                continue
-
-            first_val = sample_vals[0]
-            if isinstance(first_val, str):
-                # Categorical column
-                levels = sorted({str(v) for v in sample_vals})
-                self.categorical_levels[key] = levels
-                for level in levels:
-                    self.encoded_feature_names.append(f"{key}={level}")
-            else:
-                # Numeric column (int, float, bool)
-                num_vals: list[float] = [float(v) for v in sample_vals]
-                mean_val = sum(num_vals) / len(num_vals)
-                variance = sum((v - mean_val) ** 2 for v in num_vals) / len(num_vals)
-                std_val = math.sqrt(variance)
-                scale_val = std_val if std_val > 1e-6 else 1.0
-
-                self.numeric_means[key] = mean_val
-                self.numeric_scales[key] = scale_val
-                self.encoded_feature_names.append(key)
-
-        self.fitted = True
-        return self
+        except (ValueError, TypeError, OverflowError):
+            self._reset()
+            raise
 
     def transform_row(self, row: dict[str, Any]) -> list[float]:
-        """Transform a feature dict into a standardized float vector."""
         if not self.fitted:
-            raise RuntimeError("FeatureEncoder must be fitted before transforming rows.")
-
+            raise FeatureValidationError("encoder_unfitted")
         vector: list[float] = []
-
-        for key in sorted(self.numeric_means.keys()):
-            val = row.get(key)
-            if val is None:
-                # Impute missing numeric with 0.0 (the mean after standardization)
+        for key, mean in self.numeric_means.items():
+            value = row.get(key)
+            if value is None:
                 vector.append(0.0)
+            elif not isinstance(value, (int, float, bool)) or not math.isfinite(float(value)):
+                raise FeatureValidationError("invalid_numeric_feature")
             else:
-                num = float(val)
-                mean = self.numeric_means[key]
-                scale = self.numeric_scales[key]
-                vector.append((num - mean) / scale)
-
-        for key in sorted(self.categorical_levels.keys()):
-            val = str(row.get(key, ""))
-            for level in self.categorical_levels[key]:
-                vector.append(1.0 if val == level else 0.0)
-
+                vector.append((float(value) - mean) / self.numeric_scales[key])
+        for key, levels in self.categorical_levels.items():
+            value = row.get(key)
+            if value is not None and not isinstance(value, str):
+                raise FeatureValidationError("invalid_categorical_feature")
+            vector.extend(1.0 if value == level else 0.0 for level in levels)
+        if not all(math.isfinite(v) for v in vector):
+            raise FeatureValidationError("nonfinite_encoded_feature")
         return vector
 
     def transform(self, rows: list[dict[str, Any]]) -> list[list[float]]:
-        """Transform multiple feature dicts into float vectors."""
-        return [self.transform_row(r) for r in rows]
+        return [self.transform_row(row) for row in rows]
+
+    def state(self) -> dict[str, Any]:
+        return {
+            "version": self.featurizer_version,
+            "columns": self.encoded_feature_names,
+            "means": self.numeric_means,
+            "scales": self.numeric_scales,
+            "categories": self.categorical_levels,
+        }

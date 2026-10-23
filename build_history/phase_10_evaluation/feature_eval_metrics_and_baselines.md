@@ -72,3 +72,9 @@ def compute_interruptions(
 ## 6. Dependencies & Deferred Work
 * **Depends on:** `probation.core.types.Situation`, `probation.core.enums.Gate`, `probation.engine.caps.get_action_loss`.
 * **Known issues/deferred:** None. All required metrics in `docs/EVALUATION_PLAN.md` section 3 are fully implemented.
+
+## WP3/WP4 integration update - 2026-10-23
+
+Unavailable B3 stays ABSTAIN/ASK/not-run; reporting exposes real denominators and missing baseline coverage.
+
+Exact interfaces, callers and verification: docs/reports/wp3-wp4-integration-2026-10-23.md and the P06-P11 feature records. Final suite: 585 passed; no fixture/result mutation. This updates this component, not full phase completion. Accounting/single-flight remain blocked by W3-D03/W3-D04.

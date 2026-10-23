@@ -3,7 +3,26 @@
 Authority: docs/ENGINE_SPEC.md section 5, and docs/TEST_PLAN.md T-NOVELTY.
 """
 
+import numpy as np
+from sklearn.feature_extraction.text import TfidfVectorizer
+
 from probation.engine.novelty import NoveltyDetector
+
+
+class RecordedTestEmbedding:
+    """Frozen test-only vector space; never a production embedding fallback."""
+
+    identity = "test-academic-vector-space"
+
+    def __init__(self, corpus):
+        self.vectorizer = TfidfVectorizer(stop_words="english", max_features=512, sublinear_tf=True)
+        self.vectorizer.fit(corpus)
+
+    def embed(self, texts):
+        vectors = self.vectorizer.transform(texts).toarray()
+        # The fixture reserves a nonzero OOV axis. A real embedding is not a
+        # bag-of-words zero vector for text outside the training vocabulary.
+        return np.column_stack([vectors, (np.linalg.norm(vectors, axis=1) == 0).astype(float)])
 
 
 def test_t_novelty_fewer_than_k_plus_one() -> None:
@@ -36,6 +55,7 @@ def test_t_novelty_in_distribution_vs_far_outlier() -> None:
         "Office hours for course and assignment questions",
     ]
 
+    detector.embedder = RecordedTestEmbedding(corpus)
     detector.fit(corpus)
     assert detector.is_fitted
     assert detector.threshold > 0.0

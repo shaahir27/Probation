@@ -77,15 +77,22 @@ def compute_features(
     semantic_version = semantic_feature_version(stub=reader_callable is not None)
     if semantic_version.endswith(":unavailable"):
         valid = False
+    # P06 #4: a contradiction between authoritative header facts and the reader form is a
+    # reader-side failure. It must fail the gate through reader_ok, never by relabelling
+    # sound deterministic clues as invalid.
+    reader_ok = result.ok
     if situation.pack == "mail" and fields is not None:
-        if fields["looks_automated"] != (det.get("sender_tier") == "automated"):
-            valid = False
+        if bool(fields.get("looks_automated")) != (det.get("sender_tier") == "automated"):
+            reader_ok = False
             det["__reader_failure_reason"] = "reader_header_conflict"
     if result.failure is FailureCode.HEADER_CONFLICT or result.reason == "reader_header_conflict":
-        valid = False
+        reader_ok = False
         det["__reader_failure_reason"] = "reader_header_conflict"
     elif not result.ok and result.reason:
         det["__reader_failure_reason"] = result.reason
+    if not reader_ok and det.get("__reader_failure_reason") == "reader_header_conflict":
+        # A contradicted form is not a validated read; it must not reach the policy as one.
+        fields = None
 
     det["__deterministic_ok"] = valid
     det["__reader_required"] = result.required
@@ -116,7 +123,7 @@ def compute_features(
         situation_id=situation.id,
         deterministic=det,
         reader=fields,
-        reader_ok=result.ok,
+        reader_ok=reader_ok,
         featurizer_version=semantic_version,
         model_id=result.provenance.model_id,
         prompt_version=result.provenance.prompt_version,

@@ -73,21 +73,13 @@ def evaluate_prediction(
     The policy prediction is computed identically with and without that restriction.
     """
     det_ok = bool(features.deterministic.get("__deterministic_ok", True))
-    required = bool(features.deterministic.get("__reader_required", pack.reader_spec() is not None))
+    # The reader seam owns both facts: whether this pack required a read and whether the form
+    # it returned validated. Re-deriving either here would let the gate and the reader
+    # disagree, so an absent flag fails closed rather than defaulting to "no reader needed".
+    required = bool(features.deterministic.get("__reader_required", True))
     reader_ok = features.reader_ok
-    if required:
-        from pydantic import ValidationError
-
-        from probation.llm.catalog import resolve_job
-        from probation.llm.reader import READER_JOBS
-
-        key = READER_JOBS.get(situation.pack)
-        try:
-            if key is None or features.reader is None:
-                raise ValueError("missing_required_form")
-            resolve_job(*key).output_model().model_validate(features.reader, strict=True)
-        except (ValueError, ValidationError):
-            reader_ok = False
+    if required and features.reader is None:
+        reader_ok = False
     budget_ok = bool(features.deterministic.get("__budget_ok", True))
     values = policy_inputs(features)
     action, p, probs, reasons = snapshot.policy.predict(values)

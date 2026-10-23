@@ -665,14 +665,23 @@ def _run_replay(
                 reader_ok = bool(f_row["reader_ok"]) and str(
                     f_row["featurizer_version"]
                 ) == semantic_feature_version(stub=reader_callable is not None)
-                if reader_ok and "provenance_json" in f_row.keys() and f_row["provenance_json"]:
-                    try:
-                        p_data = json.loads(f_row["provenance_json"])
-                        p_cutoff = p_data.get("cutoff")
-                        if p_cutoff and str(p_cutoff) > str(s_row["occurred_at"]):
-                            reader_ok = False
-                    except Exception:
-                        pass
+                if reader_ok:
+                    # P06 #5: a row is reusable only when its full provenance matches the
+                    # requested feature version and cutoff. An earlier cutoff counted fewer
+                    # outcomes and so proves nothing about this situation, and a row with no
+                    # parsable cutoff cannot be matched at all.
+                    stored_cutoff: str | None = None
+                    raw_prov = (
+                        f_row["provenance_json"] if "provenance_json" in f_row.keys() else None
+                    )
+                    if raw_prov:
+                        try:
+                            loaded = json.loads(raw_prov).get("cutoff")
+                            stored_cutoff = str(loaded) if loaded else None
+                        except (ValueError, TypeError, AttributeError):
+                            stored_cutoff = None
+                    if stored_cutoff != str(s_row["occurred_at"]):
+                        reader_ok = False
                 if not reader_ok:
                     det_dict["__deterministic_ok"] = False
                 features_hash = str(f_row["features_hash"])

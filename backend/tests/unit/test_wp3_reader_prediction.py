@@ -194,22 +194,49 @@ def test_current_adapter_cold_start_and_cutoff(memory_db, basic_situation) -> No
         )
 
 
-def test_reading_and_chains_do_not_require_reader(memory_db, basic_situation) -> None:
+def test_reading_and_chains_require_their_own_readiness(memory_db, basic_situation) -> None:
+    """P06 #1 / W3-T03: quarantine and trigger absence is never fabricated reader success."""
     from probation.core.history import HistoryView
     from probation.llm.reader import reader_required
+    from probation.llm.results import FailureCode
 
-    assert not reader_required("reading")
-    assert not reader_required("chains")
+    assert reader_required("reading")
+    assert reader_required("chains")
 
     reading_sit = basic_situation.model_copy(update={"pack": "reading", "family": "reading_triage"})
     res_reading = read_situation(reading_sit, HistoryView(memory_db, reading_sit.occurred_at), {})
-    assert not res_reading.required
-    assert res_reading.status is ReaderStatus.OPTIONAL_DISABLED
+    assert res_reading.required
+    assert not res_reading.ok and res_reading.status is ReaderStatus.FAILED
+    assert res_reading.failure is FailureCode.CLUES_INVALID
+    assert res_reading.reason == "quarantine_unavailable"
+
+    ready = read_situation(
+        reading_sit,
+        HistoryView(memory_db, reading_sit.occurred_at),
+        {"quarantine_ready": True, "quarantine_fields": {"topic": "research"}},
+    )
+    assert ready.ok and ready.status is ReaderStatus.VALIDATED
+    assert dict(ready.fields or {}) == {"topic": "research"}
+    # A readiness flag with no validated extractor fields is still an absent read.
+    flagged = read_situation(
+        reading_sit, HistoryView(memory_db, reading_sit.occurred_at), {"quarantine_ready": True}
+    )
+    assert not flagged.ok
 
     chains_sit = basic_situation.model_copy(update={"pack": "chains", "family": "action_chain"})
     res_chains = read_situation(chains_sit, HistoryView(memory_db, chains_sit.occurred_at), {})
-    assert not res_chains.required
-    assert res_chains.status is ReaderStatus.OPTIONAL_DISABLED
+    assert res_chains.required
+    assert not res_chains.ok and res_chains.status is ReaderStatus.FAILED
+    assert res_chains.failure is FailureCode.CLUES_INVALID
+    assert res_chains.reason == "inherited_unavailable"
+
+    inherited = read_situation(
+        chains_sit,
+        HistoryView(memory_db, chains_sit.occurred_at),
+        {"inherited_reader_context": {"intent": "request", "has_deadline": True}},
+    )
+    assert inherited.ok and inherited.status is ReaderStatus.VALIDATED
+    assert dict(inherited.fields or {}) == {"intent": "request", "has_deadline": True}
 
 
 def test_header_conflict_fails_closed_with_specific_reason(memory_db, basic_situation) -> None:
@@ -327,7 +354,47 @@ def test_features_table_provenance_json_persisted(memory_db, basic_situation) ->
     assert db_prov.get("cutoff") == basic_situation.occurred_at
 
 
+def test_chain_proposal_without_inherited_context_asks(memory_db, basic_situation) -> None:
+    """P06 #1: a chain proposal may not claim the trigger's read it was never given."""
+    from probation.core.enums import GateDecision
+    from probation.packs.chains.proposer import create_chain_situations_and_proposals
+
+    memory_db.execute(
+        """INSERT INTO chains(id,trigger_class_key,follow_action,k,n,base_rate,lift,status,created_at)
+           VALUES ('wp3-chain','mail|request|known','CREATE_TASK',20,25,0.1,8,'active',
+                   '2026-01-01T00:00:00Z'),
+                  ('wp3-chain-2','mail|request|known','BLOCK_TIME',20,25,0.1,8,'active',
+                   '2026-01-01T00:00:00Z')"""
+    )
+    memory_db.commit()
+
+    bare = create_chain_situations_and_proposals(
+        memory_db, basic_situation, "mail|request|known", basic_situation.occurred_at
+    )
+    assert len(bare) == 1
+    assert bare[0][0].variant == "CREATE_TASK"
+    assert bare[0][1].gate is GateDecision.ASK
+    assert "inherited_unavailable" in bare[0][1].reasons
+
+    inherited = create_chain_situations_and_proposals(
+        memory_db,
+        basic_situation,
+        "mail|request|known",
+        basic_situation.occurred_at,
+        reader_features={
+            "subject": "Synthetic trigger",
+            "has_deadline": True,
+            "deadline": "2026-05-03T17:00:00Z",
+        },
+    )
+    assert [s.variant for s, _ in inherited] == ["BLOCK_TIME"]
+    assert inherited[0][1].gate is not GateDecision.ASK
+    assert "inherited_unavailable" not in inherited[0][1].reasons
+
+
 def test_pack_catalog_version_and_profile_alignment() -> None:
+    from probation.llm.catalog import resolve_job
+    from probation.llm.reader import READER_JOBS
     from probation.packs.calendar import calendar_pack
     from probation.packs.mail import mail_pack
     from probation.packs.radar import radar_pack
@@ -335,3 +402,14 @@ def test_pack_catalog_version_and_profile_alignment() -> None:
     assert mail_pack.reader_spec().prompt_version == "v3"
     assert calendar_pack.reader_spec().prompt_version == "v2"
     assert radar_pack.reader_spec().redaction_profile == "mail"
+
+    # P06 #1/#4: a version string is not alignment. Each pack descriptor must name the same
+    # job, version, redaction profile and output schema the immutable catalog actually holds.
+    for pack in (mail_pack, calendar_pack, radar_pack):
+        spec = pack.reader_spec()
+        assert spec is not None
+        key = READER_JOBS.get(pack.name)
+        assert key == (spec.prompt_id, spec.prompt_version)
+        job = resolve_job(*key)
+        assert job.redaction_profile == spec.redaction_profile
+        assert job.output_model().model_json_schema() == spec.json_schema

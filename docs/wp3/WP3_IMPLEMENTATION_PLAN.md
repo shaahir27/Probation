@@ -8,15 +8,15 @@ Final comparison detected concurrent drift in six history/identity/mail files; s
 
 Read this plan with:
 
-- [Source audit and qualifications](reports/wp3-audit-2026-10-23.md).
-- [Detailed work packages](wp3/WORK_PACKAGES.md).
-- [Acceptance, coverage and handoff](wp3/ACCEPTANCE_AND_HANDOFF.md).
-- [Repository inventory](reports/wp3-repository-inventory-2026-10-23.csv) and [LLM call-site inventory](reports/wp3-llm-call-inventory-2026-10-23.csv).
-- [Requirement traceability](reports/wp3-requirements-coverage-2026-10-23.csv).
+- [Source audit and qualifications](../reports/wp3-audit-2026-10-23.md).
+- [Detailed work packages](WORK_PACKAGES.md).
+- [Acceptance, coverage and handoff](ACCEPTANCE_AND_HANDOFF.md).
+- [Repository inventory](../reports/wp3-repository-inventory-2026-10-23.csv) and [LLM call-site inventory](../reports/wp3-llm-call-inventory-2026-10-23.csv).
+- [Requirement traceability](../reports/wp3-requirements-coverage-2026-10-23.csv).
 
 ## 1. Authority and intended outcome
 
-CONTRACT v2 and its [approved amendment](CONTRACT_AMENDMENT_2026-10-22.md) govern this work. Then read PROMPTS, ENGINE_SPEC, DATA_MODEL, PACKS_SPEC, SECURITY_PRIVACY, TEST_PLAN and the original IMPLEMENTATION_PLAN. For quarantine/Radar/Reading read TAVILY_AND_NEW_PACKS; for edited-draft presentation read USER_FLOW and FRONTEND_IMPLEMENTATION_PLAN. This plan expands remediation WP3 in CHANGES_IMPLEMENTATION_PLAN; it is not original Phase 3 alone and does not replace original phase ownership.
+CONTRACT v2 and its [approved amendment](../CONTRACT_AMENDMENT_2026-10-22.md) govern this work. Then read PROMPTS, ENGINE_SPEC, DATA_MODEL, PACKS_SPEC, SECURITY_PRIVACY, TEST_PLAN and the original IMPLEMENTATION_PLAN. For quarantine/Radar/Reading read TAVILY_AND_NEW_PACKS; for edited-draft presentation read USER_FLOW and FRONTEND_IMPLEMENTATION_PLAN. This plan expands remediation WP3 in CHANGES_IMPLEMENTATION_PLAN; it is not original Phase 3 alone and does not replace original phase ownership.
 
 Deliver one trustworthy path from a historically bounded situation through validated reader data and the real policy/gate to an immutable proposal and, where warranted, a validated reply draft. Replay, eventual live ticks and counterfactual evaluation must consume the same decision semantics. A missing reader, invalid clue, failed redaction, provider failure or missing budget authority cannot become autonomous success.
 
@@ -159,7 +159,7 @@ Twelve packages P00-P11 are review units, not twelve new original phases. Implem
 | P10 | Atomic final proposal/draft, edited-payload validation and Executor/API/UI contracts | P07/P08 | Phase 3 repository; Phase 5/9 handoffs |
 | P11 | Offline integration, packaging, no-peeking/cost/role regression and handoff | All relevant packages | Each original phase owner; no implicit next phase |
 
-Detailed tasks, failure cases and outputs are in [WORK_PACKAGES](wp3/WORK_PACKAGES.md). Do not start concurrency merely because llm_max_concurrency is eight. Sequential correctness and durable accounting are prerequisites; if parallel execution remains unverified, keep production dispatch sequential and report concurrency as unfinished.
+Detailed tasks, failure cases and outputs are in [WORK_PACKAGES](WORK_PACKAGES.md). Do not start concurrency merely because llm_max_concurrency is eight. Sequential correctness and durable accounting are prerequisites; if parallel execution remains unverified, keep production dispatch sequential and report concurrency as unfinished.
 
 ## 9. Decisions required during design review
 

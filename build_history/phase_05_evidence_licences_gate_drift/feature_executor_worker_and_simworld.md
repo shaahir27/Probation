@@ -78,3 +78,9 @@ test_wp1_action_storage.py, test_wp1_replay_persistence.py. Final isolated scrip
 
 ### 6. Dependencies and remaining work
 WP1 remains incomplete. See docs/reports/wp1-checkpoint-2026-10-22.md for exact gaps and CCR-F; this update supersedes earlier verification counts and any historical no-known-issues statement for this repair. No live provider call or contract amendment.
+
+## WP3/WP4 integration update - 2026-10-23
+
+Executor hydrates only validated immutable stored reply payloads; browser bodies do not become send authority.
+
+Exact interfaces, callers and verification: docs/reports/wp3-wp4-integration-2026-10-23.md and the P06-P11 feature records. Final suite: 585 passed; no fixture/result mutation. This updates this component, not full phase completion. Accounting/single-flight remain blocked by W3-D03/W3-D04.
