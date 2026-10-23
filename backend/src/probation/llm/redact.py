@@ -343,11 +343,12 @@ def redact(
 
     # Names go last: an address or URL that contains a person's name is already a typed
     # placeholder by now, so a name pattern can never cut a private token in half.
-    for name in display_names or ():
-        name_clean = name.strip()
-        if len(name_clean) >= 2:
-            pattern = re.compile(rf"\b{re.escape(name_clean)}\b", re.IGNORECASE)
-            text = pattern.sub(lambda m: _tag("PERSON", m.group(0)), text)
+    # Longest first, so a short configured token ("Meena") cannot consume part of a longer
+    # display name ("Meena Rao") and leave the rest of it in clear text.
+    cleaned = {name.strip() for name in display_names or () if len(name.strip()) >= 2}
+    for name in sorted(cleaned, key=lambda value: (-len(value), value)):
+        pattern = re.compile(rf"\b{re.escape(name)}\b", re.IGNORECASE)
+        text = pattern.sub(lambda m: _tag("PERSON", m.group(0)), text)
 
     truncated = len(text) > limit
     if truncated:

@@ -56,13 +56,30 @@ def test_header_display_names_and_owner_names_are_redacted() -> None:
             "sender_domain_class": "corp",
             "body": "Ravi Kumar asked Meena Rao to send the invoice.",
         },
-        display_names=redaction_names("Ravi Kumar <ravi@corp.test>"),
+        display_names=redaction_names("Ravi Kumar <ravi@corp.test>", cfg=OWNER_CFG),
         cfg=OWNER_CFG,
     )
     assert "Ravi Kumar" not in ctx.values["body"]
     assert "Meena Rao" not in ctx.values["body"]
     assert ctx.values["body"].count("<PERSON_") == 2
     assert set(ctx.restore_authority.values()) == {"Ravi Kumar", "Meena Rao"}
+
+
+def test_a_short_name_cannot_cut_a_longer_one_in_half() -> None:
+    """Regression: a single-token owner name must not consume part of a full display name."""
+    ctx = build_request_context(
+        MAIL,
+        {
+            "subject": "Hello",
+            "sender_domain_class": "corp",
+            "body": "Meena Rao asked Ravi Kumar to reply.",
+        },
+        display_names=("Meena", "Meena Rao"),
+        cfg=NO_OWNER_CFG,
+    )
+    assert "Meena" not in ctx.values["body"]
+    assert "Rao" not in ctx.values["body"]
+    assert set(ctx.restore_authority.values()) == {"Meena Rao"}
 
 
 def test_bare_address_headers_contribute_no_name() -> None:
