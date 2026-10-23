@@ -40,7 +40,10 @@ _MODEL_SETTING: dict[ModelRole, str] = {
     ModelRole.BASELINE: "model_writer",
 }
 
-# docs/PROMPTS.md section 2.4: reviewed per-role output budgets, before job-specific exceptions.
+# docs/PROMPTS.md section 2.4 budgets the four roles it names: reader 200, writer 400, wording
+# 120, exam edit 500. A job never overrides a number that section states. SYNTH, QUARANTINE and
+# BASELINE are not covered by section 2.4, so their values here are this implementation's
+# assumption, recorded for sign-off in the WP3 handoff rather than presented as spec.
 _ROLE_MAX_TOKENS: dict[ModelRole, int] = {
     ModelRole.READER: 200,
     ModelRole.WRITER: 400,
@@ -118,11 +121,7 @@ JOBS: dict[tuple[str, str], JobSpec] = {
         ),
         _job("reader.file.v1", ModelRole.READER, "file", ("filename", "snippet")),
         _job(
-            "writer.reply.v1",
-            ModelRole.WRITER,
-            "writer",
-            ("style_facts", "examples", "incoming"),
-            max_tokens=600,
+            "writer.reply.v1", ModelRole.WRITER, "writer", ("style_facts", "examples", "incoming")
         ),
         _job("wording.v1", ModelRole.WORDING, "template", ("template",)),
         _job("exam.paraphrase.v1", ModelRole.EXAM_EDIT, "exam", ("text",)),
@@ -133,7 +132,7 @@ JOBS: dict[tuple[str, str], JobSpec] = {
         _job("reader.opportunity.v1", ModelRole.READER, "mail", ("subject", "body")),
         _job("extract.opportunity.v1", ModelRole.QUARANTINE, "page", ("page",)),
         _job("extract.link.v1", ModelRole.QUARANTINE, "page", ("page",)),
-        _job("radar.digest.v1", ModelRole.WRITER, "digest", ("entries",), max_tokens=400),
+        _job("radar.digest.v1", ModelRole.WRITER, "digest", ("entries",)),
         _job("b3.baseline.v1", ModelRole.BASELINE, "mail", ("subject", "body")),
     )
 }

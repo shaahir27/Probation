@@ -96,6 +96,47 @@ def normalize_user_addresses(value: str | Sequence[str] | None) -> list[str]:
     return list(ordered)
 
 
+def _name_candidates(value: object) -> list[str]:
+    """Every display-name-shaped string reachable inside one header value."""
+    if isinstance(value, dict):
+        named = value.get("name")
+        if isinstance(named, str) and named.strip():
+            return [named]
+        return [str(value[key]) for key in ("email", "address", "value") if value.get(key)]
+    if isinstance(value, (list, tuple, set, frozenset)):
+        found: list[str] = []
+        for item in value:
+            found.extend(_name_candidates(item))
+        return found
+    if not isinstance(value, str) or not value.strip():
+        return []
+    parsed = [name for name, _addr in email.utils.getaddresses([value]) if name.strip()]
+    return parsed or [value]
+
+
+def header_display_names(*values: object) -> tuple[str, ...]:
+    """Display-name tokens from mail or calendar header fields, for local redaction only.
+
+    Authority: docs/PROMPTS.md section 1 counts a person's display name among the PERSON tokens,
+    and docs/wp3/WORK_PACKAGES.md P03.2 requires the names that actually appear in a captured
+    header to reach redaction instead of only the address the sender chose.
+
+    Headers go through `email.utils.getaddresses` rather than a comma split, because a quoted
+    display name may itself contain a comma. A candidate is kept only when it looks like a name:
+    an `@` makes it an address, which EMAIL redaction already handles, and a one or two character
+    value is too short to replace without eating ordinary words in the body. Duplicates collapse
+    and order is preserved, so two callers given the same message redact the same bytes.
+    """
+    names: dict[str, None] = {}
+    for value in values:
+        for candidate in _name_candidates(value):
+            clean = " ".join(candidate.strip(" \t\"'").split())
+            if len(clean) < 3 or "@" in clean or not re.search(r"[A-Za-z]", clean):
+                continue
+            names.setdefault(clean, None)
+    return tuple(names)
+
+
 def classify_domain(domain: str) -> str:
     """Classify domain into edu, freemail, corp, or other per docs/PACKS_SPEC.md section 0.2."""
     d = domain.lower().strip()

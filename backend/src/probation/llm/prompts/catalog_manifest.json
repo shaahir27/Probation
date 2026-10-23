@@ -100,7 +100,7 @@
     },
     "writer.reply.v1": {
       "asset": "writer.reply.v1.md",
-      "max_tokens": 600,
+      "max_tokens": 400,
       "model_role": "writer",
       "schema_fingerprint": "54a7a43a3b14569f",
       "sha256": "f1d12a925cd0c095411e1209d1e17ca8e6ea03e8849c8238b3bbdf89dc7cc7bb"

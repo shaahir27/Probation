@@ -23,6 +23,7 @@ from probation.core.types import (
     ReaderSpec,
     Situation,
 )
+from probation.llm.context import redaction_names
 from probation.llm.jobs import MailReader
 from probation.llm.redact import redact
 from probation.packs.base import ExecutorIO, PackAdapter, WorldView
@@ -98,8 +99,10 @@ class MailPack(PackAdapter):
         subject = payload.get("subject", "")
         full_text = f"Subject: {subject}\n\n{body}"
 
-        # Redact before LLM egress (Invariant I-14)
-        redacted = redact(full_text, profile="mail")
+        # Redact before LLM egress (Invariant I-14). The names in the headers are the person behind
+        # the address, so they are passed into redaction here instead of riding along in clear text.
+        names = redaction_names(payload.get("from"), payload.get("to"), payload.get("cc"))
+        redacted = redact(full_text, profile="mail", display_names=names)
 
         source_ref = (
             (

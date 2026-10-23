@@ -230,7 +230,12 @@ class RequestRedaction:
         return self.documents[self.current].text
 
     def restorable(self, label: str | None = None) -> dict[str, str]:
-        """Placeholder to value, limited to tokens this document legitimately earned."""
+        """Placeholder to value for one document of this request.
+
+        This is the numbering record: it lets a reader confirm that a token means the same person in
+        every document of the request. It is not permission to put anything back, which is why the
+        caller that restores a draft asks for `authority` instead.
+        """
         label = label if label is not None else self.current
         allowed = self.documents[label].restorable
         return {
@@ -238,6 +243,18 @@ class RequestRedaction:
             for token in sorted(allowed)
             if token in self.ledger.token_to_val
         }
+
+    def authority(self, label: str | None = None) -> dict[str, str]:
+        """The only map that may be restored into an outbound draft: the item being answered.
+
+        A historical example earned its PERSON tokens and is sent as data, but putting a name back
+        from an example is how an old correspondent becomes a new recipient. Authority belongs to
+        the current document alone, so asking for any other label returns nothing.
+        """
+        label = label if label is not None else self.current
+        if label != self.current:
+            return {}
+        return self.restorable(label)
 
 
 def restore_person(text: str, restorable: Mapping[str, str]) -> tuple[str, tuple[str, ...]]:
@@ -380,6 +397,17 @@ def _safe_clip(text: str, limit: int) -> str:
     if dangling != -1 and clipped.find(">", dangling) == -1:
         clipped = clipped[:dangling]
     return clipped
+
+
+def clip(text: str, limit: int) -> tuple[str, bool]:
+    """Clip to `limit` and report whether anything was removed.
+
+    Context assembly clips before it wraps a value in a tag, so the returned flag is the only
+    honest way to carry "this field was shortened" into provenance.
+    """
+    if len(text) <= limit:
+        return text, False
+    return _safe_clip(text, limit), True
 
 
 def redact_request(

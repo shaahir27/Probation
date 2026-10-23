@@ -22,6 +22,7 @@ from probation.core.types import (
     ReaderSpec,
     Situation,
 )
+from probation.llm.context import redaction_names
 from probation.llm.jobs import InviteReader
 from probation.llm.redact import redact
 from probation.packs.base import ExecutorIO, PackAdapter, WorldView
@@ -102,8 +103,10 @@ class CalendarPack(PackAdapter):
         desc = payload.get("description", "")
         full_text = f"Title: {title}\nDescription: {desc}"
 
-        # Redact before LLM egress (Invariant I-14)
-        redacted = redact(full_text, profile="invite")
+        # Redact before LLM egress (Invariant I-14). An invite names its people twice: an address
+        # and a display name, and only the second is a PERSON token.
+        names = redaction_names(payload.get("organizer"), payload.get("attendees"))
+        redacted = redact(full_text, profile="invite", display_names=names)
 
         source_ref = (
             (

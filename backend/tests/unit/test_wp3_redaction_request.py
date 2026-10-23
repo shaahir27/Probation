@@ -16,7 +16,7 @@ from probation.llm.redact import (
 
 
 def test_shared_namespace_gives_one_person_one_token() -> None:
-    """The same name across two documents collapses to one token that both may restore."""
+    """The same name across two documents collapses to one token that both documents record."""
     req = redact_request(
         {"incoming": "Dear Ramesh Rao, please review.", "example_1": "Ramesh Rao replied earlier."},
         current="incoming",
