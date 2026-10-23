@@ -6,6 +6,7 @@ Authority: docs/ENGINE_SPEC.md section 17 and docs/EVALUATION_PLAN.md section 4.
 import sqlite3
 from typing import Any
 
+from probation.core.clock import timestamp_key
 from probation.core.enums import GateDecision
 
 
@@ -85,8 +86,11 @@ def generate_report_card(
                 "censored": 0,
             }
 
-        # Check if censored (no outcome or outcome known in the future relative to as_of)
-        if obs_action is None or (as_of is not None and known_at and known_at > as_of):
+        # Check if censored (no outcome or outcome known in the future relative to as_of).
+        # timestamp_key, not string ordering: must agree with the COLLATE UTC_TIMESTAMP bound above.
+        if obs_action is None or (
+            as_of is not None and known_at and timestamp_key(known_at) > timestamp_key(as_of)
+        ):
             censored += 1
             task_groups[t_key]["censored"] += 1
             continue

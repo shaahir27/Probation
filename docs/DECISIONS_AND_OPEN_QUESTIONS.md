@@ -24,7 +24,7 @@ Authority: below `CONTRACT.md`. Only a human approves changes to decisions marke
 | D-13 | **Level 1 bar:** at least 20 decisions and lower bound 0.70 (assumption) | Wrong suggestions cost only a glance | open (tune in E2) |
 | D-14 | **Open-source licence:** project is open source; choose the licence in Phase 0 (MIT or Apache-2.0) | Hackathon requires an open-source licence **(verify on the Devpost rules page)** | open |
 | D-15 | **Tavily is an asymmetric Entity Facts Service:** web facts may only restrict or inform, never raise autonomy; deterministic derivation; quarantined extractors for page text | "The web can warn you; only your history can trust" (`TAVILY_AND_NEW_PACKS.md` section 3) | locked |
-| D-16 | **New packs: Opportunity Radar (required) and Reading Triage (cut first).** Slack/Discord proxy and invoice-auditor packs rejected; meeting briefs deferred (crowded space) | Radar makes Tavily Search and Extract essential, fits earned autonomy, and matches the student audience | locked |
+| D-16 | **Opportunity Radar and Reading Triage are both required in the approved full scope.** Slack/Discord proxy and invoice-auditor packs rejected; meeting briefs deferred (crowded space) | Radar makes Tavily Search and Extract essential, fits earned autonomy, and matches the student audience | locked |
 | D-17 | **Out-of-band verification:** never fetch links from mail bodies; find the official page through Search | Anti-phishing principle built into the architecture | locked |
 | D-18 | **GitHub stretch pack dropped** | Replaced by the vetting service and the two new packs | locked |
 
@@ -108,6 +108,25 @@ Tick each when done and record the result in the "Result" column.
 ---
 
 ## 5. Change log
+
+### Approved D1-D9 amendment, 22 October 2026
+
+The owner explicitly authorized an agent to edit CONTRACT.md for this amendment,
+reviewed the recommended D1-D9 decisions and replied "i approve". CONTRACT v2 now
+records those decisions. See [the complete approval/FP mapping](CONTRACT_AMENDMENT_2026-10-22.md).
+Earlier pending-approval notes below are historical and are superseded for this scope.
+
+D1-D8 design choices are approved; dependent implementation/migration/acceptance is
+not thereby complete. D6 and DOC-A preserve the earlier WP1 decisions. D9 approves
+the bounded architecture, not arbitrary accounts, real data, dependencies, keys,
+budgets, destinations, recruitment or deployment. These operational gates remain.
+
+Live autonomy uses prospective evidence. Backfill may train eligible models and
+support separate retrospective runs. API only records intent; Resolver owns normal
+decisions, Executor effects/undo corrections and Examiner drift. One-time explicit
+approval can authorize a validated operation at autonomous level 0 without raising
+its licence. Edited drafts/forwards retain immutable provenance and exact binding.
+All F01-F42 remain required; full-spec technical subcontracts remain explicit.
 
 WP1 implementation decisions, 22 October 2026 (work remains in progress):
 

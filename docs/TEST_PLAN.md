@@ -63,7 +63,7 @@ Commands: `make check` runs lint, types and all tests except `live`. Coverage ta
 | **T-API** | CONTRACT section 9 | Each endpoint returns the documented shape; the error shape is uniform; `POST /queue/{id}/respond` writes a response row and a strong outcome; `POST /actions/{id}/undo` writes a `user_responses` row only (the Executor performs the undo); `GET /items/{id}` and `GET /settings` return the documented shapes; `GET /ledger/verify` detects tampering | All pass |
 | **T-E2E** | Whole system | Run `import -> backtest -> licences -> exam` on the tiny persona: ledger verifies; one proposal per situation; report card counts sum correctly; two runs with the same seed give the same final ledger hash | All pass |
 | **T-WEBQ** | I-23 | The query guard: allowed characters and length; rejects `@`, `<`, `>`, `http`, 6-digit runs, `<PERSON_n>`, tokens from `USER_NAME_TOKENS`; a rejected query makes no HTTP call and gives `not_checked`; every sent query is recorded in `tavily_calls` with its exact text | All pass |
-| **T-WEBISO** | I-21 | Static import check: `engine/policy.py`, `evidence.py`, `licence.py`, `features.py` do not import `web/`; `WebFactsView` returns a type with no probability, evidence or licence fields; removing all web facts never raises any cap, level or probability (property test over the tiny persona); **exhaustive gate check**: for every combination of action, probability, novelty, licence level, cap and hands-off, the gate with `web_cap = 1` has an autonomy rank (ENGINE_SPEC 15.2) no higher than with `web_cap = 3` | Zero violations |
+| **T-WEBISO** | I-21 | Static import check: `engine/policy.py`, `evidence.py`, `licence.py`, `features.py` do not import `web/`; `WebFactsView` returns a type with no probability, evidence or licence fields; adding entity restrictions never raises autonomy above baseline; removing restrictions may restore baseline autonomy, while entity facts never change policy probabilities, evidence or derived licences (property test over the tiny persona); **exhaustive gate check**: for every combination of action, probability, novelty, licence level, cap and hands-off, the gate with `web_cap = 1` has an autonomy rank (ENGINE_SPEC 15.2) no higher than with `web_cap = 3` | Zero violations |
 | **T-VET** | `TAVILY_AND_NEW_PACKS.md` section 5 | EntityFacts derivation on **recorded Tavily fixtures**: homoglyph and hyphen lookalikes, brand-in-label, legitimate domain, no presence, two-hit reports, one-hit reports (not enough); status precedence; local brand list gives immediate status; budget exhaustion or failure gives `not_checked` and unchanged caps | All pass |
 | **T-QUAR** | I-22, I-26 | A page or snippet containing "ignore previous instructions..." leaves typed fields and decisions unchanged; validators null out an unsupported deadline, fee flag, or eligibility line; the digest validator rejects an uncited statement; the writer never receives page text (assert on the request body) | All pass |
 | **T-LINK** | I-24, `TAVILY_AND_NEW_PACKS.md` section 7 | Sanitiser: bad scheme, IP host, localhost, private ranges, token parameters, long and high-entropy values, sensitive paths, tracking parameter stripping; Extract is never called for a mail-body link or for a `lookalike` or `reports_found` domain | All pass |
@@ -140,3 +140,21 @@ A phase is **done** only when its tests pass in `make check` and its acceptance 
 | 10 | T-EVAL |
 | 11 | T-E2E on the deployed build; `ledger verify` clean on the demo database |
 | 12 | Full `make check`; secrets scan; fresh-clone run of `make setup && make synth && make backtest` |
+
+
+## Approved contract v2 acceptance additions (22 October 2026)
+
+These are required future implementation regressions, not claims of passing tests.
+Keep the existing invariant tests. See CONTRACT_AMENDMENT_2026-10-22.md for authority.
+
+| Scope | Required additional acceptance |
+|---|---|
+| D1/D6; T-API/T-SEC/V16 | API only inserts typed intent and returns 202; owner-scoped response status; first initial decision wins; retries/worker restart consume once; decision and remote effect results stay separate. |
+| D2; T-NOPEEK/T-LEDGER/V08-V10 | Append linked corrections without replacing earlier events; as-of projections reproduce history; one evidence vote per proposal; no invented rejection labels; migration preserves ledger bytes/hashes and rollback. |
+| D3/D4; T-EXEC/V17-V20 | Explicit approval at licence 0 binds exact account/resource/recipient/body and obeys hands-off/validators; changes require reapproval; autonomous licence/cap/hold checks unchanged; edit provenance survives restart. |
+| D5; T-ID/T-PACK | Source/since and internal observation mapping agree across import/live profiles; cursor/page commit is atomic. |
+| D7; T-API/V29 | Exact family/class/action/time cohorts and denominators; no copied family metric; empty score unavailable; permission bound/exam/authority separate. |
+| DOC-A; T-LEDGER/V03 | Ledger, proposal, draft atomically persist in FK-safe order; rollback leaves no partial state; commit precedes dispatch. |
+| DOC-B; T-WEBISO/V27 | Adding entity restrictions never increases autonomy; removing restrictions may restore baseline. Entity facts never change policy probabilities, evidence or licences. |
+| DOC-C; T-WEBQ/V25/V30 | Unquoted supported query grammar with unchanged privacy guard; one Spruce & Brass dark theme; readiness reflects verified real workflow. |
+| D9/FP gates; V24-V26/V33 | Prospective live evidence separated from backfill; role-isolated secret lifecycle; MCP/runtime no bypass; receipt binding/revocation/replay checks; bounded checker quota; consented synthetic-stimulus study; authorized live resources only. |

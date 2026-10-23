@@ -22,15 +22,15 @@ from probation.synth.world import SimWorld
 from probation.workers.ingestor import ingest_situations
 
 
-def _run_full_pipeline(conn: sqlite3.Connection) -> dict[str, str]:
+def _run_full_pipeline(conn: sqlite3.Connection, owner: list[str]) -> dict[str, str]:
     """Execute full import -> ingest -> resolve -> replay pipeline."""
     fixture_dir = Path(__file__).parent.parent / "fixtures" / "tiny_synth"
     mbox = fixture_dir / "mailbox.mbox"
     ics = fixture_dir / "calendar.ics"
     world_db = fixture_dir / "world.db"
 
-    import_mail(mbox, conn, user_addresses=["meena.k@example.ac.in"])
-    import_calendar(ics, conn, user_addresses=["meena.k@example.ac.in"])
+    import_mail(mbox, conn, user_addresses=owner)
+    import_calendar(ics, conn, user_addresses=owner)
     ingest_situations(conn)
 
     clock = Clock(mode=ClockMode.REPLAY)
@@ -39,12 +39,12 @@ def _run_full_pipeline(conn: sqlite3.Connection) -> dict[str, str]:
     return report
 
 
-def test_t_e2e_backtest_ledger_and_metrics() -> None:
+def test_t_e2e_backtest_ledger_and_metrics(tiny_synth_owner: list[str]) -> None:
     """T-E2E: Full replay produces verified ledger and consistent metrics."""
     conn = get_connection(":memory:")
     apply_schema(conn)
 
-    report = _run_full_pipeline(conn)
+    report = _run_full_pipeline(conn, tiny_synth_owner)
 
     # 1. Ledger integrity verification
     is_intact, corrupt_seq = verify_ledger(conn)
@@ -70,23 +70,38 @@ def test_t_e2e_backtest_ledger_and_metrics() -> None:
         f"Metrics sum mismatch: {same} + {different} + {censored} != {total_proposals}"
     )
 
-    # 4. In Phase 4, proposals use GateDecision.SHADOW
+    # 4. A backtest observes; it never performs a side-effect. Reaching ASK is the point of the
+    #    run -- with real evidence the model does propose actions -- so what must hold is that no
+    #    proposal is gated for execution and nothing was dispatched (CONTRACT: only the Executor
+    #    acts, and it is not part of a replay).
     cur.execute("SELECT DISTINCT gate FROM proposals;")
-    gates = [r[0] for r in cur.fetchall()]
-    assert gates == [GateDecision.SHADOW.value], f"Unexpected gates in Phase 4: {gates}"
+    gates = {r[0] for r in cur.fetchall()}
+    executing = {
+        GateDecision.HOLD_THEN_EXECUTE.value,
+        GateDecision.EXECUTE_UNDO.value,
+        GateDecision.EXECUTE_SILENT.value,
+    }
+    assert not (gates & executing), f"Replay reached an executing gate: {sorted(gates & executing)}"
+    assert gates <= {
+        GateDecision.SHADOW.value,
+        GateDecision.SUGGEST.value,
+        GateDecision.ASK.value,
+    }, f"Unexpected gates in a backtest: {sorted(gates)}"
+    cur.execute("SELECT COUNT(*) FROM actions;")
+    assert cur.fetchone()[0] == 0, "A backtest must not execute any action"
 
     conn.close()
 
 
-def test_t_e2e_cryptographic_determinism() -> None:
+def test_t_e2e_cryptographic_determinism(tiny_synth_owner: list[str]) -> None:
     """T-E2E: Two runs with identical seeds produce byte-identical ledger head hashes."""
     conn1 = get_connection(":memory:")
     apply_schema(conn1)
-    _run_full_pipeline(conn1)
+    _run_full_pipeline(conn1, tiny_synth_owner)
 
     conn2 = get_connection(":memory:")
     apply_schema(conn2)
-    _run_full_pipeline(conn2)
+    _run_full_pipeline(conn2, tiny_synth_owner)
 
     cur1 = conn1.cursor()
     cur1.execute("SELECT hash, seq FROM ledger ORDER BY seq DESC LIMIT 1;")
@@ -107,14 +122,14 @@ def test_t_e2e_cryptographic_determinism() -> None:
     conn2.close()
 
 
-def test_t_e2e_family_filtering() -> None:
+def test_t_e2e_family_filtering(tiny_synth_owner: list[str]) -> None:
     """T-E2E: Filtering replay by family restricts processing strictly to that family."""
     conn = get_connection(":memory:")
     apply_schema(conn)
 
     fixture_dir = Path(__file__).parent.parent / "fixtures" / "tiny_synth"
-    import_mail(fixture_dir / "mailbox.mbox", conn, user_addresses=["meena.k@example.ac.in"])
-    import_calendar(fixture_dir / "calendar.ics", conn, user_addresses=["meena.k@example.ac.in"])
+    import_mail(fixture_dir / "mailbox.mbox", conn, user_addresses=tiny_synth_owner)
+    import_calendar(fixture_dir / "calendar.ics", conn, user_addresses=tiny_synth_owner)
     ingest_situations(conn)
 
     clock = Clock(mode=ClockMode.REPLAY)
@@ -123,19 +138,30 @@ def test_t_e2e_family_filtering() -> None:
 
     assert report["family"] == "email_action"
 
+    # Chain follow-ups are derived by the chains pack from the situations this filtered replay
+    # actually processed, so they are a consequence of replaying email_action rather than a leak
+    # of another family. What must not appear is any other *ingested* family.
     cur = conn.cursor()
     cur.execute("SELECT DISTINCT family FROM proposals;")
-    distinct_fams = [r[0] for r in cur.fetchall()]
-    assert distinct_fams == ["email_action"], f"Unexpected families emitted: {distinct_fams}"
+    distinct_fams = {r[0] for r in cur.fetchall()}
+    assert "email_action" in distinct_fams, f"No email_action proposals: {sorted(distinct_fams)}"
+    assert distinct_fams <= {"email_action", "chain_followup"}, (
+        f"Family filter leaked other families: {sorted(distinct_fams)}"
+    )
+
+    # Keep the filter honest: the calendar is imported here, so there is invite_rsvp input that a
+    # broken filter would have replayed. Without it this test could pass while filtering nothing.
+    cur.execute("SELECT COUNT(*) FROM situations WHERE family <> 'email_action';")
+    assert cur.fetchone()[0] > 0, "No non-email_action input, so the filter is not exercised"
 
     conn.close()
 
 
-def test_t_e2e_ledger_chronology() -> None:
+def test_t_e2e_ledger_chronology(tiny_synth_owner: list[str]) -> None:
     """T-E2E: Proposal ledger sequence strictly precedes outcome ledger sequence (Invariant I-7)."""
     conn = get_connection(":memory:")
     apply_schema(conn)
-    _run_full_pipeline(conn)
+    _run_full_pipeline(conn, tiny_synth_owner)
 
     cur = conn.cursor()
     cur.execute(
@@ -152,7 +178,8 @@ def test_t_e2e_ledger_chronology() -> None:
             f"Invariant I-7 violation for {r['situation_id']}: "
             f"Proposal seq ({r['p_seq']}) not strictly before outcome seq ({r['o_seq']})"
         )
-        assert r["proposed_at"] <= r["known_at"], (
-            f"Temporal violation for {r['situation_id']}: {r['proposed_at']} > {r['known_at']}"
+        assert r["proposed_at"] < r["known_at"], (
+            f"Invariant I-7 violation for {r['situation_id']}: proposed_at "
+            f"{r['proposed_at']} is not strictly before known_at {r['known_at']}"
         )
     conn.close()

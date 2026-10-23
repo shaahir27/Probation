@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import email.utils
 import re
+from collections.abc import Sequence
 from typing import Any
 
 FREEMAIL_DOMAINS = frozenset(
@@ -66,6 +67,33 @@ def extract_domain(addr: str) -> str:
     if "@" in norm:
         return norm.split("@", 1)[1]
     return ""
+
+
+def normalize_user_addresses(value: str | Sequence[str] | None) -> list[str]:
+    """Coerce any accepted spelling of an address list into exact normalized addresses.
+
+    Authority: docs/PACKS_SPEC.md sections 0.1-0.2 and
+    docs/CHANGES_IMPLEMENTATION_PLAN.md section 6.1.3. Accepts a comma-separated RFC 2822
+    header, a sequence of them, or None, and is used both for the owner's `USER_ADDRESSES`
+    identity and for a message's `To`/`Cc` recipient list.
+
+    Parsing goes through `email.utils.getaddresses` rather than splitting on commas, because
+    a quoted display name may itself contain a comma. Blank tokens are dropped instead of
+    kept: an empty string is a substring of every address, so retaining one would make the
+    owner match every sender. Tokens without an `@` are dropped for the same reason, since
+    PACKS_SPEC 0.1 defines these entries as email addresses and a bare fragment could only
+    ever produce a false match. Order is preserved and duplicates removed because callers
+    compare and hash the result, and a stable order keeps those comparisons reproducible.
+    """
+    if value is None:
+        return []
+    headers: list[str] = [value] if isinstance(value, str) else [str(v) for v in value]
+    ordered: dict[str, None] = {}
+    for _, addr in email.utils.getaddresses(headers):
+        normalized = normalize_address(addr)
+        if "@" in normalized:
+            ordered.setdefault(normalized, None)
+    return list(ordered)
 
 
 def classify_domain(domain: str) -> str:

@@ -89,7 +89,7 @@ From headers and links only: `sender_domain` (registrable), `brand_token` (alpha
 | Call | Query | Parameters |
 |---|---|---|
 | `vet_ident` | `{brand_token or domain label} official website` | search, `search_depth=basic`, `max_results=5`, `include_answer=false`, `include_raw_content=false` |
-| `vet_report` (only if `vet_ident` is inconclusive) | `"{registrable_domain}" scam OR fake OR phishing OR complaint` | same |
+| `vet_report` (only if `vet_ident` is inconclusive) | `{registrable_domain} scam OR fake OR phishing OR complaint` | same |
 
 At most 2 credits per entity. **Query guard** (`web/query_guard.py`, I-23): characters limited to letters, digits, space, dot, hyphen, ampersand and apostrophe; at most 80 characters and 12 tokens; reject if it contains `@`, `<`, `>`, `http`, a run of 6 or more digits, a `<PERSON_n>` placeholder, or a token from `USER_NAME_TOKENS`. A rejected query is not sent; the entity gets `not_checked`.
 
@@ -357,3 +357,16 @@ Defined in `PROMPTS.md` sections 11 to 15: `reader.mail.v2`, `reader.opportunity
 - AICTE alerts and college advisories on fake internship offers; CyberPeace and Careers India summaries; a Chennai report on placement-cell impersonation (secondary sources)
 - FBI IC3 2025 report via secondary summaries (business email compromise about $3.0B; phishing and spoofing the most reported complaint type); totals differ between summaries, so none is quoted as a headline
 - Snyk audit note on indirect prompt-injection risk when agent skills pass Tavily content to models
+
+
+## Approved DOC-B/C and D9 clarification (22 October 2026)
+
+CONTRACT v2 controls restriction monotonicity: adding entity restrictions cannot
+raise autonomy relative to the no-web baseline; removing them may restore that
+baseline. Policy probabilities, evidence and derived licences remain independent
+of entity facts. Preserve the separate quarantined saved-content clue allowance.
+Code-built vet_report queries use the unquoted allowed grammar above; do not weaken
+the character/token/privacy guard to accommodate unsupported syntax.
+The public domain-only checker architecture is approved with separate quotas and
+Webfacts ownership. Concrete public deployment, endpoint/resource/budget authority
+and abuse/failure tests remain required before enabling live calls.

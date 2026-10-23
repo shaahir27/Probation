@@ -186,6 +186,16 @@ class RadarPack(PackAdapter):
         """Resolve observed outcome from SimWorld tracker state."""
         return resolve_radar_outcome(s, world, now)
 
+    def resolve_observed_outcome(
+        self,
+        s: Situation,
+        world: WorldView,
+        now: datetime,
+        raw_payload: dict[str, Any] | None,
+    ) -> Outcome | None:
+        """Resolve observed outcome with the opportunity's source record attached."""
+        return resolve_radar_outcome(s, world, now, raw_payload=raw_payload)
+
     def exam_operators(self) -> list[ExamOperator]:
         """Return perturbation operators for exam board evaluation."""
         return RADAR_EXAM_OPERATORS

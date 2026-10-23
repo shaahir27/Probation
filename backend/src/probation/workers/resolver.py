@@ -12,12 +12,13 @@ from typing import Any
 from probation.core.clock import Clock, get_clock
 from probation.core.enums import LedgerKind
 from probation.core.hashing import canonical_json
+from probation.core.identity import normalize_user_addresses
 from probation.core.types import Situation
 from probation.db.access import Role, RoleAccess
 from probation.db.ledger import append_ledger
 from probation.packs.base import WorldView
 from probation.packs.calendar.resolver import resolve_calendar_outcome
-from probation.packs.identity import world_user_addresses
+from probation.packs.identity import persisted_or_configured_owner, world_user_addresses
 from probation.packs.mail.resolver import MailResolverIndex, resolve_mail_outcome
 from probation.packs.registry import registry
 
@@ -47,32 +48,15 @@ def resolve_outcomes(
     access_conn = RoleAccess(conn, Role.RESOLVER)
     cur = access_conn.conn.cursor()
 
-    # Determine user addresses explicitly
+    # Determine user addresses explicitly. Normalization is centralized in core.identity so a
+    # world, an import and a resolver cannot disagree about spelling; splitting on commas here
+    # would mis-parse a quoted display name that contains one (plan section 6.1.3).
     if user_addresses is not None:
-        if isinstance(user_addresses, str):
-            effective_user_addrs = [a.strip() for a in user_addresses.split(",") if a.strip()]
-        else:
-            effective_user_addrs = [a.strip() for a in user_addresses if a.strip()]
+        effective_user_addrs = normalize_user_addresses(user_addresses)
     elif (world_addrs := world_user_addresses(world)) is not None:
         effective_user_addrs = world_addrs
     else:
-        try:
-            cur.execute("SELECT value FROM meta WHERE key = 'user_addresses';")
-            meta_row = cur.fetchone()
-            if meta_row and meta_row[0]:
-                effective_user_addrs = [a.strip() for a in str(meta_row[0]).split(",") if a.strip()]
-            else:
-                from probation.config import settings
-
-                effective_user_addrs = [
-                    a.strip() for a in settings.user_addresses.split(",") if a.strip()
-                ]
-        except Exception:
-            from probation.config import settings
-
-            effective_user_addrs = [
-                a.strip() for a in settings.user_addresses.split(",") if a.strip()
-            ]
+        effective_user_addrs = persisted_or_configured_owner(cur)
 
     # Pre-index messages once for O(1) resolution across the batch
     mail_index: MailResolverIndex | None = None
@@ -134,7 +118,10 @@ def resolve_outcomes(
         else:
             try:
                 pack = registry.get_descriptor(sit.pack)
-                outcome = pack.resolve_outcome(sit, world, as_of_dt)
+                # The situation carries hashes and redacted text only, so the source identity a
+                # resolver needs (a file's rel_path, a link's url) must come from the payload
+                # already parsed above. Dropping it degrades every such outcome to a WEAK default.
+                outcome = pack.resolve_observed_outcome(sit, world, as_of_dt, raw_payload)
             except KeyError:
                 continue
 

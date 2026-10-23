@@ -74,18 +74,30 @@ def resolve_files_outcome(
             last_act = actions[-1]
             act_type = str(last_act["action_type"])
             act_time = str(last_act["acted_at"])
-            if act_type.startswith("MOVE_TO_FOLDER:"):
-                return Outcome(
-                    situation_id=s.id,
-                    observed_action=act_type,
-                    strength=EvidenceStrength.STRONG,
-                    known_at=act_time,
-                )
+            if act_type.startswith("MOVE_TO_FOLDER"):
+                # The world records a move as the bare action type with the destination in the
+                # action details, so the folder comes from there. Reading the dated footprint keeps
+                # the genuine acted_at as known_at rather than deferring it to the window close, and
+                # does not depend on an allowed root resolving from the current working directory.
+                details = last_act.get("details") or {}
+                folder = str(details.get("destination_folder") or "").strip().strip("/")
+                if not folder and ":" in act_type:
+                    folder = act_type.split(":", 1)[1].strip().strip("/")
+                if folder:
+                    return Outcome(
+                        situation_id=s.id,
+                        observed_action=f"MOVE_TO_FOLDER:{folder}",
+                        strength=EvidenceStrength.STRONG,
+                        observed_at=act_time,
+                        known_at=act_time,
+                        details={"destination_folder": folder},
+                    )
             elif act_type == "DELETE":
                 return Outcome(
                     situation_id=s.id,
                     observed_action="DELETE",
                     strength=EvidenceStrength.STRONG,
+                    observed_at=act_time,
                     known_at=act_time,
                 )
 
@@ -144,10 +156,12 @@ def resolve_files_outcome(
     filename = Path(rel_path_str).name
     current_found_rel_folder: str | None = None
     file_found_anywhere = False
+    scanned_root = False
 
     for root in allowed_roots:
         if not root.exists():
             continue
+        scanned_root = True
         # Search for file under root
         matches = list(root.rglob(filename))
         if matches:
@@ -159,6 +173,13 @@ def resolve_files_outcome(
             else:
                 current_found_rel_folder = rel_folder
             break
+
+    # A root that is absent from disk says nothing about the file, so a search that never ran
+    # cannot conclude anything either. Without this guard every unmounted or misconfigured root
+    # turns every left-alone file into STRONG DELETE evidence, the policy learns the invented
+    # deletion and then proposes an action the pack cannot render.
+    if not scanned_root:
+        return None
 
     # If file was moved to another folder within allowed roots
     if current_found_rel_folder:

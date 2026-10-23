@@ -138,6 +138,11 @@ def backtest(
     family: str = typer.Option("email_action", "--family", "-f", help="Action family"),
     until: str | None = typer.Option(None, "--until", "-u", help="Replay cutoff timestamp"),
     db: str | None = typer.Option(None, "--db", help="Path to database"),
+    allow_live_llm: bool = typer.Option(
+        False,
+        "--allow-live-llm",
+        help="Spend against the reader model; off by default so replay stays reproducible",
+    ),
 ) -> None:
     """Run event-sourced replay backtest (Phase 4)."""
     from probation.core.clock import Clock
@@ -149,17 +154,25 @@ def backtest(
         f"[bold cyan]Running event-sourced replay backtest (Phase 4) for family: {family}...[/]"
     )
 
-    from probation.db.connection import apply_schema
+    from probation.db.connection import ensure_schema
 
     conn = get_connection(db_path)
     try:
-        cur = conn.cursor()
-        cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='situations';")
-        if not cur.fetchone():
-            apply_schema(conn)
+        ensure_schema(conn)
 
         clock = Clock(mode=ClockMode.REPLAY)
-        report = run_replay(conn, clock=clock, family=family, until=until)
+        if allow_live_llm:
+            console.print(
+                "[bold yellow]Live LLM reader enabled: this replay will spend against the "
+                "reader model and its features are not reproducible.[/]"
+            )
+        report = run_replay(
+            conn,
+            clock=clock,
+            family=family,
+            until=until,
+            allow_live_llm=allow_live_llm,
+        )
 
         table = Table(title=f"Probation Report Card — {family} (Phase 4)")
         table.add_column("Metric", style="cyan")

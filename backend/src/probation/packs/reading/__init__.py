@@ -162,6 +162,16 @@ class ReadingPack(PackAdapter):
         """Resolve observed outcome from SimWorld library state."""
         return resolve_reading_outcome(s, world, now)
 
+    def resolve_observed_outcome(
+        self,
+        s: Situation,
+        world: WorldView,
+        now: datetime,
+        raw_payload: dict[str, Any] | None,
+    ) -> Outcome | None:
+        """Resolve observed outcome with the link's source record attached."""
+        return resolve_reading_outcome(s, world, now, raw_payload=raw_payload)
+
     def exam_operators(self) -> list[ExamOperator]:
         """Return perturbation operators for exam board evaluation."""
         return READING_EXAM_OPERATORS

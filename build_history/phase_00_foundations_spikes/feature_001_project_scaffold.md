@@ -137,3 +137,38 @@ its optional SQL parser is absent and no dependency was installed to alter that 
 No new dependency. Existing historical metrics/spike claims are qualified in PROVENANCE.md
 and decision log; corrected experiments belong to later WPs. The 43 tracked build logs are
 inventoried for later reviewed untracking; only future local log files are ignored now.
+
+
+## Contract governance update - 22 October 2026
+
+### 1. Overview
+The owner approved D1-D9 after reviewing recommendations and explicitly delegated
+this CONTRACT.md amendment. This entry records documentation, not built features.
+
+### 2. Technical Rationale
+Update the authoritative contract and align dependent plans/specifications so
+implementation has consistent ownership, as-of events, exact approval authority,
+edit/report contracts and bounded integration gates. Preserve all user code changes.
+
+### 3. Database Schema Impact
+No executable DDL or migration changed. New events/requests/authority remain targets
+requiring reviewed migrations and tests. Existing ledger payloads remain untouched.
+
+### 4. Core Logic & Necessary Functions
+No application function added or changed. Governing interfaces are documented in
+docs/CONTRACT.md sections 3-5/8-9/15 and docs/CONTRACT_AMENDMENT_2026-10-22.md.
+Why called: subsequent phase implementers consult these before changing ownership,
+feedback/approval or integration behavior. How/callers: documentation references from
+DATA_MODEL, ENGINE_SPEC, USER_FLOW, FULL_PRODUCT_SPEC and the implementation plan;
+there is no new runtime call signature in this documentation-only amendment.
+
+### 5. Testing & Verification
+Validate changed Markdown links/fences, diff whitespace, D1-D9 and FP-D1-FP-D13
+coverage and preservation of all pre-existing modified code hashes. No runtime
+behavior or passing implementation tests are claimed by the amendment.
+
+### 6. Dependencies & Deferred Work
+Dependent implementation still needs phase prerequisites and T-API/T-SEC/T-EXEC,
+T-NOPEEK/T-LEDGER/T-WEBISO plus the V acceptance cases. Exact migrations, provider
+resources/budgets, secret backend/keys, study recruitment and deployment remain gated.
+No commit/push or code implementation is part of this documentation change.

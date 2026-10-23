@@ -15,6 +15,7 @@ from probation.config import settings
 from probation.core.clock import Clock
 from probation.core.enums import Gate
 from probation.core.types import Situation
+from probation.db.connection import get_connection, has_schema
 from probation.eval.baselines import (
     AskAlwaysBaseline,
     GenericRulesBaseline,
@@ -64,13 +65,18 @@ def run_evaluation(
     """Execute evaluation suite across Probation and baselines B0-B3."""
     target_db = db_path or settings.db_path
     if not target_db.exists():
-        # Fall back to tiny synth test fixture if primary database does not exist
-        fixture_db = Path("backend/tests/fixtures/tiny_synth/world.db")
-        if fixture_db.exists():
-            target_db = fixture_db
+        # Fail closed. Substituting another database would let every query below miss,
+        # and the swallowed OperationalErrors would export an all-zero report that
+        # looks like a real result.
+        raise FileNotFoundError(f"Evaluation database not found: {target_db}")
 
-    conn = sqlite3.connect(str(target_db))
-    conn.row_factory = sqlite3.Row
+    conn = get_connection(target_db)
+    if not has_schema(conn):
+        conn.close()
+        raise ValueError(
+            f"{target_db} is not a Probation engine database (no situations table). "
+            "Run a replay against it before evaluating."
+        )
     cur = conn.cursor()
 
     truth_map = load_truth_data(truth_path)
@@ -83,7 +89,7 @@ def run_evaluation(
             SELECT p.*, s.redacted_text, s.variant, s.occurred_at
             FROM proposals p
             JOIN situations s ON p.situation_id = s.id
-            ORDER BY p.proposed_at ASC;
+            ORDER BY p.proposed_at COLLATE UTC_TIMESTAMP ASC;
             """
         )
         proposals = [dict(r) for r in cur.fetchall()]

@@ -35,23 +35,29 @@ Every implementation slice must:
 
 The plan's work-package numbering is dependency order, not permission to skip the original phases or start all lanes simultaneously.
 
-### 2.2 Decision gates before dependent code
+### 2.2 Approved decisions and remaining implementation gates
 
-The exact conflict descriptions, proposed alternatives and authority are in report section 6. Record the selected resolutions in `docs/DECISIONS_AND_OPEN_QUESTIONS.md`; only a human edits `docs/CONTRACT.md`.
+The historical conflicts remain in report section 6. The owner approved D1-D9
+on 22 October 2026 and explicitly delegated this CONTRACT v2 amendment. See
+[the amendment register](CONTRACT_AMENDMENT_2026-10-22.md) and the decision log.
+This approval supersedes earlier pending-decision wording for these directions;
+implementation, exact migration/subcontract reviews and specific live operational
+authorizations remain required. No capability is certified complete by this table.
 
-| Gate | Decision needed | Blocks |
+| Gate | Approved decision | Remaining blocker/evidence |
 |---|---|---|
-| D1 / CCR-A | Who records normal explicit-feedback outcomes and how the API acknowledges asynchronous completion | Feedback worker, acceptance lifecycle, API acceptance test |
-| D2 / CCR-B | Temporal outcome/correction/undo event storage and projection, with ownership and migration | Undo, repeat feedback, historical replay of corrections |
-| D3 / CCR-C | Human-approved action authority when autonomous licence is level 0; retain all hard constraints | Accept/Edit execution for cold-start classes |
-| D4 / CCR-D | Approve edited-body request schema and persistence; keep editing unavailable in intermediate builds until approved | Real reply editing; F06 cannot close while this is blocked |
-| D5 / CCR-E | Preserve public source/since adapter contract with an internal raw helper, or human-approved signature change | Ingestion interface remediation |
-| D6 / CCR-F | Typed ownership for habit deny and admin examiner jobs | Compliant API mutation/admin lifecycle |
-| D7 / CCR-G | Exact task/action report-card scope, or unavailable-score UI | Task-specific historical score |
-| D8 / DOC-A/B/C | Draft FK ordering, correct web monotonicity, query grammar, theme/readiness conflicts | Spec-aligned regression expectations |
-| D9 | Live data, provider destinations, credential split, new dependencies, any receipt signing key | Connectors/MCP integrations/live validation beyond approved existing provider scope |
+| D1 / CCR-A | API intent/202, Resolver decisions, Executor effects, Examiner drift; separate decision/execution results | Receipts, concurrency/restart, status API and lifecycle tests |
+| D2 / CCR-B | Immutable outcome events and as-of projection; preserve old ledger bytes | Reviewed DDL/migration, exact role enforcement, deduplicated historical evidence |
+| D3 / CCR-C | Exact one-time explicit approval at licence 0; unchanged hard constraints | Distinct authority/binding and revalidation; no fake level_required=0 |
+| D4 / CCR-D | Immutable validated edited-body response; preserve draft provenance | Request models, validation, actual editor and execution; F06 not closed yet |
+| D5 / CCR-E | Public source/since plus internal observation mapper | Conformance and cursor/identity implementation |
+| D6 / CCR-F | Preserve approved typed admin queue and Examiner-owned completion/drift receipts | Later commands need exact type/owner/migration tests; WP1 proof remains separate |
+| D7 / CCR-G | Add exact family/class/action/time report filters and denominators | API/backend cohort and UI acceptance; unavailable until implemented |
+| D8 / DOC-A/B/C | Atomic FK-safe order; correct web monotonicity; guarded grammar; Spruce & Brass dark brief; truthful readiness | Remaining regression/UI/query proof; DOC-A already resolved |
+| D9 | Bounded connectors/runtime/secrets architecture, prospective live evidence and all F01-F42 retained | Specific accounts/resources/endpoints/budgets, dependencies, secret backend/keys, study/deployment and remaining FP subcontracts |
 
-Planning all requested features does not itself approve private-account access or a human-only contract amendment; resolve these decisions before the dependent implementation. Pure repairs that preserve the contract can be planned and reviewed independently; conflicting behavior stays unimplemented until resolved.
+Continue each authorized phase slice through its existing review/check gates.
+Design approval is not blanket private-account, provider-spend or dependency permission.
 
 ### 2.3 Changes to the supplied roadmap
 
@@ -239,7 +245,7 @@ Files: `workers/brain.py`, `llm/{client,cache,budget,redact}.py`, `llm/prompts/`
 3. Validate original-sender-only recipient, no new URLs/addresses, attachments absent, bounded length, and unsupported commitments/numbers/dates according to PROMPTS.md. Do not claim a regex guarantees semantic truth.
 4. Keep raw web text out of writer requests. Typed cited fields are the only web-derived input, and only for the jobs allowed to use them.
 5. Persist proposal/draft atomically in FK-safe order. Executor loads the validated stored draft and immutable action parameters; never trust arbitrary body/recipient fields supplied by a browser.
-6. Until D4 is approved, remove the cosmetic body editor from intermediate builds and explain the unavailable edit capability; this does not fulfill full-scope F06. Once approved, implement the editor, validate the edited body under the same recipient/content constraints and preserve original generated provenance.
+6. Until the approved D4 workflow is implemented and verified, remove the cosmetic body editor from intermediate builds and explain the unavailable edit capability; this does not fulfill full-scope F06. Under the recorded approval, implement the editor, validate the edited body under the same recipient/content constraints and preserve original generated provenance.
 
 Exit: fake-client tests prove actual template/tagged content, redaction, strict output, failure handling and cache behavior; an optional approved Nebius smoke demonstrates the selected model/request format and measured cost without exposing credentials.
 
@@ -311,7 +317,7 @@ The recommended D1 resolution uses existing roles. A reusable coordinator may ca
 | Accept | Authenticate scope, validate proposal/response, record immutable request idempotently | Executor constructs validated action and performs approved operation; resolver records explicit human decision under the approved ownership model | One strong agreement for the decision; execution success/failure is separate |
 | Reject | Record explicit rejection | Resolver records strong disagreement; no action | Do not invent which alternative the user chose |
 | Edit action | Validate against that pack's allowable action set; record original proposal association | Executor uses the validated edited action/parameters; resolver records the actual selected action | One strong feedback event; original proposal remains immutable |
-| Edit body | Only if D4 approved; validate/store immutable edited payload | Executor applies approved draft validation and provenance rules | Editing a reply body is not changing the predicted action class |
+| Edit body | Approved target; validate/store immutable edited payload once implemented | Executor applies approved draft validation and provenance rules | Editing a reply body is not changing the predicted action class |
 | Undo DONE | Record undo request | Executor revalidates reversibility/window and restores the original state if possible | Strong correction feeds drift, never agreement counts |
 | Cancel HELD | Record undo request through the existing action endpoint | Executor cancels without sending; no remote undo | CANCELLED plus strong disagreement event |
 
@@ -445,7 +451,7 @@ Use explicit request/response models and a single uniform error envelope for HTT
 2. Use the installed TanStack Query for loading, polling and invalidation if its current version supports the intended API. Invalidate Queue, Actions, Permissions, Metrics and relevant detail after mutations. Keep pending operations visible and roll back optimistic changes on failure.
 3. Group Queue into Needs you/Ready for you from gate semantics, with digest counts and spot-check labels. Do not infer safety categories from arbitrary probability thresholds or label audit items “high risk.” Avoid duplicate cards in multiple heuristic buckets.
 4. Fetch `/items/{id}` when opening detail. Remove fixture-only required fields or add explicitly reviewed backend presentation fields. Render unavailable facts plainly instead of substituting invented summaries, risk pills or confidence explanations.
-5. Replace free-text action entry with allowed choices for that pack and validated parameters. Send edited text only under approved D4; otherwise remove the cosmetic editor.
+5. Replace free-text action entry with allowed choices for that pack and validated parameters. Send edited text only through the implemented approved D4 workflow; otherwise remove the cosmetic editor.
 6. Source health/replay/provider status from data. Replace literal “AI systems online” and “Replay up to date.” On unknown connectivity, do not default to “Live Service.”
 7. Correct the lower-bound label to the documented Bayesian/Beta posterior lower bound; keep measured agreement, lower bound and exam verdict separate. No global trust/accuracy headline; no family score copied to every task.
 8. Inspect Settings/Exposure response shapes against the actual backend. Both screens already exist; fill missing units/caps and reconcile names/totals rather than duplicate them.
@@ -634,6 +640,6 @@ For every original contract invariant, map these regressions plus existing tests
 
 The planning deliverable includes this core/remediation sequence, the full-product specification, complete source/opinion coverage and concrete acceptance/evidence contracts. Planning completion does not establish implementation completion.
 
-The recommended first implementation slice is **WP0 baseline/hygiene preparation**, followed, after review, by **the Phase 1 portions of WP1: strict output validation, transaction ownership and their regression tests**. Keep the Phase 5 action-metadata work and its handoff explicitly separate. Hold all feedback/schema/contract-dependent changes pending D1-D8 decisions. After each slice passes and is reviewed, proceed through the dependency gates; do not start live services while deterministic core failures remain.
+The recommended first implementation slice is **WP0 baseline/hygiene preparation**, followed, after review, by **the Phase 1 portions of WP1: strict output validation, transaction ownership and their regression tests**. Keep the Phase 5 action-metadata work and its handoff explicitly separate. D1-D8 directions are now approved; implement dependent feedback/schema work only after its versioned model/migration/role checks and phase prerequisites pass. After each slice passes and is reviewed, proceed through the dependency gates; do not start live services while deterministic core failures remain.
 
 Full implementation is complete only when every F01-F42 capability meets its evidence contract, all governing decisions are approved, invariant tests and `make check` pass, frontend/provider/runtime integration checks pass, measurements and the actual study are reported, local build logs/index and phase handoffs are reviewed, and release/restore proofs have no unresolved P0. There is no implicit cut/defer list in the full profile. No report may substitute “all tests pass” for an end-to-end demonstration of the earned-permission loop.

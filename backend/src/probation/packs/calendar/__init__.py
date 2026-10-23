@@ -10,7 +10,7 @@ from typing import Any
 from probation.config import settings
 from probation.core.hashing import canonical_situation_id
 from probation.core.history import HistoryView
-from probation.core.identity import normalize_address
+from probation.core.identity import normalize_address, normalize_user_addresses
 from probation.core.types import (
     Action,
     ActionSpec,
@@ -47,13 +47,13 @@ class CalendarPack(PackAdapter):
     families: tuple[str, ...] = ("invite_rsvp",)
 
     def __init__(self, user_addresses: list[str] | str | None = None) -> None:
-        self.user_addresses: list[str] | None
-        if isinstance(user_addresses, str):
-            self.user_addresses = [a.strip() for a in user_addresses.split(",") if a.strip()]
-        elif user_addresses is not None:
-            self.user_addresses = list(user_addresses)
-        else:
-            self.user_addresses = None
+        # Normalized once here so intake, featurization and resolution cannot disagree about
+        # spelling. `None` is preserved as `None`: it means "not supplied", which lets those
+        # callers fall through to the world or configured owner, whereas an explicit empty
+        # list means "this calendar has no owner" and must not fall through.
+        self.user_addresses: list[str] | None = (
+            None if user_addresses is None else normalize_user_addresses(user_addresses)
+        )
 
     def iter_situations(self, raw_item: RawItem | dict[str, Any]) -> list[Situation]:
         """Extract atomic situations from an ingested raw record."""
@@ -82,15 +82,12 @@ class CalendarPack(PackAdapter):
         organizer = payload.get("organizer", "")
         norm_org = normalize_address(organizer)
         if self.user_addresses is not None:
-            user_addrs = [normalize_address(a) for a in self.user_addresses if a.strip()]
+            user_addrs = self.user_addresses
         else:
-            user_addrs = [
-                normalize_address(a) for a in settings.user_addresses.split(",") if a.strip()
-            ]
+            user_addrs = normalize_user_addresses(settings.user_addresses)
 
         # Skip if organized by the user
-        user_addrs_set = {a for a in user_addrs if a}
-        if norm_org in user_addrs_set:
+        if norm_org and norm_org in set(user_addrs):
             return []
 
         # Check attendee status at arrival was NEEDS-ACTION
@@ -231,7 +228,23 @@ class CalendarPack(PackAdapter):
 
     def resolve_outcome(self, s: Situation, world: WorldView, now: datetime) -> Outcome | None:
         """Resolve observed outcome from SimWorld."""
-        return resolve_calendar_outcome(s, world, now)
+        return resolve_calendar_outcome(s, world, now, user_addresses=self.user_addresses)
+
+    def resolve_observed_outcome(
+        self,
+        s: Situation,
+        world: WorldView,
+        now: datetime,
+        raw_payload: dict[str, Any] | None,
+    ) -> Outcome | None:
+        """Resolve observed outcome with the invite's source record attached.
+
+        Without `uid` there is no footprint to look up, so every invite degrades to a WEAK
+        NO_RESPONSE and a real RSVP is never observed.
+        """
+        return resolve_calendar_outcome(
+            s, world, now, raw_payload=raw_payload, user_addresses=self.user_addresses
+        )
 
     def exam_operators(self) -> list[ExamOperator]:
         """Return perturbation operators for exam board evaluation."""

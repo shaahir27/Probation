@@ -22,26 +22,34 @@ from probation.core.types import (
 
 @runtime_checkable
 class WorldView(Protocol):
-    """Read-only view over simulated or live external world state."""
+    """Read-only view over simulated or live external world state.
 
-    def get_messages(self, label: str | None = None) -> list[dict[str, Any]]:
-        """Retrieve simulated messages."""
+    The item readers take an observation point because a resolver must be able to ask what the
+    owner's world looked like when a response window closed, not what it looks like now (I-6, and
+    plan 6.2.6, which forbids a synthetic-only adapter). An adapter that cannot answer it is
+    treated as unable to answer at all, and the resolver fails closed rather than reading past it.
+    """
+
+    def get_messages(
+        self, label: str | None = None, as_of: str | None = None
+    ) -> list[dict[str, Any]]:
+        """Retrieve messages, projected to ``as_of`` when the caller supplies one."""
         ...
 
-    def get_message(self, message_id: str) -> dict[str, Any] | None:
-        """Retrieve single message by Message-ID."""
+    def get_message(self, message_id: str, as_of: str | None = None) -> dict[str, Any] | None:
+        """Retrieve a single message by Message-ID, projected to ``as_of``."""
         ...
 
-    def get_events(self) -> list[dict[str, Any]]:
-        """Retrieve simulated calendar events."""
+    def get_events(self, as_of: str | None = None) -> list[dict[str, Any]]:
+        """Retrieve calendar events, projected to ``as_of`` when supplied."""
         ...
 
-    def get_event(self, uid: str) -> dict[str, Any] | None:
-        """Retrieve single calendar event by UID."""
+    def get_event(self, uid: str, as_of: str | None = None) -> dict[str, Any] | None:
+        """Retrieve a single calendar event by UID, projected to ``as_of``."""
         ...
 
-    def get_files(self) -> list[dict[str, Any]]:
-        """Retrieve simulated file records."""
+    def get_files(self, as_of: str | None = None) -> list[dict[str, Any]]:
+        """Retrieve file records, projected to ``as_of`` when supplied."""
         ...
 
     def get_tracker_entries(self, status: str | None = None) -> list[dict[str, Any]]:
@@ -254,4 +262,27 @@ class PackAdapter(Protocol):
     # Exam
     def exam_operators(self) -> list[ExamOperator]:
         """Perturbation operators for exam board evaluation."""
+        ...
+
+
+@runtime_checkable
+class RawObservationResolver(Protocol):
+    """Internal capability: resolve an outcome with its source observation attached.
+
+    Authority: docs/CONTRACT.md section 5 and CONTRACT amendment D5/CCR-E. The public
+    `resolve_outcome(s, world, now)` boundary is deliberately unchanged. A `Situation`
+    carries only hashes and redacted text, so a resolver cannot recover the source record it
+    needs — a file's relative path, an event's UID — and a pack that read `raw_items` itself
+    would be doing source I/O in the wrong role. The engine and the resolver worker already
+    hold the payload, so they hand it over through this internal seam instead.
+    """
+
+    def resolve_observed_outcome(
+        self,
+        s: Situation,
+        world: WorldView,
+        now: datetime,
+        raw_payload: dict[str, Any] | None,
+    ) -> Outcome | None:
+        """Resolve observed human action using the situation's raw source payload."""
         ...

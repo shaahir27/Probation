@@ -208,6 +208,20 @@ class FilesPack(PackAdapter):
         """Resolve observed outcome from world state."""
         return resolve_files_outcome(s, world, now)
 
+    def resolve_observed_outcome(
+        self,
+        s: Situation,
+        world: WorldView,
+        now: datetime,
+        raw_payload: dict[str, Any] | None,
+    ) -> Outcome | None:
+        """Resolve observed outcome with the file's source record attached.
+
+        Without `rel_path` the resolver has nothing to look up in the world catalog, so every
+        file situation degrades to a WEAK LEAVE and real moves are never observed.
+        """
+        return resolve_files_outcome(s, world, now, raw_payload=raw_payload)
+
     def exam_operators(self) -> list[ExamOperator]:
         """Return perturbation operators for exam board evaluation."""
         return FILES_EXAM_OPERATORS

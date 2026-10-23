@@ -110,6 +110,10 @@ def create_chain_situations_and_proposals(
             params = {
                 "draft": True,
                 "template": f"Acknowledged receipt of: {subject}",
+                # A reply goes to the original sender and nobody else (CONTRACT amendment
+                # FP-D13). The Executor must not have to guess a recipient, and must never be
+                # handed one chosen by a model.
+                "to": trigger_sit.sender_key,
             }
 
         # Deterministic situation ID: det_id("chain", trigger_sit.id, follow_act)

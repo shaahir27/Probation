@@ -84,7 +84,11 @@ Each journey lists what the user does, what the system does, the screens, and th
 - Tapping "Different" lists those items with what the system predicted and what the user actually did.
 - A footnote: "Based only on what was known at the time. Recent items have no answer yet."
 
-**Current API and required change:** `GET /report-card?family=email_action` (repeat for `invite_rsvp`, `file_destination`) returns family-scoped results. The user-requested task/action score needs an approved Contract Change Request to expose matching historical counts at the task/action grain. Until that is approved and implemented, label the family results accurately and say the task-specific backtest score is not available; do not infer it from `/licences` or `/exams`.
+**Approved target API (D7, 22 October 2026):** report filters include family,
+class_key, action, since and as_of; return the exact applied cohort and denominators.
+Until implemented and verified, label existing family results accurately and show
+task-specific results as unavailable. Keep historical agreement, permission bounds,
+exam verdicts and current authority separate.
 **Edge cases:** a task/action with too little history shows "Not enough history yet to guess", not a zero. Outcomes that are missing, weak, or not yet known are listed as censored/unresolved and excluded from the agreement denominator, per `ENGINE_SPEC.md` section 17.
 
 ### F3. Daily use: the queue
@@ -98,7 +102,19 @@ Each journey lists what the user does, what the system does, the screens, and th
 - A **Spot check** tag on items that are audit holdouts, with a one-line explanation.
 - Tapping an item opens **Item detail** (F4a).
 
-**What happens when the user responds**
+**Approved asynchronous response contract (D1-D4, 22 October 2026)**
+
+The API validates and stores an immutable request and returns HTTP 202 with its ID.
+The UI shows pending and reads `/responses/{request_id}` until a final or
+needs-reconciliation result. Decision recording and actual execution have separate
+results. Exact explicit approval can execute at licence level 0 after hard checks;
+no autonomous permission is granted. Duplicate initial requests are idempotent;
+conflicting initial choices return a conflict. Later corrections append events.
+Edited text is bound to the exact reviewed payload, preserves the generated draft
+and passes approved validators; changing it requires new approval. Forwarding uses
+an explicit owner-selected recipient; replies remain original-sender-only.
+
+**What happens when workers process the response**
 1. **Do it** -> `POST /queue/{proposal_id}/respond {response: "accept"}`. The api writes a `user_responses` row. The Executor then performs the action **immediately** (no hold; the user approved it). A STRONG agreement outcome is recorded.
 2. **Not this** -> `{response: "reject"}`. Nothing is done. A STRONG disagreement outcome is recorded.
 3. **Change** -> the user picks a different action (for example "Archive" instead of "Reply") -> `{response: "edit", edited_action: "ARCHIVE"}`. The Executor performs the edited action; the outcome records the edited action.

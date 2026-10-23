@@ -18,9 +18,11 @@ from probation.workers.ingestor import ingest_situations
 from tests.stubs.stub_reader import StubReader
 
 
-def test_ingestion_and_featurization_on_tiny_synth() -> None:
+def test_ingestion_and_featurization_on_tiny_synth(
+    tiny_synth_dir: Path, tiny_synth_owner: list[str]
+) -> None:
     """Verify end-to-end ingestion and featurization pipeline on synthetic baseline fixture."""
-    fixture_dir = Path(__file__).resolve().parent.parent / "fixtures" / "tiny_synth"
+    fixture_dir = tiny_synth_dir
     mbox_path = fixture_dir / "mailbox.mbox"
     ics_path = fixture_dir / "calendar.ics"
     truth_path = fixture_dir / "truth.json"
@@ -34,7 +36,7 @@ def test_ingestion_and_featurization_on_tiny_synth() -> None:
     apply_schema(conn)
 
     # 1. Import raw items
-    user_addrs = ["meena.k@example.ac.in"]
+    user_addrs = tiny_synth_owner
     res_mail = import_mail(mbox_path, conn, user_addresses=user_addrs)
     res_cal = import_calendar(ics_path, conn, user_addresses=user_addrs)
 

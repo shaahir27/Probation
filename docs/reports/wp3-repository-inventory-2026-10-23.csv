@@ -1,0 +1,307 @@
+path,sha256,bytes,review_depth,wp3_disposition,functions,classes,ast
+AGENTS.md,c2ae0324691ebf20e9a642125dd780bb3ac9ace656e8f3e3210c705c763c1933,5477,metadata/hash and packaging inventory,supporting asset; no runtime certification,,,
+Makefile,06b8b8750c8a80e794e6c0000ded997f1adacc640f01f046dc8f46426517ebd9,1817,metadata/hash and packaging inventory,supporting asset; no runtime certification,,,
+README.md,d70bf2b2569f00551903325964717a21d1af3d3068e491943a0a8cd0a8b1ad1f,4370,metadata/hash and packaging inventory,supporting asset; no runtime certification,,,
+backend/pyproject.toml,518b2b497a6eabcb0a61a9b59a63a6f1caebfcc323ecc9ac25fb89a91ac6abad,3093,metadata/hash and packaging inventory,supporting asset; no runtime certification,,,
+backend/src/probation/__init__.py,09a63d79d91a4c5453faa6686e33e07d5d4f27586abce00a96113331c75632f0,117,AST/import/call inventory,regression or integration boundary,0,0,ok
+backend/src/probation/api/__init__.py,448f149712db187f132713a051af021fe86dddffde43b7578f5513ce0de63869,130,AST/import/call inventory,regression or integration boundary,0,0,ok
+backend/src/probation/api/app.py,d2db8839b729b968cd67c8aa3fcc6b639a0f2bb063a0b5d665e4a5f8ad35fb5a,5229,AST/import/call inventory,regression or integration boundary,6,0,ok
+backend/src/probation/api/db.py,1c125c508283a765cd5041d8dc81e839954f5d8aa7c5f4c43818a045040b201e,721,AST/import/call inventory,regression or integration boundary,1,0,ok
+backend/src/probation/api/event_time.py,35e1d86e369945b7e3b4b182f98ec87ff45c23b52e8f889822a46425f6d82337,844,AST/import/call inventory,regression or integration boundary,1,0,ok
+backend/src/probation/api/routes/__init__.py,df1a8152db4faf3690d4a1b98a990f089843481b42f06eda7d2324ffb2743016,67,AST/import/call inventory,regression or integration boundary,0,0,ok
+backend/src/probation/api/routes/actions.py,33c1147c0bbf6b615aed38b01fc83be41b5586cd81f89a2aa2788ce4024163da,5256,AST/import/call inventory,regression or integration boundary,3,0,ok
+backend/src/probation/api/routes/boards.py,587a6f2125c5efd48f2ee9357a98d6964b29aa2ef31699e3efda944c31d86fa5,3696,AST/import/call inventory,regression or integration boundary,1,0,ok
+backend/src/probation/api/routes/insights.py,9c8b702b412e502f00f1d4e1ff6d1d60d44b03ec2979dc005a55fe4ecbd0815e,11348,AST/import/call inventory,regression or integration boundary,8,0,ok
+backend/src/probation/api/routes/items.py,f3fc8b0a8e09d94838a091cb2bca7c5b3a5dfbd00884b2bfc4bad0eeeeaeefd0,6217,AST/import/call inventory,regression or integration boundary,2,0,ok
+backend/src/probation/api/routes/licences.py,09d673e5c4f84e0bb101b3e819b4322be81370bd727f4216ead1f1032b91b6e7,6360,AST/import/call inventory,regression or integration boundary,2,0,ok
+backend/src/probation/api/routes/queue.py,7b9e06ffee737d4506f141fee8d57e0285a3cfeea68139eadab12819f39c8deb,7401,focused source inspection,direct integration or implementation surface,3,1,ok
+backend/src/probation/api/routes/replay.py,4b24c4da69cfdd15885b5ba45f590e25e48b454823c37771a51bacde878f0ca7,1704,AST/import/call inventory,regression or integration boundary,4,1,ok
+backend/src/probation/api/routes/report.py,5774aef200595d4df90e2a852f3ba4dea85f88663feac9e7c7d7174734b3560e,2014,AST/import/call inventory,regression or integration boundary,2,0,ok
+backend/src/probation/api/routes/webfacts.py,cc9e434422be38eb55cbb9680cde4e807446b3bf33c5e4a446816a5ba98a4009,3313,AST/import/call inventory,regression or integration boundary,2,0,ok
+backend/src/probation/cli.py,9fba16b86298c94062da953f902dcab0c4b5d713d7f3ad460b9ce782e776b0d6,11214,AST/import/call inventory,regression or integration boundary,13,0,ok
+backend/src/probation/cli_apps.py,f7cb726d2b61b422df8e7e0768d75841a71e85512bef78f5c313522b96b3d637,1236,AST/import/call inventory,regression or integration boundary,0,0,ok
+backend/src/probation/cli_engine.py,453ccf5fac2e1e8c2ef0b3158171fad0acea8a6efbccb34137acbf76c887528c,7832,AST/import/call inventory,regression or integration boundary,2,0,ok
+backend/src/probation/cli_eval.py,808c67aee3401dac523665ec1d15fd262676af49a42713bdd39ea6da0e27b65f,5179,AST/import/call inventory,regression or integration boundary,3,0,ok
+backend/src/probation/cli_extra.py,662c3fd2862772c2229153efbcd4e34e461aa2dd3aef98c695a1811715630c8a,7369,AST/import/call inventory,regression or integration boundary,6,0,ok
+backend/src/probation/cli_safety.py,5e436aa07c867d0213223844d6dab58f0316e67a5a3394270411969bcd2f93f1,2652,AST/import/call inventory,regression or integration boundary,2,0,ok
+backend/src/probation/config.py,ee995b7be0aeaef995860164a778d46761a6d9f0fe667c58a6bc33acf30588c3,3538,focused source inspection,direct integration or implementation surface,0,1,ok
+backend/src/probation/core/__init__.py,eebfe4fa23fab1ed174345c31ed927394b7e740b29c4ad288bd8cfc17b599274,469,AST/import/call inventory,regression or integration boundary,0,0,ok
+backend/src/probation/core/actions.py,6a79b5fc710039d9fd5b325632fa8a4ce73c4157ac940ae060ae3c7c77f3b9ac,2731,AST/import/call inventory,regression or integration boundary,3,2,ok
+backend/src/probation/core/clock.py,78c02a6912cde84cfc868e7b09fe0dcb5e5c445d8b30260bd034e758bf9702d7,6275,AST/import/call inventory,regression or integration boundary,15,2,ok
+backend/src/probation/core/enums.py,a8705011aaaa8adbf5e974b167ce0c542998ccc3d339deb9e5fc8a7222ceb4b9,1878,AST/import/call inventory,regression or integration boundary,0,8,ok
+backend/src/probation/core/hashing.py,bb99eb82e9c0850bbe197dafce7ba083b8b563dcee351898caab7f177b42549a,3827,AST/import/call inventory,regression or integration boundary,7,0,ok
+backend/src/probation/core/history.py,498ca6fe6d81104b498ef8d5f60e2d95c0801b4397f5f61c5e08b6e432186783,12357,focused source inspection,direct integration or implementation surface,15,1,ok
+backend/src/probation/core/identity.py,d595e60d884aba3a0b397570cd6eb464d83eb4d520e86dbfe09b6d0e52a78b82,2770,AST/import/call inventory,regression or integration boundary,4,0,ok
+backend/src/probation/core/types.py,300e9ae44060a10fdba019619c367ed272c1ea5d179641808a1a74449ec50f20,7183,focused source inspection,direct integration or implementation surface,7,19,ok
+backend/src/probation/db/__init__.py,990a9dd5dba2e99cb324215aaa9cc8e6089a2f62fb6a5b8f579319b3240a8953,370,AST/import/call inventory,regression or integration boundary,0,0,ok
+backend/src/probation/db/access.py,7677b42591ccaa6437b841f50a89a75340bffec5b13afd8eeb02c79a0a1056b6,8613,AST/import/call inventory,regression or integration boundary,12,2,ok
+backend/src/probation/db/actions.py,ae3cbea37d4ba2c46137c2ef813920eacce45532bacd2add8997522c865a6e18,3006,AST/import/call inventory,regression or integration boundary,1,0,ok
+backend/src/probation/db/commands.py,9da9cc5c5bd780355ecad994e329845bf7fdbbbbb785200316efe56ca75ef07a,3763,AST/import/call inventory,regression or integration boundary,4,3,ok
+backend/src/probation/db/connection.py,11480a3d4a098e8add0d258d47118aa1abbfcf9312668a47e807f8713c6e8119,4316,AST/import/call inventory,regression or integration boundary,7,1,ok
+backend/src/probation/db/guards.py,e83cd89421bcacd545ca2b784ddb954dbc3048b3ccd397d9b6a7a35c97870a38,4780,AST/import/call inventory,regression or integration boundary,16,3,ok
+backend/src/probation/db/inference.py,d96103b061dfd2c3ec5db8c5b88b4976f10fe3e2338770662b3d406f7aeed9ad,2222,focused source inspection,direct integration or implementation surface,1,0,ok
+backend/src/probation/db/ledger.py,cd79adb848c3a3892fa182daa6b6ec9837a2f62e9f4b71ba2a6c94204d8d2e26,3616,AST/import/call inventory,regression or integration boundary,3,2,ok
+backend/src/probation/db/migrations.py,e09c6ced1ae95a90bb9b141a0445fbdd5ec81132fce608a5debd4d41ddfa411d,5450,AST/import/call inventory,regression or integration boundary,6,0,ok
+backend/src/probation/db/proposals.py,0e17e35897877f696c582287d5c24b9aaa4b70d93b9afaa458c18db7b47109b7,4942,focused source inspection,direct integration or implementation surface,3,1,ok
+backend/src/probation/db/schema.sql,1f764cf0f77b64d2094c8a7c60d7c3c7da7fee823fca4de2a772cc61e39019f2,14766,metadata/hash and packaging inventory,supporting asset; no runtime certification,,,
+backend/src/probation/db/wp1.sql,dd029fb16e729f3bbd5fa7d102fdd5fc239c27df6c5788bd92fffa4ec7ad3a7e,2588,metadata/hash and packaging inventory,supporting asset; no runtime certification,,,
+backend/src/probation/engine/__init__.py,b8b2847fcbbe305eea6a59d8315aa38bbfcc16ab1de7c85d9de121581c16c845,1370,AST/import/call inventory,regression or integration boundary,0,0,ok
+backend/src/probation/engine/baselines.py,b6c4a9696c9d339ee1b2a19194b2116655f99efc2b1b7cebe25efb00c01ab007,2556,AST/import/call inventory,regression or integration boundary,5,3,ok
+backend/src/probation/engine/caps.py,4554051479bc1747ce16d89b5d65996f8ec288d4f58dcddc4988166517e43525,6271,AST/import/call inventory,regression or integration boundary,5,0,ok
+backend/src/probation/engine/drift.py,7c34608fe3f566baa3457747c6c34fa87068ecb60925029784be353fe2455641,11294,AST/import/call inventory,regression or integration boundary,6,1,ok
+backend/src/probation/engine/evidence.py,a7ea709138af7136b5e4add9663b844cecb238ba6dd1533aba71cddfc287588d,8055,AST/import/call inventory,regression or integration boundary,3,1,ok
+backend/src/probation/engine/exam.py,cb515317fea9af852eda84e82eb343d446712823a7bef8dcdc1959212c8aace8,17383,focused source inspection,direct integration or implementation surface,4,0,ok
+backend/src/probation/engine/exam_storage.py,8fd8e7ce9b66b4c4642957dd279148a06abe52a20d71c8a1c89455a55d3af7e5,4159,AST/import/call inventory,regression or integration boundary,2,1,ok
+backend/src/probation/engine/features.py,01dba0333a227a812e25371e96cac5a6b170a158191e7f25cf6eb8fb91a082e1,3950,AST/import/call inventory,regression or integration boundary,5,1,ok
+backend/src/probation/engine/gate.py,edf08745ab169a06f2f844d6aa22a1a75e9757c7f5f37e953335338febdc5c88,5554,AST/import/call inventory,regression or integration boundary,3,1,ok
+backend/src/probation/engine/habits.py,422a4faabf14d6a6a4b70abeff082801839622e96950763f8ae2fb57816c45b9,15041,focused source inspection,direct integration or implementation surface,6,0,ok
+backend/src/probation/engine/handsoff.py,9433ffd3258569acf223602f067166a6ac518a78ac0f75cb2993dd2269356c83,1903,AST/import/call inventory,regression or integration boundary,1,0,ok
+backend/src/probation/engine/licence.py,b9499a9fc0e5ad00d2de2faea6b046f1ac7decb5b9272541217dfed40ee38fbc,14554,AST/import/call inventory,regression or integration boundary,7,0,ok
+backend/src/probation/engine/novelty.py,4e1a72cf2204b762016d38bbb41ed579a0d190b59e39ae5adbd3a3305f88621a,3754,AST/import/call inventory,regression or integration boundary,4,1,ok
+backend/src/probation/engine/policy.py,57cce25cb592207b91edcc2dd41ac8c698264f6feff8f43ae5c44e6d1e34acfb,5557,AST/import/call inventory,regression or integration boundary,5,1,ok
+backend/src/probation/engine/proposal_data.py,e501a979dbd8d4b6e4a015aa3212fa1705af53458373c54ad532dffa3473282e,3031,focused source inspection,direct integration or implementation surface,1,0,ok
+backend/src/probation/engine/replay.py,16ccb9de3f9c7b5e7668c4909a02ab4585b9c7360da7a3ca3c1492359e16b882,34075,focused source inspection,direct integration or implementation surface,4,1,ok
+backend/src/probation/engine/report.py,2ff25f5ef57ba7c9fe7d47255fea830ff9e52588b34847f8169fcac2bdc36baf,6062,AST/import/call inventory,regression or integration boundary,1,0,ok
+backend/src/probation/eval/__init__.py,13a55830cb1403e2d99eda76fdeec973224883581990b4aa6819c82e074313cf,128,AST/import/call inventory,regression or integration boundary,0,0,ok
+backend/src/probation/eval/baselines.py,2ffbae6c41d3a316e3eceb4547d910947b50e31ab2722b0f644191450c01b9d0,11311,AST/import/call inventory,regression or integration boundary,7,5,ok
+backend/src/probation/eval/human_study.py,efe9f12a876c1587cadcd94d2067e155f21c0dbacb6f8eb2953d70849e3c745a,8161,AST/import/call inventory,regression or integration boundary,5,1,ok
+backend/src/probation/eval/metrics.py,69216b9635ec2a82e64737a7d8924b5bf3e82d6e892b40c888e0ddd2d44ed5dd,11766,AST/import/call inventory,regression or integration boundary,10,5,ok
+backend/src/probation/eval/run_eval.py,51ffac08de5375ef49d1f9bf9e750c6f82822851505bc771318e6cbf62d13ed4,20816,AST/import/call inventory,regression or integration boundary,4,0,ok
+backend/src/probation/links/__init__.py,ef80880c92ed751d13f8d9c3cad0dff1f30ca3c67a96273fb6b81c46ade26b32,303,AST/import/call inventory,regression or integration boundary,0,0,ok
+backend/src/probation/links/extract.py,20c40fb3a70100a5ef5ded057c5b48538bb486b254e1c37f5235017466198e28,5591,focused source inspection,direct integration or implementation surface,1,0,ok
+backend/src/probation/links/quarantine.py,945136f4f671e6f59b0f4bdf223b37dc18d22aa3e717a0ee69eb20c80e269d03,6814,focused source inspection,direct integration or implementation surface,5,0,ok
+backend/src/probation/links/sanitise.py,27bd42c04676664d37e716b26def11a463e9e3d9df3c4b36a3c31c016625930e,5546,AST/import/call inventory,regression or integration boundary,3,0,ok
+backend/src/probation/llm/__init__.py,e456b329dfe909aa6d9942bc3f457b12dc56c9464f284350348f57934eaa8516,307,AST/import/call inventory,regression or integration boundary,0,0,ok
+backend/src/probation/llm/budget.py,f7d6e55b7486c051bcba6b6f14bd4f594606d5a4f26a4da46aed4bfb717aa613,3300,focused source inspection,direct integration or implementation surface,6,2,ok
+backend/src/probation/llm/cache.py,3a0e50e301f7868463783ff04afaae61fe447446b43b0acc670fcbedb4c5fd11,2201,focused source inspection,direct integration or implementation surface,3,0,ok
+backend/src/probation/llm/client.py,b049dc32ecbb680ca62e70fa2b29c90fd98f5877685b615fec52088eec9f3cb3,18440,focused source inspection,direct integration or implementation surface,6,2,ok
+backend/src/probation/llm/jobs.py,5c437bb102c08d722b9d0fec56ef267247e7803def75d171f51a7f0699101020,6083,focused source inspection,direct integration or implementation surface,4,13,ok
+backend/src/probation/llm/prompts/reader.invite.v1.md,037838c60c990d9a0289aa2f9a45119e3c776de19665acefcd8a999c387d6292,811,metadata/hash and packaging inventory,supporting asset; no runtime certification,,,
+backend/src/probation/llm/prompts/reader.mail.v2.md,663eb286642d81493145a468245d1567129903a76f64577484d0866ca27fe78a,1962,metadata/hash and packaging inventory,supporting asset; no runtime certification,,,
+backend/src/probation/llm/redact.py,3c0d7b8c66bd3940537952648afe1f1ac63f56202b20bba3fbcbe3f51b338c54,8181,focused source inspection,direct integration or implementation surface,14,0,ok
+backend/src/probation/llm/schema.py,973aed83f1b6c1db2174b21a9201a564914dbc93492d043216109bc378a8091a,11617,focused source inspection,direct integration or implementation surface,13,1,ok
+backend/src/probation/packs/__init__.py,7cd2b0ccc2a69825e232b3953a615afb661bc9a5f64ad0edfb09283b2dccab3a,222,AST/import/call inventory,regression or integration boundary,0,0,ok
+backend/src/probation/packs/base.py,cf27ac3eda82bdf8a61d81a2e836dac8c02e0788252881ae81636611c4b4abe5,7828,AST/import/call inventory,regression or integration boundary,36,3,ok
+backend/src/probation/packs/calendar/__init__.py,7109675e4db8046107d144bc6db136b87ec40f68e4470dd9f74f7cfa984ba0ee,9045,focused source inspection,direct integration or implementation surface,14,1,ok
+backend/src/probation/packs/calendar/clues.py,2ce594ad1ae3b75dc74cd6fb905b310cbdc3f0678a49be91657d0046de910d9f,7090,AST/import/call inventory,regression or integration boundary,2,0,ok
+backend/src/probation/packs/calendar/exam_ops.py,8050785dcea98b5eb071cb2fceb87ec626c2ccc97b73a1689e471d54a66e972b,6691,AST/import/call inventory,regression or integration boundary,4,0,ok
+backend/src/probation/packs/calendar/executor.py,0cbf53369297e2ce7569d87b58cf0093192a123c757f3e30558f45c6598503ff,3316,AST/import/call inventory,regression or integration boundary,2,0,ok
+backend/src/probation/packs/calendar/importer.py,222bc25a4aa4e3199dfe76972b972996805f122559b3f9362963039d9957c91f,107,AST/import/call inventory,regression or integration boundary,0,0,ok
+backend/src/probation/packs/calendar/resolver.py,df16e3ed6c74cd99bf2dbd3c6a41644565f8c1592a082e395148104df6088b9d,6333,AST/import/call inventory,regression or integration boundary,1,0,ok
+backend/src/probation/packs/chains/__init__.py,5d33bb6c27bbaecd356dc9e37cc86be1a658bf4d8328ad8a941a903fe0ab572e,3490,focused source inspection,direct integration or implementation surface,12,1,ok
+backend/src/probation/packs/chains/executor.py,5e8f9c5deb676c81842d933cfe9ce4bf0dd141599ba0e2cc95df2758bd6c6a3e,5266,AST/import/call inventory,regression or integration boundary,2,0,ok
+backend/src/probation/packs/chains/mining.py,8d6b5e423632bdaf78a91f097b7cb9149fed01f73bdb38acc80f9d4aac1e9bf1,10890,AST/import/call inventory,regression or integration boundary,4,0,ok
+backend/src/probation/packs/chains/proposer.py,9592c0853d61156fe11f0a290c65586886712c4c2fddeaf5c5d005a75b66d597,7986,focused source inspection,direct integration or implementation surface,2,0,ok
+backend/src/probation/packs/descriptor.py,9b9df67e544839d5046d1b81c9bec577d8931efab7e4d3c011c5db33bbde02db,2038,AST/import/call inventory,regression or integration boundary,12,1,ok
+backend/src/probation/packs/files/__init__.py,66a65b970e98fe7697c7e157887ffa76f5f0b60e1e8bf3b7246477e90f192b48,7979,focused source inspection,direct integration or implementation surface,12,1,ok
+backend/src/probation/packs/files/clues.py,32593083d6372f4cca307412d4bbb9ebcc24389baca035e7879bf7bbbe7161ad,7026,AST/import/call inventory,regression or integration boundary,5,0,ok
+backend/src/probation/packs/files/exam_ops.py,e425aabead4509a6034e3f294d7d922b451d04da44783cf8ee04595cb8da7724,4084,AST/import/call inventory,regression or integration boundary,2,0,ok
+backend/src/probation/packs/files/executor.py,fdcd3cf5a85ccde3489eb863d736e1ddd324ff3ba70f9f4a0c9aa5acb4915124,5822,AST/import/call inventory,regression or integration boundary,3,0,ok
+backend/src/probation/packs/files/importer.py,3e8c3cd95669eeccc8679c556a946747f5687872e0b43780b7c95930b47b3eea,120,AST/import/call inventory,regression or integration boundary,0,0,ok
+backend/src/probation/packs/files/resolver.py,75346c3d81dacf26d45292e01c548cb4c44aca7596fad235fbe70b444a4b343f,7037,AST/import/call inventory,regression or integration boundary,2,0,ok
+backend/src/probation/packs/identity.py,e295513f9d6f2ba6a3d622aeca3a8cd21afbe5176c245632dda2ccd1743e14c3,933,AST/import/call inventory,regression or integration boundary,2,1,ok
+backend/src/probation/packs/mail/__init__.py,f50da1e72e1fcbf77820bd9356fd11698d778067c2ecd0c0572ddb5100233300,9176,focused source inspection,direct integration or implementation surface,14,1,ok
+backend/src/probation/packs/mail/clues.py,3495db00eb0a4f3bcd474a137aedea4e7605c9cfc600821845e485199ae3b6f1,5307,AST/import/call inventory,regression or integration boundary,1,0,ok
+backend/src/probation/packs/mail/exam_ops.py,d2d1ae7a451049a83cd44884ad50feb60c5ffe7300b97922d124e730ccf5ca20,9503,AST/import/call inventory,regression or integration boundary,4,0,ok
+backend/src/probation/packs/mail/executor.py,2b26ad20e815d4a7702072085535dc8e6b306d0ec236a8b51409e0b411015723,4431,focused source inspection,direct integration or implementation surface,2,0,ok
+backend/src/probation/packs/mail/importer.py,282d39d7785df26b000423ae84f0c0564329275c891a92394539440d91c55a93,104,AST/import/call inventory,regression or integration boundary,0,0,ok
+backend/src/probation/packs/mail/resolver.py,a5e026c8d47afc11072eb991b3665a3a556c216dae23dc797561de0a9df85f87,7515,AST/import/call inventory,regression or integration boundary,2,1,ok
+backend/src/probation/packs/radar/__init__.py,d710d61287296c5398ab508f766ed4fab39a77bb24c5b7f031480a5f52cf75ef,7469,focused source inspection,direct integration or implementation surface,12,1,ok
+backend/src/probation/packs/radar/clues.py,4e622a22fab898795003209278ac206d10d3786f53f3be052454ae333c821656,5696,AST/import/call inventory,regression or integration boundary,3,0,ok
+backend/src/probation/packs/radar/digest.py,609c1de7aa9ed7093781fbf73c0e21ef4be9613b095f4a7ca2274fcb6dfc0b62,4989,focused source inspection,direct integration or implementation surface,3,0,ok
+backend/src/probation/packs/radar/exam_ops.py,78eee05e62742bbe54981a48fbae2f30f0516ecc8a378b689e9ed95e82b9307c,4058,AST/import/call inventory,regression or integration boundary,2,0,ok
+backend/src/probation/packs/radar/executor.py,6c784d17e2f3e10226bd1de5e67e2e6dad34b1f08e88b67bb353c6e93b2e8d47,3868,AST/import/call inventory,regression or integration boundary,2,0,ok
+backend/src/probation/packs/radar/out_of_band.py,0157f777dc0d3b9845eaf115f5308257b681e32ad3d1e7589defd290848ae022,6399,focused source inspection,direct integration or implementation surface,3,0,ok
+backend/src/probation/packs/radar/resolver.py,7e27ed71ffcd479d4abd1ca6927d74daa1fac134055bacf3e7edbc93a11b7554,5355,AST/import/call inventory,regression or integration boundary,2,0,ok
+backend/src/probation/packs/reading/__init__.py,c7a6cad13e7e44c27303a2313ff078328bbbb4ed70c505bc5e3b936258428f77,6289,focused source inspection,direct integration or implementation surface,12,1,ok
+backend/src/probation/packs/reading/clues.py,30763270c47280b319e144148270ab71bbde2b28199a71730e7dfa14c0808c25,4437,AST/import/call inventory,regression or integration boundary,2,0,ok
+backend/src/probation/packs/reading/exam_ops.py,bc09a775de258a3e8d5249b8073a6d3902b915622dd6c8a507ca63315917631b,3883,AST/import/call inventory,regression or integration boundary,2,0,ok
+backend/src/probation/packs/reading/executor.py,ee1b307bcae1bdf9f3f28b668ffc136ce5389e56d18415bd624414985c7343d8,3055,AST/import/call inventory,regression or integration boundary,2,0,ok
+backend/src/probation/packs/reading/resolver.py,438b34453f490dd58b3e3b233dbb5ffb62cba481878fa19a3d61c0d19f6bbea3,4182,AST/import/call inventory,regression or integration boundary,2,0,ok
+backend/src/probation/packs/registry.py,0c9292b07af4fd93f8365cd45a25d7c00e72cd1fc8a347a083ad8179aa709d53,2811,AST/import/call inventory,regression or integration boundary,7,1,ok
+backend/src/probation/synth/__init__.py,a67c439988eddfc6e1289653a69b9e63856c6583d33cc79728a997792fddaf47,1277,AST/import/call inventory,regression or integration boundary,0,0,ok
+backend/src/probation/synth/body_pool.py,00c6a1fe85aa7dc84a58e8723037f9b24e2bc3f2cc37e2e39fd956a2cc1f29c8,15174,AST/import/call inventory,regression or integration boundary,6,3,ok
+backend/src/probation/synth/generator.py,77fcf744d9d36254c9a4e096f9786f01d8d700b0fa5c139dd51a82b397fe72cc,23110,AST/import/call inventory,regression or integration boundary,3,1,ok
+backend/src/probation/synth/habits_dsl.py,fdaab138f64733a47b13446341ac13dbdedc1b0b36958cbe56ec2ce83b73e1f5,10534,AST/import/call inventory,regression or integration boundary,5,5,ok
+backend/src/probation/synth/importers.py,7e2e84f64f81e17546da3b6834a196a15e81b40b947d2b3f623a0acda5708c52,17918,AST/import/call inventory,regression or integration boundary,8,1,ok
+backend/src/probation/synth/personas.py,7555a024b707d9be1d34cbd0aecacefe439748622c75bdcf88f748af98389f50,10063,AST/import/call inventory,regression or integration boundary,6,3,ok
+backend/src/probation/synth/render.py,2b9d2fb89bd6b6fb590c93ac4fb1cd811fd06cb6296120f9b67c855156900df9,7035,AST/import/call inventory,regression or integration boundary,4,0,ok
+backend/src/probation/synth/world.py,ed3b12f178d5d96803e21406d78a8f67798ec532f8291acb6811f88b0e37b42c,21796,AST/import/call inventory,regression or integration boundary,33,1,ok
+backend/src/probation/web/__init__.py,89ae5e068c81e5c89d75fee0b7682dc00680eb2dedfc10b284fe21205bff9de7,914,AST/import/call inventory,regression or integration boundary,0,0,ok
+backend/src/probation/web/client.py,e493f086943158c544c90d32759f875e34248031275977782e88819ed15615f7,13130,AST/import/call inventory,regression or integration boundary,5,1,ok
+backend/src/probation/web/derive.py,35f550a93e7d6594d4d811f3c4b7e69a2fdc2ab0a88784134e514dd7d19aeb2c,12389,AST/import/call inventory,regression or integration boundary,8,0,ok
+backend/src/probation/web/fixtures.py,e95cbb7932ea95e82b6e5da97d79cf0a33c82fa7ba763a1d70bdf9a4bb52a1c7,2183,AST/import/call inventory,regression or integration boundary,1,0,ok
+backend/src/probation/web/query_guard.py,33e72344b8eee129d47317d16f7f1e2faf4dbf65d3ae47aa25669f1ebbc08df0,2457,AST/import/call inventory,regression or integration boundary,1,0,ok
+backend/src/probation/web/view.py,9d8cf8a56c4fe1d50163cb3ab590801d9624fa81463be077fbc493e45b55ddc7,3120,AST/import/call inventory,regression or integration boundary,2,2,ok
+backend/src/probation/workers/__init__.py,1476edd0be341318e63f464ad25f71fddd04a8a434e06bf8d73f4889fb0a3c8c,505,AST/import/call inventory,regression or integration boundary,0,0,ok
+backend/src/probation/workers/admin.py,ab07486e3c1a77c7e38065da7d58bffa010a1ae10919696ec011d3fd90901db7,3542,AST/import/call inventory,regression or integration boundary,2,0,ok
+backend/src/probation/workers/brain.py,4df56749f5a384f66ae8ba196c89bd0727bfb2a6de6a76caab0f652c81894c6c,7590,focused source inspection,direct integration or implementation surface,2,0,ok
+backend/src/probation/workers/drift.py,036f1301bc5e42465a982ca9e0818d4144edf8dc8295c6e18f0c1bfb206fb6df,4764,AST/import/call inventory,regression or integration boundary,2,0,ok
+backend/src/probation/workers/examiner.py,4f6bd1704ea30cb0adc6e33772ed5934c9faad4c03819958485eea955ba603fa,2166,AST/import/call inventory,regression or integration boundary,2,0,ok
+backend/src/probation/workers/executor.py,d1e37962d3d1adfc4a70ed8125f1a860341a7e60601bffe5ffb0059fa87411b1,14652,AST/import/call inventory,regression or integration boundary,6,1,ok
+backend/src/probation/workers/ingestor.py,375f45f583b46f0a464279a55b9f8a3cdff34212d5acf9c0b4139ab6f5cd3deb,2194,AST/import/call inventory,regression or integration boundary,1,0,ok
+backend/src/probation/workers/resolver.py,242758d5094ac3936bad74f7a92035c8e9f12a3c0554373a0807b2c908ea7eee,6445,AST/import/call inventory,regression or integration boundary,1,0,ok
+backend/src/probation/workers/scheduler.py,274f123f36acd631c9d55fa3b229a2e7e5956c86db0b0818f4c7b913a85d6869,3004,AST/import/call inventory,regression or integration boundary,2,0,ok
+backend/src/probation/workers/webfacts.py,8bfc5de999908d5307b1c244eedb368c50592814b56e37175add730f29ff2c62,8689,AST/import/call inventory,regression or integration boundary,4,0,ok
+backend/tests/__init__.py,2e009d9a95d2e1ef408e89d89467b64593fb887d54ddddcf4fa713509c86b39a,34,AST/import/call inventory,regression or integration boundary,0,0,ok
+backend/tests/api/test_api_endpoints.py,b8be704482001ad3346f2fe24567dfe19d1aa511f1cb35272f3a69468eca84d9,13038,AST/import/call inventory,regression or integration boundary,13,0,ok
+backend/tests/conftest.py,f8782327448b55e87c373ff97e3f2aa62535508f9085bbca3cae8b1413dd6836,2240,AST/import/call inventory,regression or integration boundary,4,0,ok
+backend/tests/fixtures/__init__.py,03dc658d7563dc468b2c3082771804df07a3e4143124cdc6a8a9fc7d1e2b8f6e,29,AST/import/call inventory,regression or integration boundary,0,0,ok
+backend/tests/fixtures/tiny_synth/fs/Downloads/CO301_Lab04_Report.py,6a7030fb2331675db0c8656177f8d5e64f472377d6f270bb111bfd007089bf10,168,AST/import/call inventory,regression or integration boundary,0,0,ok
+backend/tests/fixtures/tiny_synth/fs/Downloads/CO301_Lab06_Report.py,17ff9a18e7f31725ac468e4dafe7564de2c1a1ce3bde9ae73168df372b9f7321,174,AST/import/call inventory,regression or integration boundary,0,0,ok
+backend/tests/fixtures/tiny_synth/fs/Downloads/CO301_Lab28_Report.py,7da4ca91837e18868bf018b8ae58ab558f257f4217399d4829f8fd327bb95423,167,AST/import/call inventory,regression or integration boundary,0,0,ok
+backend/tests/fixtures/tiny_synth/fs/Downloads/CO301_Lab31_Report.py,b28fa72dbcb80d8434011dae7d5ecd97e4a834bfdec778ae700f41ed19bd488e,168,AST/import/call inventory,regression or integration boundary,0,0,ok
+backend/tests/fixtures/tiny_synth/fs/Downloads/CO301_Lab40_Report.py,749101f5a57aa3e90087cec705cdf7d77c2f0a7f7f2579c3339309394c9e1661,168,AST/import/call inventory,regression or integration boundary,0,0,ok
+backend/tests/fixtures/tiny_synth/fs/Downloads/CO301_Lab41_Report.py,5065765b78a6768fa6b949a3f33b6a68f5f735c3e34b8566244d7d92a20242c5,167,AST/import/call inventory,regression or integration boundary,0,0,ok
+backend/tests/fixtures/tiny_synth/fs/Downloads/CO301_Lab43_Report.py,e667d0f0d164ee3d9cb80e32bb8e02226f79945335f6fe67997c70546a92208e,174,AST/import/call inventory,regression or integration boundary,0,0,ok
+backend/tests/integration/__init__.py,f0eac9bf2fddb4f013d18f46f31d60e447b60be56f3dc53bfcda618f715e938c,33,AST/import/call inventory,regression or integration boundary,0,0,ok
+backend/tests/integration/test_backtest_e2e.py,be739727d2da60906d1e63da508563ddb8f43bb9cabdd07caea3b54bc46e551e,6137,AST/import/call inventory,regression or integration boundary,5,0,ok
+backend/tests/property/__init__.py,024169d1bd65b6f38efd17eaffc35713405d0a0b574c6ed2bbcb73c18e5d0313,30,AST/import/call inventory,regression or integration boundary,0,0,ok
+backend/tests/property/test_no_peeking.py,834cdefe9c6c61fd5d750da3e319c1df642952bf4a88d652a81c41a349927fe0,7394,AST/import/call inventory,regression or integration boundary,2,0,ok
+backend/tests/stubs/__init__.py,14d5b10810fcf7013a1bdadb56515cd373eb7dad405ad49c01c2a6e0b4df4e36,59,AST/import/call inventory,regression or integration boundary,0,0,ok
+backend/tests/stubs/stub_reader.py,8a55816ba5f056e187fc828731e6196caa4b9fb69670f54d10e4d0056f719ce0,4718,AST/import/call inventory,regression or integration boundary,2,1,ok
+backend/tests/unit/__init__.py,9d566025eaa21543b52722147774afc45981154f677dcc38078a2632e5b52947,26,AST/import/call inventory,regression or integration boundary,0,0,ok
+backend/tests/unit/test_caps_and_handsoff.py,0d1ec865f03e87c407a2ee1d2b86cdd80ca5e7d3f4593fcbdcee0df7f76d6ac3,8711,AST/import/call inventory,regression or integration boundary,5,0,ok
+backend/tests/unit/test_chains_habits.py,8e7ba661e02aec4c06ba890dd4a77fbb8134e0101d592a6cb55682d43d6173c2,20440,AST/import/call inventory,regression or integration boundary,9,0,ok
+backend/tests/unit/test_cli_commands.py,43d613ae5444f658fef998c5444788cec2109c9e7e8ef158275bc1e62d36e249,6275,AST/import/call inventory,regression or integration boundary,6,0,ok
+backend/tests/unit/test_cli_safety.py,5eb558ac72dbea466d476b3ac8f27ff3a718fa96220077bf13ed332c4c48bcd5,3663,AST/import/call inventory,regression or integration boundary,7,0,ok
+backend/tests/unit/test_drift_cusum_psi.py,df73dc0aea34d89fc50f7240065a2d48a97485729c27534a1424ce150ad26b68,3594,AST/import/call inventory,regression or integration boundary,7,0,ok
+backend/tests/unit/test_engine_evidence_lb.py,fa26a2d9c2fefd86e8fd81370b17a292ddbb0b6b114e71b4e87f5cb15d40389c,1933,AST/import/call inventory,regression or integration boundary,2,0,ok
+backend/tests/unit/test_engine_novelty.py,028de4f83125ede7edc6f8049d8e9889f404093aafd38526eaff290b0cbfeac8,2275,AST/import/call inventory,regression or integration boundary,2,0,ok
+backend/tests/unit/test_engine_policy.py,3602c7f822f1e554b7f8e0b7cf59ba8174a8d6e5a4a4d7598d7e42a6a6cfeb94,2691,AST/import/call inventory,regression or integration boundary,2,0,ok
+backend/tests/unit/test_eval.py,d42673ab3f9d85f21abf59e1102460cde17addf09e06bbb56311415f27f26f2f,12217,AST/import/call inventory,regression or integration boundary,17,0,ok
+backend/tests/unit/test_evidence_aggregation_and_licence.py,a10843a5e37404c57b93025aa59ca40b47d7ab76b534fa40a71835c3a38b5b11,9022,AST/import/call inventory,regression or integration boundary,2,0,ok
+backend/tests/unit/test_exam_board.py,9b4b1ca42e5d7c89b110a74776baf4f7970bf4fa4e14c4857a5739ab7d71ac77,17120,AST/import/call inventory,regression or integration boundary,15,2,ok
+backend/tests/unit/test_executor_simworld.py,96d3577181cf84d308008ac19b5422af072e1f2e14cc4bd225458a2447201f19,8875,AST/import/call inventory,regression or integration boundary,1,0,ok
+backend/tests/unit/test_files_pack.py,8f36e753c6d5b362a39be775ee366daa6ddf0969d201fff8a5c44f975a52d0a3,12880,AST/import/call inventory,regression or integration boundary,6,0,ok
+backend/tests/unit/test_gate_pure.py,82ff4011c367ad9cfdc5e30dbea4c5ef3e1718acf31783e860c8219fdf73c1b4,7583,AST/import/call inventory,regression or integration boundary,1,0,ok
+backend/tests/unit/test_hashing_and_id.py,0ff5a5abbf9f51c867d75f3c7102bc7f51bbde327af9ad30a642b1b9fb9b71f9,2595,AST/import/call inventory,regression or integration boundary,6,0,ok
+backend/tests/unit/test_identity_capability.py,ded7f3dff6143c51220bd3aa319562a6567297f7094c6cb3c02acda2728ac9ee,746,AST/import/call inventory,regression or integration boundary,2,1,ok
+backend/tests/unit/test_ingestor_and_features.py,8f6025286d9ddc3a8984474500f857818f87fd845726355b614c83feeab1f365,3537,AST/import/call inventory,regression or integration boundary,1,0,ok
+backend/tests/unit/test_ledger_integrity.py,e91875442ba49b5a87e33e1f65d068597b26832be41c74b87ac35ea133828ed3,3086,AST/import/call inventory,regression or integration boundary,4,0,ok
+backend/tests/unit/test_links_radar_reading.py,4eb5ca005acae37bf752cb641af60229d94cd1620b3dd8f1267b056f3bf814b3,26467,AST/import/call inventory,regression or integration boundary,17,0,ok
+backend/tests/unit/test_llm_client_and_budget.py,3943232abd845a4de9c8f19bb1cef3aefa919f18a27e38d0f1294794e8a05798,10338,AST/import/call inventory,regression or integration boundary,15,0,ok
+backend/tests/unit/test_merge_history.py,b1df4f8a33d45784e419c25ed624180a19697236ede2777f2895804e5ef910a0,2572,AST/import/call inventory,regression or integration boundary,1,0,ok
+backend/tests/unit/test_outcome_resolvers.py,7c9eb419e3ec2523296c9aa7cfa94a56b4c9a35ec033dc496b6262d7c2378bdf,8237,AST/import/call inventory,regression or integration boundary,8,1,ok
+backend/tests/unit/test_pack_conformance.py,edaf4b3a1e1e8eb23021261e23afdd9206041127cef867fdbcd959184c42048b,13987,AST/import/call inventory,regression or integration boundary,6,0,ok
+backend/tests/unit/test_pack_executors_and_exam_ops.py,8c7132ac727a7f0fda157bc502ea9d9f81a325ab4991a461a59e10fd69b39f5a,10555,AST/import/call inventory,regression or integration boundary,13,1,ok
+backend/tests/unit/test_redaction_pipeline.py,640a5852604906592a15ab9eafc3bfde0ea94888125ca1f05b266cc34b00786a,4622,AST/import/call inventory,regression or integration boundary,9,0,ok
+backend/tests/unit/test_registry_and_workers.py,1ed534dedc6e0292bcbf683a0461751245677fc8270e714238308e3bdf3a4261,7561,AST/import/call inventory,regression or integration boundary,13,2,ok
+backend/tests/unit/test_scaffold.py,062776e2d60ef5864245a13813c94bf00028958526f2c50b2279651c54b773b6,6044,AST/import/call inventory,regression or integration boundary,8,0,ok
+backend/tests/unit/test_security_boundaries.py,48d979dcca2e2a94ccf3c9b426331dae4df097c65e8249ce5ed5ce8cc1d7c83b,4577,AST/import/call inventory,regression or integration boundary,3,0,ok
+backend/tests/unit/test_synth.py,219a9dbb59382dbb2ce1f3561c0e3d12ca750e90a7ead6342c614701f7723d62,11619,AST/import/call inventory,regression or integration boundary,7,0,ok
+backend/tests/unit/test_tavily_webfacts.py,10196455d122cdd6ba8384014585e03f47d984e045af623ffbf8e6e33c650764,18167,AST/import/call inventory,regression or integration boundary,16,0,ok
+backend/tests/unit/test_wp1_action_storage.py,66e021cf2464c6be880c2a00c3ab1e4599470aa1cea4e2614c4325a03fe9c4b8,3131,AST/import/call inventory,regression or integration boundary,6,0,ok
+backend/tests/unit/test_wp1_actions.py,0aec071f6bba47821d2f60608489479b14d69a5c778e2310da893a3ab4bef5e8,4062,AST/import/call inventory,regression or integration boundary,9,0,ok
+backend/tests/unit/test_wp1_api_time.py,9f3912b3e3ae76f15a2879f051acb41a175c055d5ff227919ebe55650f89e535,2395,AST/import/call inventory,regression or integration boundary,1,0,ok
+backend/tests/unit/test_wp1_chain_storage.py,7da6a63814db0613120106298100b13e8f4d0a1c1aa379bd1533dde3f65aaa8c,2008,AST/import/call inventory,regression or integration boundary,3,0,ok
+backend/tests/unit/test_wp1_clock.py,7cdd57629bb990bf817409ce856a0bc46ccf800a7b734556474313a8865e0ba5,7670,AST/import/call inventory,regression or integration boundary,11,1,ok
+backend/tests/unit/test_wp1_commands.py,3cc852c3ae55a05da10172fbaabe9fb4ecad79189908117fa27b8abb92222c53,9651,AST/import/call inventory,regression or integration boundary,13,0,ok
+backend/tests/unit/test_wp1_context.py,394c8494770dc273ef18916fd78a359fe3f1372f1587388bd91257afe1330097,5274,AST/import/call inventory,regression or integration boundary,9,0,ok
+backend/tests/unit/test_wp1_drift_roles.py,7bc3552e1f26f2f3e355d9bc813e7783ee48bfbdd541cc91f502a7e5ab392a36,4866,AST/import/call inventory,regression or integration boundary,6,0,ok
+backend/tests/unit/test_wp1_execution_authority.py,43b66eb22c382bfa3fa8ef002c6d3fb8e5f28ad33212b648fb62611627e8d85b,2359,AST/import/call inventory,regression or integration boundary,2,0,ok
+backend/tests/unit/test_wp1_ledger_views.py,a4146a3163fc2a2718c6bee0582cf0f203d7093da4d1f648704d97a5c435b649,2436,AST/import/call inventory,regression or integration boundary,3,0,ok
+backend/tests/unit/test_wp1_payloads.py,d2f1d430cbb94456130bda9915b01b373831442b829c6efc3d0e5904469fe083,6369,AST/import/call inventory,regression or integration boundary,7,0,ok
+backend/tests/unit/test_wp1_proposals.py,dc8f015a04ea3d3d2cf9c5e09068dae1b23adf4976a4ada668acc1e615642fc5,4295,AST/import/call inventory,regression or integration boundary,5,0,ok
+backend/tests/unit/test_wp1_replay_persistence.py,ff85326bee212119ed891fa8ce32e155aa4622baf6ca53177a7b463e6690d8b9,12219,AST/import/call inventory,regression or integration boundary,14,2,ok
+backend/tests/unit/test_wp1_storage.py,ccf67771fed168a4580d2e89231352e96b34172fcac919107bd714dab0d4af20,7333,AST/import/call inventory,regression or integration boundary,13,0,ok
+backend/tests/unit/test_wp1_time_boundaries.py,578a6acc369453cb1956ba297860693f9bc0b2e7bcd150cf7d857f9d4aafa0ec,2609,AST/import/call inventory,regression or integration boundary,4,0,ok
+backend/tests/unit/test_wp1_transaction_owners.py,d208edaec23cf26d4e7c72bffc3b99565d7b406b71291e98c2abb8ca6364d33b,1504,AST/import/call inventory,regression or integration boundary,2,1,ok
+backend/tests/unit/test_wp1_validation.py,921b28574604eb7a767109145f284bbc9261809a7dab2d92c2134af50338a9cf,5809,AST/import/call inventory,regression or integration boundary,8,0,ok
+config/brands.json,2fbaf675770c9553df89deaab04d0befa29e3f8989e9f4f0e9617feb413c544b,4327,metadata/hash and packaging inventory,supporting asset; no runtime certification,,,
+config/prices.json,8ddd49bfd8667dec64d65c4bfe83b3e66f30d8cf5aed8274862dcd05bba8b987,439,metadata/hash and packaging inventory,supporting asset; no runtime certification,,,
+deploy/openshell/README.md,6bbc509013d48e2739e4cd5e4c9731e017fdd7bac31b8e6e0c29b046a606e2d9,2170,metadata/hash and packaging inventory,supporting asset; no runtime certification,,,
+docs/AGENT_PLAYBOOK.md,3b0dbdd24ec3c58ce47e0054be98b4cd666deb67df28292702f89566835fbfa6,17224,governing/reference documentation inventory,requirements and acceptance,,,
+docs/BUILD_LOGGING_PROTOCOL.md,7f044db9447b528a1041501d2b0ec266cd4afcd2662e32b4a8827429d8c678fc,5191,governing/reference documentation inventory,requirements and acceptance,,,
+docs/CHANGES_IMPLEMENTATION_PLAN.md,a4630b81356810f672a9e06244cd5762c38f9c78806e2d45069177e996a6f3d8,87285,governing/reference documentation inventory,requirements and acceptance,,,
+docs/CONTRACT.md,de2f75bfdd599fbfba99efe212a5c7465d2a317d768909e45cf7b25d20a3a044,29115,governing/reference documentation inventory,requirements and acceptance,,,
+docs/CONTRACT_AMENDMENT_2026-10-22.md,75c41b4d3c10aad91bd866eb0596e7ad32101c71992d37a9b1039f73bab25772,8993,governing/reference documentation inventory,requirements and acceptance,,,
+docs/DATA_MODEL.md,214b7e209ae111496e47d20c72418c660e788a4eeee5a58353e4dfb3d128f2e7,22149,governing/reference documentation inventory,requirements and acceptance,,,
+docs/DECISIONS_AND_OPEN_QUESTIONS.md,449bac64f68d5e2202e0a2543e6c52f9a5392db0a71df9c6bea54fbad3c42072,17709,governing/reference documentation inventory,requirements and acceptance,,,
+docs/DEMO_AND_SUBMISSION.md,bc57a26c6675739f433a7e622b9a8ce4b1c02cf3bf368ecb5b9afdc0ed3dc996,10158,governing/reference documentation inventory,requirements and acceptance,,,
+docs/DEVELOPMENT_CHECKS.md,83c5f381dc88df38ea13d30536437745d16027d443bdad81dbb395e72fc7c5f9,3226,governing/reference documentation inventory,requirements and acceptance,,,
+docs/ENGINE_SPEC.md,6789868e266960658ab8dfc6dd4702c410f42f7d7c32dc3d62dbf48cf105b642,28111,governing/reference documentation inventory,requirements and acceptance,,,
+docs/EVALUATION_PLAN.md,fcc5fd335ba0a852604f8aebf010f84c0719fcbd97d4f8795aeb368c287d7288,14688,governing/reference documentation inventory,requirements and acceptance,,,
+docs/FRONTEND_IMPLEMENTATION_PLAN.md,f8c0e8ad8e61c676dbab1c23434d52ae9c21f8b31447b65175cc45db3b2bd3d9,67312,governing/reference documentation inventory,requirements and acceptance,,,
+docs/FULL_PRODUCT_SPEC.md,f18c4b9dde397277bfb33950faf94780daeb42439e1502581389f6610061b03c,92135,governing/reference documentation inventory,requirements and acceptance,,,
+docs/IMPLEMENTATION_PLAN.md,f86765a4c760123d9a63d14048f052cd77fb560d47f4de228d591477a0b818ad,17639,governing/reference documentation inventory,requirements and acceptance,,,
+docs/LLM_SCHEMA_SUPPORT.md,68b8c3f5ba7b1aeb143863da48d81a0aab2dbf161adc9665c9c9362f06477123,2592,governing/reference documentation inventory,requirements and acceptance,,,
+docs/MEMBER_SPLIT.md,e1d05f13c15f60dd32a57f79b070c08d6de01e49beec1de5456a8f9144330690,8805,governing/reference documentation inventory,requirements and acceptance,,,
+docs/PACKS_SPEC.md,018172592bb054cf886af029c195de794bed35d2b8da37b318b4fc109f1d4113,18819,governing/reference documentation inventory,requirements and acceptance,,,
+docs/PRODUCT_OPINION_REVIEW.md,0fac4fc75682e4cac8c251e01b9198f50b534e5e7af4f36809624e30e0c0f801,8153,governing/reference documentation inventory,requirements and acceptance,,,
+docs/PROMPTS.md,7aa81ffa09c6ed8162986a03b2f87ed36209b5ec3652246d6069ca37d07e082d,17744,governing/reference documentation inventory,requirements and acceptance,,,
+docs/README.md,72f98d73baa0bb9599031dfd527cba9e887d000b608eff181f5aa405cee3fbd7,5222,governing/reference documentation inventory,requirements and acceptance,,,
+docs/SCAFFOLD.md,990585df1ef1cb8234de269d0ae5684708436ac155a6eaa3c7cded1b4ee618bb,38144,governing/reference documentation inventory,requirements and acceptance,,,
+docs/SECURITY_PRIVACY.md,6a2235dcf3f68cc0b6712f71b622c2f683a2db74d11bd83770f28892085162e6,11831,governing/reference documentation inventory,requirements and acceptance,,,
+docs/SYSTEM_DESIGN.md,0fc30b603fdc932359e09fc825cbdba57e36dc3b1d44e6eea9ff91212fd8cdb8,47937,governing/reference documentation inventory,requirements and acceptance,,,
+docs/TAVILY_AND_NEW_PACKS.md,ccaa29c18df3abc1812d7d005c0b6c97b443a91a9cf2574e3e8558e4e1156f91,33026,governing/reference documentation inventory,requirements and acceptance,,,
+docs/TECH_STACK_AND_REPO.md,780b262f10bd853e9d374cda0e5b6b8ee98dd575a8fc11368780d4be575936a8,12824,governing/reference documentation inventory,requirements and acceptance,,,
+docs/TEST_PLAN.md,18d334088f0e990d8e479466a5f052545a78917d50bc90960b31df20ecad95e0,15589,governing/reference documentation inventory,requirements and acceptance,,,
+docs/USER_FLOW.md,e0a1ab9e2742a73b6b6051bc4bf5d1010ad9f504b00e37796a26e6ff4fb30b12,27700,governing/reference documentation inventory,requirements and acceptance,,,
+docs/agent-kit/workflows/run-phase.md,396a1113e5e2ee4b570e2edbd558783cc73e7b8ce38b7d72dc77078163ef234f,1478,governing/reference documentation inventory,requirements and acceptance,,,
+docs/agent-kit/workflows/verify-phase.md,18268f0cb16d7ff0f802750ac9752f9532fb22ef0730f8a7f36df4f8805ad0de,1941,governing/reference documentation inventory,requirements and acceptance,,,
+docs/images/spruce-and-brass-permissions-preview.png,29bc1cd57c680f797aa27c10eafa12f8116024057c6c50340f69b0128cf3527b,1601203,governing/reference documentation inventory,requirements and acceptance,,,
+docs/images/spruce-and-brass-queue-preview.png,54d935c1d4348b4c7f3d8fd619eb7c67d423c6aa38e9ec9f83b5533b6acc0c90,1447657,governing/reference documentation inventory,requirements and acceptance,,,
+docs/reports/changes-audit-2026-10-22.md,dc84ac3e6a56c3831e1a06e862f2f0c41b77978fc2cadc02e3b02d4bb7facc0a,27175,governing/reference documentation inventory,requirements and acceptance,,,
+docs/reports/changes-coverage.csv,af9991706dbcb55478ae176f534f7adca390fbfe27e9124747bc99bb1fece691,159818,governing/reference documentation inventory,requirements and acceptance,,,
+docs/reports/changes-review-inventory.csv,7d3884cfbd862b6e8c1892e16c6881d3321449f66dc6a64aaaaf8a6da3b9f768,37008,governing/reference documentation inventory,requirements and acceptance,,,
+docs/reports/full-product-coverage.md,b36a8745d52b32b59fc7a5ce9844252460f3e2821d28ef29443c39d78fa7ff45,2631,governing/reference documentation inventory,requirements and acceptance,,,
+docs/reports/phase-0.md,bcb8fc9a6ce71fb51eca3791791e77b06c4b2c6dc18394c3811c5c8729895dca,6370,governing/reference documentation inventory,requirements and acceptance,,,
+docs/reports/phase-1.md,ba930e43abfe3041d633501343d6b3d9fe3478ad7861b0abc066c819d30ee014,6771,governing/reference documentation inventory,requirements and acceptance,,,
+docs/reports/phase-10.md,9c056db5e0c124c5373c0ca272728c8bd500f9380de6a33f758dbfea3c47d23e,7627,governing/reference documentation inventory,requirements and acceptance,,,
+docs/reports/phase-2.md,e6d94419bf521e2199a6244079ca150e0630210ba09cc3fc78d0676195b20dba,5369,governing/reference documentation inventory,requirements and acceptance,,,
+docs/reports/phase-3.md,2d3fa72e3e08633fded14c6261cd0395653366279501b2620363785d3a537970,7121,governing/reference documentation inventory,requirements and acceptance,,,
+docs/reports/phase-4.md,fec1df1411420ccecdd23ad5f6c9fade9b040130b7331b567c5212431943383b,5968,governing/reference documentation inventory,requirements and acceptance,,,
+docs/reports/phase-5.md,6ed7444a7924f46985603a57b63277e8d9e54551e590a249ee0e10805857e2e1,8965,governing/reference documentation inventory,requirements and acceptance,,,
+docs/reports/phase-6.md,a9d375f4cb35c7a5193dfba301bb48a09e532651104ab74158f57a86c21d8ed4,6273,governing/reference documentation inventory,requirements and acceptance,,,
+docs/reports/phase-6b.md,e6aea823082ee65a57bfd57ed2c2c1f597be5eadf95741743e03129a1afa79f1,8056,governing/reference documentation inventory,requirements and acceptance,,,
+docs/reports/phase-7.md,d14b076b4535e3cae9a7cc04614ac9fad6d1246eada9cd136598baa973d12edf,7026,governing/reference documentation inventory,requirements and acceptance,,,
+docs/reports/phase-8.md,16350492fe56fc547bbc04bb1c60bba13d8273dc7f8a790a1d20d373a29f5d51,8718,governing/reference documentation inventory,requirements and acceptance,,,
+docs/reports/phase-8b.md,1e79e3f19a6007b4eb7024cd916474a217bea554410611cbc2fa0aafd107523a,10267,governing/reference documentation inventory,requirements and acceptance,,,
+docs/reports/phase-9.md,dd84a8f0d2f7fd592e1d7a68be3ba5a35d80677655e70921c9c01c43a6135b08,10773,governing/reference documentation inventory,requirements and acceptance,,,
+docs/reports/wp0-handoff-2026-10-22.md,ce5073b3f1c024b82da6e864984a09c05eab7e9d2314ca6b1f4c226c447073be,4740,governing/reference documentation inventory,requirements and acceptance,,,
+docs/reports/wp0-toolchain.json,6730dd284f9c5d540b7251f834efb20a097514ec24de093eccc82b7c06e19963,790,governing/reference documentation inventory,requirements and acceptance,,,
+docs/reports/wp0-tracked-build-history.txt,916c15b1f5f202744843396641d79ef18419880b85f1697486a2a3bfe5b02bbe,3084,governing/reference documentation inventory,requirements and acceptance,,,
+docs/reports/wp0-wp1-execution.md,2803c4356a980ffa05db67ef868838d95447a18cc3782e5738d6bba9051177ef,3684,governing/reference documentation inventory,requirements and acceptance,,,
+docs/reports/wp1-action-metadata-2026-10-22.md,b838953c195a81dfc65fd3fe14adeeab23f7654e0fa856791952370a29ae1aa7,1825,governing/reference documentation inventory,requirements and acceptance,,,
+docs/reports/wp1-checkpoint-2026-10-22.md,b0190923baffe960e48e31f3aaa34eb690e9bed3563f554c1183e946b1606a10,11170,governing/reference documentation inventory,requirements and acceptance,,,
+docs/reports/wp1-closure-2026-10-22.md,53e4de2638210b144fb5babee57d8033f9f6810bd8df7ee6636985e12023e814,11762,governing/reference documentation inventory,requirements and acceptance,,,
+docs/reports/wp1-progress-2026-10-22.md,b719f3bcbcaf466a65837ff1ef68e42a21e221f1e2ac7697452dadc37a73ac61,1620,governing/reference documentation inventory,requirements and acceptance,,,
+docs/reports/wp1-wp2-merge-2026-10-22.md,49768b8869646d8bc81351824ef8435950e2e3304bcf92dcec9c50d0f38769c3,4188,governing/reference documentation inventory,requirements and acceptance,,,
+docs/results/PROVENANCE.md,5f998dbbabdd34652a944bac4e75ffae51cd355d9360f3f31e561ba225f4b13e,1016,governing/reference documentation inventory,requirements and acceptance,,,
+docs/results/main.json,2a63dd7fc527d4402ca36139dcbcd5fd5f957e6ddc3e7eba6af42e3fcd9c5893,2416,governing/reference documentation inventory,requirements and acceptance,,,
+docs/results/tables.md,12ba9aac31b49775888f8bc71e3c7613661b11aa56f082ea06283b1f04e8ae5b,1873,governing/reference documentation inventory,requirements and acceptance,,,
+docs/templates/log_schema.md,29973df067f7540a1bdd3da3052b4e9f0a9c16791fc9f28b1baafc4465d57a5a,2551,governing/reference documentation inventory,requirements and acceptance,,,
+frontend/package-lock.json,299a0ede68987914ef6e0292ab541f584acc72c169dd43f3ce319a57a54f306f,106965,metadata/hash and packaging inventory,supporting asset; no runtime certification,,,
+frontend/package.json,a1cd77a3d167fb12878b4a58dad37d49483c8a6843b810c61964f37763c90096,699,metadata/hash and packaging inventory,supporting asset; no runtime certification,,,
+frontend/src/App.tsx,6e9e0c2294f347650e0ab02ce4cee8cf95da3b603bc20f152b04eac24a1b088d,11497,interface/reference inventory,WP6/WP9 draft and status handoff,,,
+frontend/src/api/client.ts,600d53834b0d2e8e947a3c88b97262e0050480b64343efbc9b172b7123f6ff9e,10121,interface/reference inventory,WP6/WP9 draft and status handoff,,,
+frontend/src/api/fixtures.ts,9d8c18816407eb95eac5f9917f40d269f5f5e4b0fb9c799395a7556cd5989803,28441,interface/reference inventory,WP6/WP9 draft and status handoff,,,
+frontend/src/api/types.ts,883c169261f843661cef1a82d418693ca45b7a7fca80dbbf73e4aa1b8340ff98,7862,interface/reference inventory,WP6/WP9 draft and status handoff,,,
+frontend/src/components/common/Badge.tsx,a75d97eda428d65b3cdbcd0e04050dcd8ecc576d9dd4387f5ceeba7968135dda,902,interface/reference inventory,WP6/WP9 draft and status handoff,,,
+frontend/src/components/common/Button.tsx,1e2a639fe54bae93b1eaa59c51ba5708c77b7c869d4add377daeb7faa69d5335,1352,interface/reference inventory,WP6/WP9 draft and status handoff,,,
+frontend/src/components/common/EmptyState.tsx,791c3a1d1bcf35a570762b7a79812be0bec9f6a4bdf4f08938534b2bb94471f2,845,interface/reference inventory,WP6/WP9 draft and status handoff,,,
+frontend/src/components/common/ErrorBanner.tsx,3da3fbddfaf59c3442effb85d42ed6dd2ac42078c9854fc0be6c929e8834c4c9,809,interface/reference inventory,WP6/WP9 draft and status handoff,,,
+frontend/src/components/layout/DesktopSidebar.tsx,7b040793c2db92b0930258f6695d0ad21fcd739aa72d439485507430e8143dcf,3908,interface/reference inventory,WP6/WP9 draft and status handoff,,,
+frontend/src/components/layout/Header.tsx,c130341d5d59df8ce7a6d2e2faa32ee75b466611f5dba4e53f0d1db7706492eb,1487,interface/reference inventory,WP6/WP9 draft and status handoff,,,
+frontend/src/components/layout/MobileNav.tsx,39809409bb226acc2f199de9ca264bc1478abf2dc366822c6d70bfa2f876b65d,1728,interface/reference inventory,WP6/WP9 draft and status handoff,,,
+frontend/src/index.css,37c27f3470752651be6fd4b0d539d69621499f3dac22bf0da844d51e566cc058,2166,interface/reference inventory,WP6/WP9 draft and status handoff,,,
+frontend/src/main.tsx,d47974e18ce8fb433396d39229c31f8d1e8ad00cb72906298f4b4b9017b56e86,426,interface/reference inventory,WP6/WP9 draft and status handoff,,,
+frontend/src/views/ActionsView.tsx,1dfd52fc0f76370a7aa86db09da582bde45f194394e43b37232bd3c240fbd88f,10968,interface/reference inventory,WP6/WP9 draft and status handoff,,,
+frontend/src/views/HomeView.tsx,c29c3977b7a4914a2e00e98b58f6ed543ba3bf1e633f339cad36600ac8db6683,6694,interface/reference inventory,WP6/WP9 draft and status handoff,,,
+frontend/src/views/InsightsView.tsx,4b1298ab8630bd10834b29962be450f0bfb5f6db33266921a4ce071215f339b2,29367,interface/reference inventory,WP6/WP9 draft and status handoff,,,
+frontend/src/views/MoreView.tsx,5e5984af5c8fa931025d873022298c2f231555442496876f470b0b5d651f534b,18045,interface/reference inventory,WP6/WP9 draft and status handoff,,,
+frontend/src/views/PermissionsView.tsx,bde14aa7be41d3b5831c62082c48e6e032ef473f9d2ccaa26e3f1954c7639040,18612,interface/reference inventory,WP6/WP9 draft and status handoff,,,
+frontend/src/views/QueueView.tsx,2b59a66be673cc2380621ec78f933f3f54de69b32b856ea43923be383f1c2d4c,22396,interface/reference inventory,WP6/WP9 draft and status handoff,,,
+frontend/src/views/RadarView.tsx,9dbd52d558008400cd15d7b97dc88695f4c28dbdab19b9648cc70e0f703429d9,5162,interface/reference inventory,WP6/WP9 draft and status handoff,,,
+frontend/src/vite-env.d.ts,65996936fbb042915f7b74a200fcdde7e410f32a669b1ab9597cfaa4b0faddb5,38,interface/reference inventory,WP6/WP9 draft and status handoff,,,
+frontend/tests/admin_commands.test.mjs,2907bc7a71cfee3e2798abeabf00cabb9159b8dcbe2c4e08a8741157ffc165fa,3194,metadata/hash and packaging inventory,supporting asset; no runtime certification,,,
+make.cmd,95c0f11636578c953504afa0f27a0263d9f42ee68a18c0d0aefcc61c0698ec33,2825,metadata/hash and packaging inventory,supporting asset; no runtime certification,,,
+pyproject.toml,88ba1cc49510918458b023b0f29d0af55395ef8d7ed305f68fd5d34294db8e76,643,metadata/hash and packaging inventory,supporting asset; no runtime certification,,,
+scripts/check.py,ecd4f7a78c1726dde85364b8f1a79fa8425c0db645ecfe143d5a689442744b56,5809,AST/import/call inventory,regression or integration boundary,4,0,ok
+scripts/snapshot_folder.py,ad361d9518b67f80a8664693a56108e0359101b3328e083a6565ed18555e241b,1119,AST/import/call inventory,regression or integration boundary,2,0,ok
+scripts/spike_embed.py,965c0998650365d60e144aa0e72852dd915c88d102cbe80f4a9c84493cad41bb,2123,AST/import/call inventory,regression or integration boundary,1,0,ok
+scripts/spike_llm.py,4e0dc71ffdb1143d010361d52b8ed7b7716ee34b112b676a0cdba0cdeb0ce3a0,4306,AST/import/call inventory,regression or integration boundary,1,1,ok
+scripts/spike_tavily.py,1352afc9081982fbdeecca4be7cca2159b4d589d57490f616c78fd8fcb976e1e,3380,AST/import/call inventory,regression or integration boundary,1,0,ok
+scripts/test_live_nebius.py,c26e0582f676d5e3d13227b09c3da8b56ef331560b4b7127ecf72cf77b079d64,2071,AST/import/call inventory,regression or integration boundary,1,0,ok
+scripts/verify_budget.py,70eebb75e9ba4a59d33ecdb4480c264cd97bb2a3439012abbdfddf3ea052c0df,1806,AST/import/call inventory,regression or integration boundary,1,0,ok

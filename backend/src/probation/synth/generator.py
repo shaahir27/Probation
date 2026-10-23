@@ -253,6 +253,50 @@ class SyntheticGenerator:
                             }
                         )
 
+            elif eval_res.final_action == "FORWARD" and not is_censored:
+                # PACKS_SPEC section 1.6 rank 2 recognizes a forward by its `Fwd:` subject and by
+                # the quoted original ID, so both are rendered here. `in_reply_to` stays empty: a
+                # forward is not a reply, and setting it would rank the message as REPLY instead.
+                target = self.rng.choice(
+                    [c for c in self.persona.contacts if c.email != contact.email]
+                )
+                fwd_dt = event_dt + timedelta(
+                    hours=self.rng.randint(1, 18), minutes=self.rng.randint(0, 59)
+                )
+                fwd_ref = f"<fwd-{self.persona.id}-{i:05d}@{target.email.split('@')[-1]}>"
+                signoff = self.rng.choice(self.persona.writing_style.signoffs)
+                all_messages.append(
+                    {
+                        "id": det_id("mail_msg", self.persona.email, fwd_ref),
+                        "message_id": fwd_ref,
+                        "thread_id": thread_id,
+                        "from_addr": f"{self.persona.name} <{self.persona.email}>",
+                        "to_addr": f"{target.name} <{target.email}>",
+                        "subject": f"Fwd: {subject}",
+                        "body": (
+                            "Forwarding this on.\n\n"
+                            f"---- Forwarded message {msg_ref} ----\n"
+                            f"From: {contact.name} <{contact.email}>\n"
+                            f"Subject: {subject}\n\n{body}\n\n{signoff}"
+                        ),
+                        "labels": ["SENT"],
+                        "occurred_at": fwd_dt.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                        "in_reply_to": None,
+                        "is_automated": False,
+                        "has_attachment": False,
+                    }
+                )
+                all_user_actions.append(
+                    {
+                        "id": det_id("act", msg_ref, "FORWARD"),
+                        "item_id": msg_ref,
+                        "action_type": "FORWARD",
+                        "acted_at": fwd_dt.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                        "actor": "user",
+                        "details": {"forward_message_id": fwd_ref},
+                    }
+                )
+
         # 2. Generate Calendar Invites
         for j in range(n_invites):
             day_idx = int((j / n_invites) * (SIMULATION_DAYS - 1))
@@ -436,7 +480,7 @@ class SyntheticGenerator:
         world_db_path = out_path / "world.db"
         if world_db_path.exists():
             world_db_path.unlink()
-        with SimWorld(world_db_path) as world:
+        with SimWorld(world_db_path, user_addresses=[self.persona.email]) as world:
             for msg in all_messages:
                 init_labels = (
                     ["INBOX"]
@@ -492,6 +536,10 @@ class SyntheticGenerator:
                     actor=act.get("actor", "user"),
                     details=act.get("details"),
                 )
+            # Every column above holds the state at world creation and `all_user_actions` is the
+            # dated stream that evolves it. Declaring that is what lets an as-of projection trust
+            # the stored columns instead of assuming nothing has ever happened.
+            world.declare_initial_state()
 
         # Write truth.json (HIDDEN ground truth)
         truth_file = out_path / "truth.json"

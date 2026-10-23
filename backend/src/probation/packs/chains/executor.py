@@ -6,9 +6,25 @@ BLOCK_TIME and CREATE_TASK are recallable. Undo deletes the created event or tas
 
 from typing import Any
 
+from probation.config import settings
 from probation.core.hashing import det_id
+from probation.core.identity import normalize_address, normalize_user_addresses
 from probation.core.types import Action, ExecResult
 from probation.packs.base import ExecutorIO
+from probation.packs.identity import world_user_addresses
+
+
+def _owner_address(world: ExecutorIO) -> str | None:
+    """The address an effect is attributed to, or None when the owner is unknown.
+
+    Authority: docs/PACKS_SPEC.md section 0.1 and the CONTRACT fail-closed rule. Attributing
+    an effect to a hardcoded address is worse than refusing to act: a self-created event
+    organized by a stranger is later read as an incoming invite, and a draft sent by a
+    stranger is never recognized as the owner's own reply. Both manufacture evidence about a
+    person who does not exist in this world.
+    """
+    addresses = world_user_addresses(world) or normalize_user_addresses(settings.user_addresses)
+    return addresses[0] if addresses else None
 
 
 def execute_chain_action(action: Action, world: ExecutorIO) -> ExecResult:
@@ -29,6 +45,13 @@ def execute_chain_action(action: Action, world: ExecutorIO) -> ExecResult:
         uid = "block-" + det_id(action.id, "BLOCK_TIME")
 
         if hasattr(world, "add_event"):
+            owner = _owner_address(world)
+            if owner is None:
+                return ExecResult(
+                    success=False,
+                    action_id=action.id,
+                    error="Owner identity unknown; refusing to attribute a created event",
+                )
             world.add_event(
                 event_id=uid,
                 uid=uid,
@@ -36,7 +59,7 @@ def execute_chain_action(action: Action, world: ExecutorIO) -> ExecResult:
                 description="Automated focus block created by Probation chain rule.",
                 start_time=start_time,
                 end_time=end_time,
-                organizer="meena@example.test",
+                organizer=owner,
                 attendees=[],
                 status="CONFIRMED",
                 my_status="ACCEPTED",
@@ -84,12 +107,23 @@ def execute_chain_action(action: Action, world: ExecutorIO) -> ExecResult:
         template = str(params.get("template") or "Draft Reply")
 
         if hasattr(world, "add_message"):
+            owner = _owner_address(world)
+            recipient = normalize_address(str(params.get("to") or ""))
+            if owner is None or not recipient:
+                # CONTRACT amendment FP-D13: a reply goes to the original sender only, and the
+                # sender is bound to the reviewed payload. With no recipient carried in the
+                # action there is nothing to bind to, so a draft would be invented.
+                return ExecResult(
+                    success=False,
+                    action_id=action.id,
+                    error="Refusing to draft a reply without a known owner and original sender",
+                )
             world.add_message(
                 msg_id=msg_id,
                 message_id=f"<{msg_id}@probation.sim>",
                 thread_id="chain-draft",
-                from_addr="meena@example.test",
-                to_addr="recipient@example.test",
+                from_addr=owner,
+                to_addr=recipient,
                 subject=f"Re: {template}",
                 body=template,
                 labels=["DRAFT"],

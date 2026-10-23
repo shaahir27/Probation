@@ -19,7 +19,7 @@ from typing import Any
 from probation.config import settings
 from probation.core.clock import get_clock
 from probation.core.hashing import canonical_json, canonical_raw_item_id, det_id, normalize_rel_path
-from probation.core.identity import normalize_address
+from probation.core.identity import normalize_address, normalize_user_addresses
 
 
 @dataclass(frozen=True)
@@ -95,7 +95,7 @@ def _resolve_user_addresses(
 ) -> list[str]:
     """Resolve and persist user addresses from explicit args, meta table, persona.json, or settings."""
     if user_addresses:
-        norm = [normalize_address(a) for a in user_addresses if a.strip()]
+        norm = normalize_user_addresses(user_addresses)
         if norm:
             conn.execute(
                 "INSERT OR REPLACE INTO meta (key, value) VALUES ('user_addresses', ?);",
@@ -109,7 +109,7 @@ def _resolve_user_addresses(
     row = cursor.execute("SELECT value FROM meta WHERE key = 'user_addresses'").fetchone()
     if row and row[0]:
         val = str(row[0]).strip()
-        addrs = [normalize_address(a) for a in val.split(",") if a.strip()]
+        addrs = normalize_user_addresses(val)
         if addrs:
             return addrs
 
@@ -124,18 +124,19 @@ def _resolve_user_addresses(
                     pdata = json.load(f)
                 email_val = pdata.get("email")
                 if email_val:
-                    norm = [normalize_address(email_val)]
-                    conn.execute(
-                        "INSERT OR REPLACE INTO meta (key, value) VALUES ('user_addresses', ?);",
-                        (",".join(norm),),
-                    )
-                    conn.commit()
-                    return norm
+                    norm = normalize_user_addresses(email_val)
+                    if norm:
+                        conn.execute(
+                            "INSERT OR REPLACE INTO meta (key, value) VALUES ('user_addresses', ?);",
+                            (",".join(norm),),
+                        )
+                        conn.commit()
+                        return norm
             except Exception:
                 pass
 
     # Fall back to settings
-    norm = [normalize_address(a) for a in settings.user_addresses.split(",") if a.strip()]
+    norm = normalize_user_addresses(settings.user_addresses)
     if norm:
         conn.execute(
             "INSERT OR REPLACE INTO meta (key, value) VALUES ('user_addresses', ?);",
@@ -160,7 +161,7 @@ def import_mail(
 
     source_id = _get_or_create_source(conn, "mail", "mbox", str(path))
     user_addrs = _resolve_user_addresses(conn, path, user_addresses)
-    user_addrs_set = {normalize_address(a) for a in user_addrs if a.strip()}
+    user_addrs_set = set(normalize_user_addresses(user_addrs))
 
     mbox = mailbox.mbox(str(path))
     imported = 0
@@ -270,7 +271,7 @@ def import_calendar(
 
     source_id = _get_or_create_source(conn, "calendar", "ics", str(path))
     user_addrs = _resolve_user_addresses(conn, path, user_addresses)
-    user_addrs_set = {normalize_address(a) for a in user_addrs if a.strip()}
+    user_addrs_set = set(normalize_user_addresses(user_addrs))
 
     imported = 0
     skipped = 0

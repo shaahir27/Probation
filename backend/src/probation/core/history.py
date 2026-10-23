@@ -12,6 +12,7 @@ from datetime import datetime
 from typing import Any, cast
 
 from probation.core.clock import format_timestamp
+from probation.core.identity import normalize_address, normalize_user_addresses
 from probation.db.guards import ReadConnection
 
 
@@ -215,18 +216,32 @@ class HistoryView:
         return deltas
 
     def count_prior_sent_to_recipient(self, recipient_email: str) -> int:
-        """Count prior user sent messages directed to a recipient with known_at <= as_of."""
+        """Count prior user sent messages directed to a recipient with known_at <= as_of.
+
+        The LIKE clause is only a coarse prefilter that keeps this off a full scan of sent
+        mail; it cannot decide membership. A raw `To` header holds display names and several
+        comma-separated addresses, so `'%a@x.com%'` also matches `ba@x.com` and
+        `a@x.com.attacker.test`. The decision is made by parsing each candidate header and
+        comparing normalized addresses exactly (docs/PACKS_SPEC.md section 0.2).
+        """
+        recipient = normalize_address(recipient_email)
+        if not recipient:
+            return 0
         query = """
-            SELECT COUNT(*) FROM raw_items
+            SELECT json_extract(payload_json, '$.to') FROM raw_items
             WHERE pack = 'mail'
               AND item_kind = 'mail_sent'
               AND known_at COLLATE UTC_TIMESTAMP <= ?
               AND json_extract(payload_json, '$.to') LIKE ?
         """
         cur = self._conn.cursor()
-        cur.execute(query, (self.as_of, f"%{recipient_email}%"))
-        row = cur.fetchone()
-        return int(row[0]) if row else 0
+        cur.execute(query, (self.as_of, f"%{recipient}%"))
+        count = 0
+        for (to_header,) in cur.fetchall():
+            recipients = normalize_user_addresses("" if to_header is None else str(to_header))
+            if recipient in recipients:
+                count += 1
+        return count
 
     def get_prior_thread_stats(
         self,
@@ -264,7 +279,10 @@ class HistoryView:
         )
         thread_msgs = 0
         user_sent = False
-        norm_user_addrs = [u.lower().strip() for u in user_addresses if u.strip()]
+        # Exact membership, never substring: an owner token such as "me" is contained in most
+        # addresses, so `token in from_addr` would credit unrelated senders as the owner and
+        # inflate n_prior_sent / thread participation (plan section 6.1.3).
+        owner = set(normalize_user_addresses(user_addresses))
         for r in cur.fetchall():
             if current_raw_item_id and r["id"] == current_raw_item_id:
                 continue
@@ -274,8 +292,8 @@ class HistoryView:
             else:
                 try:
                     p = json.loads(r["payload_json"])
-                    from_addr = str(p.get("from") or p.get("from_addr") or "").lower()
-                    if any(u in from_addr for u in norm_user_addrs):
+                    from_addr = str(p.get("from") or p.get("from_addr") or "")
+                    if owner and normalize_address(from_addr) in owner:
                         user_sent = True
                 except Exception:
                     pass

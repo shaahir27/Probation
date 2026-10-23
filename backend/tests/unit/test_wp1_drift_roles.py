@@ -123,3 +123,51 @@ def test_pending_review_blocks_even_an_injected_licence_checker(
     result = executor.process_queue(as_of="2026-01-02T00:00:00Z")
     assert len(result) == 1 and result[0].error == "Drift review pending"
     assert calls == []
+
+
+def test_an_unrenderable_proposal_action_is_reviewed_but_not_tracked(
+    memory_db: sqlite3.Connection, basic_situation: Situation
+) -> None:
+    """Replay must not abort on a proposal the pack cannot render, and must not stall on it either.
+
+    A files resolver can report a deletion, the policy learns it, and the argmax can then be an
+    action outside the family catalogue -- already failed closed to ASK, so there is no habit whose
+    drift could be monitored. Its receipt still has to be written: leaving the event unreviewed
+    would deny execution for that class forever.
+    """
+    persist_proposal(
+        RoleAccess(memory_db, Role.BRAIN),
+        Proposal(
+            id="unrenderable-proposal",
+            situation_id=basic_situation.id,
+            family=basic_situation.family,
+            class_key="file|arxiv.org|doc",
+            action="DELETE",
+            p_max=0.51,
+            novel=False,
+            gate=GateDecision.ASK,
+            proposed_at=basic_situation.occurred_at,
+            policy_version="wp2",
+            features_hash="wp2",
+        ),
+    )
+    append_ledger(
+        memory_db,
+        "outcome",
+        "unrenderable-outcome",
+        {
+            "situation_id": basic_situation.id,
+            "observed_action": "LEAVE",
+            "strength": "WEAK",
+            "source": "footprint",
+            "known_at": "2026-01-02T00:00:00Z",
+        },
+        "2026-01-02T00:00:00Z",
+    )
+    memory_db.commit()
+
+    assert review_outcome_events(memory_db, as_of="2026-01-03T00:00:00Z") == 1
+    assert memory_db.execute("SELECT COUNT(*) FROM drift_state").fetchone()[0] == 0
+    assert memory_db.execute("SELECT COUNT(*) FROM drift_receipts").fetchone()[0] == 1
+    assert review_outcome_events(memory_db, as_of="2026-01-04T00:00:00Z") == 0
+    assert verify_ledger(memory_db)[0]

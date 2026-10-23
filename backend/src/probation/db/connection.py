@@ -74,15 +74,42 @@ def apply_schema(conn: sqlite3.Connection) -> None:
         schema_sql = f.read()
     conn.executescript(schema_sql)
     conn.commit()
-    from probation.db.migrations import migrate_wp1
+    from probation.db.migrations import migrate_indexes, migrate_wp1
 
     migrate_wp1(conn)
+    migrate_indexes(conn)
+
+
+def has_schema(conn: sqlite3.Connection) -> bool:
+    """Report whether this database already carries the engine schema."""
+    row = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='situations'"
+    ).fetchone()
+    return row is not None
+
+
+def ensure_schema(conn: sqlite3.Connection) -> None:
+    """Create the schema on a fresh database, or upgrade an existing one in place.
+
+    `apply_schema` alone cannot do this: schema.sql declares bare `CREATE TABLE`, so
+    re-running it against an initialized database aborts on the first table and the
+    additive migrations never run. Callers that open a database which may already
+    exist must use this, otherwise index and table upgrades are silently skipped.
+    """
+    configure_clock_collation(conn)
+    if not has_schema(conn):
+        apply_schema(conn)
+        return
+    from probation.db.migrations import migrate_indexes, migrate_wp1
+
+    migrate_wp1(conn)
+    migrate_indexes(conn)
 
 
 def init_db(db_path: Path | str | None = None) -> None:
     """Initialize database tables from schema.sql."""
     conn = get_connection(db_path)
     try:
-        apply_schema(conn)
+        ensure_schema(conn)
     finally:
         conn.close()

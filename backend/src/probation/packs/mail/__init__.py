@@ -11,6 +11,7 @@ from typing import Any
 from probation.config import settings
 from probation.core.hashing import canonical_situation_id
 from probation.core.history import HistoryView
+from probation.core.identity import normalize_address, normalize_user_addresses
 from probation.core.types import (
     Action,
     ActionSpec,
@@ -25,7 +26,7 @@ from probation.core.types import (
 from probation.llm.jobs import MailReader
 from probation.llm.redact import redact
 from probation.packs.base import ExecutorIO, PackAdapter, WorldView
-from probation.packs.mail.clues import extract_mail_clues, normalize_address
+from probation.packs.mail.clues import extract_mail_clues
 from probation.packs.mail.exam_ops import MAIL_EXAM_OPERATORS
 from probation.packs.mail.resolver import DEFAULT_MAIL_WINDOW_DAYS, resolve_mail_outcome
 
@@ -47,13 +48,13 @@ class MailPack(PackAdapter):
     families: tuple[str, ...] = ("email_action",)
 
     def __init__(self, user_addresses: list[str] | str | None = None) -> None:
-        self.user_addresses: list[str] | None
-        if isinstance(user_addresses, str):
-            self.user_addresses = [a.strip() for a in user_addresses.split(",") if a.strip()]
-        elif user_addresses is not None:
-            self.user_addresses = list(user_addresses)
-        else:
-            self.user_addresses = None
+        # Normalized once here so intake, featurization and resolution cannot disagree about
+        # spelling. `None` is preserved as `None`: it means "not supplied", which lets those
+        # callers fall through to the world or configured owner, whereas an explicit empty
+        # list means "this mailbox has no owner" and must not fall through.
+        self.user_addresses: list[str] | None = (
+            None if user_addresses is None else normalize_user_addresses(user_addresses)
+        )
 
     def iter_situations(self, raw_item: RawItem | dict[str, Any]) -> list[Situation]:
         """Extract atomic situations from an ingested raw record."""
@@ -82,15 +83,12 @@ class MailPack(PackAdapter):
         from_addr = payload.get("from", "")
         norm_from = normalize_address(from_addr)
         if self.user_addresses is not None:
-            user_addrs = [normalize_address(a) for a in self.user_addresses if a.strip()]
+            user_addrs = self.user_addresses
         else:
-            user_addrs = [
-                normalize_address(a) for a in settings.user_addresses.split(",") if a.strip()
-            ]
+            user_addrs = normalize_user_addresses(settings.user_addresses)
 
         # Skip if from the user or marked spam/draft
-        user_addrs_set = {a for a in user_addrs if a}
-        if norm_from in user_addrs_set:
+        if norm_from and norm_from in set(user_addrs):
             return []
         labels = [str(lbl).upper() for lbl in payload.get("labels", [])]
         if "SPAM" in labels or "DRAFT" in labels:
@@ -234,6 +232,22 @@ class MailPack(PackAdapter):
     def resolve_outcome(self, s: Situation, world: WorldView, now: datetime) -> Outcome | None:
         """Resolve observed outcome from SimWorld."""
         return resolve_mail_outcome(s, world, now, user_addresses=self.user_addresses)
+
+    def resolve_observed_outcome(
+        self,
+        s: Situation,
+        world: WorldView,
+        now: datetime,
+        raw_payload: dict[str, Any] | None,
+    ) -> Outcome | None:
+        """Resolve observed outcome with the message's source record attached.
+
+        Without `message_id` no sent reply can be matched to this message, so every mail situation
+        degrades to a label-only decision and real REPLY and FORWARD evidence is never observed.
+        """
+        return resolve_mail_outcome(
+            s, world, now, raw_payload=raw_payload, user_addresses=self.user_addresses
+        )
 
     def exam_operators(self) -> list[ExamOperator]:
         """Return perturbation operators for exam board evaluation."""

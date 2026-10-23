@@ -12,8 +12,8 @@ from zoneinfo import ZoneInfo
 from probation.config import settings
 from probation.core.clock import get_clock
 from probation.core.history import HistoryView
+from probation.core.identity import normalize_address, normalize_user_addresses
 from probation.core.types import Situation
-from probation.packs.mail.clues import normalize_address
 
 
 def get_start_hour_bucket(hour: int) -> str:
@@ -99,8 +99,15 @@ def extract_calendar_clues(
         try:
             m_payload = json.loads(m["payload_json"])
             m_from = normalize_address(m_payload.get("from", ""))
-            m_to = normalize_address(m_payload.get("to", ""))
-            if m_from == organizer_key or organizer_key in m_to:
+            # A To header can list several addresses, so it is parsed as a list and compared
+            # exactly. `organizer_key in m_to` on a single string is substring membership: it
+            # would credit "ba@x.com" as the organizer "a@x.com" (plan section 6.1.3).
+            m_recipients = set(
+                normalize_user_addresses(
+                    [str(m_payload.get("to", "")), str(m_payload.get("cc", ""))]
+                )
+            )
+            if m_from == organizer_key or (organizer_key and organizer_key in m_recipients):
                 n_prior_mail_with_organizer += 1
         except Exception:
             continue

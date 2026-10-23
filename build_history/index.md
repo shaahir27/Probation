@@ -9,7 +9,7 @@ Governed by [`docs/BUILD_LOGGING_PROTOCOL.md`](file:///d:/Desktop/project/Probat
 
 | Feature | Phase | File | Status | Last Updated |
 |---|---|---|---|---|
-| Project Scaffold and Development Infrastructure | Phase 0 | [feature_001_project_scaffold.md](phase_00_foundations_spikes/feature_001_project_scaffold.md) | Updated | 2026-10-22 |
+| Project Scaffold and Development Infrastructure | Phase 0 | [feature_001_project_scaffold.md](phase_00_foundations_spikes/feature_001_project_scaffold.md) | Updated | 2026-10-22 (approved D1-D9 contract amendment) |
 | Day-1 Spike Scripts and Budget Verification | Phase 0 | [feature_002_spike_scripts.md](phase_00_foundations_spikes/feature_002_spike_scripts.md) | Built | 2026-10-07 |
 | Core Types and Hash-Chained Ledger | Phase 1 | [feature_core_types_ledger.md](phase_01_core_ledger_llm/feature_core_types_ledger.md) | Updated | 2026-10-22 (WP1 checkpoint; incomplete) |
 | PII Redaction Pipeline and Resilient LLM Client | Phase 1 | [feature_redaction_llm_client.md](phase_01_core_ledger_llm/feature_redaction_llm_client.md) | Updated | 2026-10-22 (WP1 in progress) |
@@ -75,3 +75,18 @@ Governed by [`docs/BUILD_LOGGING_PROTOCOL.md`](file:///d:/Desktop/project/Probat
 - `phase_10_evaluation/`
 - `phase_11_deploy_demo/`
 - `phase_12_polish_submission/`
+
+
+## WP3 planning record - 23 October 2026
+
+| Feature | Phase | File | Status | Last Updated |
+|---|---|---|---|---|
+| WP3 static audit and implementation plan (implementation not started) | Phase 3 / cross-phase planning | [Planning record](phase_03_mail_calendar_packs/feature_wp3_audit_plan.md) | Deferred | 2026-10-23 |
+
+
+## WP2 audit record - 23 October 2026
+
+| Feature | Phase | File | Status | Last Updated |
+|---|---|---|---|---|
+| WP2 audit repairs: horizon-enforced no-peeking harness, world-fidelity guards, C9 label-knowledge repair, unscannable-root fail-closed, drift review tolerance, fixture regeneration | Phase 2 — Synthetic generation & calibration | [Audit repairs](phase_02_synth_world_importers/feature_wp2_audit_repairs.md) | Built | 2026-10-23 |
+| Work Package 2: Synthetic Identity, Observation Chronology, and World Fidelity (superseded "no known issues" claim corrected) | Phase 2 — Synthetic generation & calibration | [Original WP2 log](phase_02_synth_world_importers/feature_wp2_synthetic_identity_chronology_fidelity.md) | Updated | 2026-10-23 |

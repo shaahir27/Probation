@@ -3,7 +3,7 @@
 import json
 import sqlite3
 
-from probation.core.actions import parse_action
+from probation.core.actions import InvalidAction, parse_action
 from probation.core.clock import parse_timestamp
 from probation.core.hashing import det_id
 from probation.core.history import HistoryView
@@ -32,8 +32,15 @@ def review_outcome_events(conn: sqlite3.Connection, *, as_of: str) -> int:
             correction = payload.get("source") in {"undo", "override"}
             action = str(event["action"])
             pair = (str(event["class_key"]), action)
-            # Silence and no-op predictions never enter the disagreement tracker.
-            eligible = not parse_action(action).is_noop and payload.get("source") != "execution"
+            # Silence and no-op predictions never enter the disagreement tracker. An action the
+            # pack cannot render was already failed closed to ASK, so there is no habit whose
+            # drift could be monitored -- but its receipt is still written below, because leaving
+            # a reviewed-looking event unreviewed would deny execution for that class forever.
+            try:
+                predicted_noop = parse_action(action).is_noop
+            except InvalidAction:
+                predicted_noop = True
+            eligible = not predicted_noop and payload.get("source") != "execution"
             if eligible:
                 latest_row = access.conn.execute(
                     "SELECT MAX(known_at COLLATE UTC_TIMESTAMP) FROM drift_receipts WHERE class_key=? AND action=?",

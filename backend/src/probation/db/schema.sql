@@ -29,8 +29,8 @@ CREATE TABLE raw_items (
   content_hash TEXT NOT NULL,
   UNIQUE (source_id, source_ref)
 );
-CREATE INDEX idx_raw_items_pack_time ON raw_items(pack, occurred_at);
-CREATE INDEX idx_raw_items_known ON raw_items(known_at);
+CREATE INDEX idx_raw_items_pack_time ON raw_items(pack, occurred_at COLLATE UTC_TIMESTAMP);
+CREATE INDEX idx_raw_items_known ON raw_items(known_at COLLATE UTC_TIMESTAMP);
 
 -- A thing that arrived and may need a decision
 CREATE TABLE situations (
@@ -47,8 +47,15 @@ CREATE TABLE situations (
   created_at TEXT NOT NULL,
   UNIQUE (raw_item_id, family, variant)
 );
-CREATE INDEX idx_situations_family_time ON situations(family, occurred_at);
-CREATE INDEX IF NOT EXISTS idx_situations_sender_time ON situations(sender_key, occurred_at);
+-- Time columns carry COLLATE UTC_TIMESTAMP because HistoryView bounds every read with
+-- `occurred_at COLLATE UTC_TIMESTAMP <= ?`. An index built with the default BINARY
+-- collation cannot serve that range term: the planner degrades to a single-column seek
+-- and then filters, which measured ~6x slower at 200k rows. Keep the collations in sync
+-- with core/clock.py::configure_clock_collation, which must be registered on the
+-- connection before this script runs.
+CREATE INDEX idx_situations_family_time ON situations(family, occurred_at COLLATE UTC_TIMESTAMP);
+CREATE INDEX idx_situations_pack_time ON situations(pack, occurred_at COLLATE UTC_TIMESTAMP);
+CREATE INDEX idx_situations_sender_time ON situations(sender_key, occurred_at COLLATE UTC_TIMESTAMP);
 
 CREATE TABLE features (
   situation_id TEXT PRIMARY KEY REFERENCES situations(id),
@@ -101,7 +108,7 @@ CREATE TABLE proposals (
   proposed_at TEXT NOT NULL,
   ledger_seq INTEGER NOT NULL
 );
-CREATE INDEX idx_proposals_class ON proposals(class_key, action, proposed_at);
+CREATE INDEX idx_proposals_class ON proposals(class_key, action, proposed_at COLLATE UTC_TIMESTAMP);
 
 -- What the user actually did (written once)
 CREATE TABLE outcomes (
@@ -114,7 +121,7 @@ CREATE TABLE outcomes (
   details_json TEXT NOT NULL CHECK (json_valid(details_json)),
   ledger_seq INTEGER NOT NULL
 );
-CREATE INDEX idx_outcomes_known ON outcomes(known_at);
+CREATE INDEX idx_outcomes_known ON outcomes(known_at COLLATE UTC_TIMESTAMP);
 
 -- Reply drafts written by the brain: final text with placeholders restored locally (class B data)
 CREATE TABLE drafts (
@@ -144,7 +151,7 @@ CREATE TABLE actions (
   updated_at TEXT NOT NULL,
   executed_at TEXT
 );
-CREATE INDEX idx_actions_status ON actions(status, hold_until);
+CREATE INDEX idx_actions_status ON actions(status, hold_until COLLATE UTC_TIMESTAMP);
 
 -- Explicit answers from the user (written by the api only). 'undo' asks the Executor to undo an action.
 CREATE TABLE user_responses (
@@ -308,6 +315,9 @@ CREATE TABLE tavily_calls (
   situation_id TEXT,
   created_at TEXT NOT NULL
 );
+-- Deliberately BINARY, unlike the time indexes above: web/client.py matches created_at with
+-- LIKE to total a day's credits, which a collated index cannot serve, and nothing
+-- range-compares this column against a COLLATE UTC_TIMESTAMP bound.
 CREATE INDEX idx_tavily_calls_day ON tavily_calls(created_at);
 
 -- Extracted page text for user-saved or officially-discovered URLs (class B data: reveals what the user saved)

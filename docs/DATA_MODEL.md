@@ -1,5 +1,10 @@
 # DATA_MODEL
 
+> Approved target amendment (22 October 2026): CONTRACT v2 and
+> [the amendment register](CONTRACT_AMENDMENT_2026-10-22.md) approve immutable
+> outcome events, as-of projections, response payloads and distinct action authority.
+> The DDL below is the legacy baseline; no migration or implementation is claimed here.
+
 SQLite (WAL mode), one database file per user. Authority: below `CONTRACT.md`.
 
 Conventions:
@@ -410,7 +415,7 @@ Schema/bootstrap administration remains separate from every permanently bound ro
   A raw SQLite connection must be configured before using these queries.
 - A same-instant event does not satisfy strict I-7. Precision preserves real ordering;
   it does not authorize manufacturing a later footprint timestamp. Response/outcome
-  event ownership and the complete replay event chronology remain separately gated.
+  event architecture is now approved; its migration and complete replay chronology still require implementation and acceptance evidence.
 - `occurred_at`: when the thing happened (mail received, invite sent, file created).
 - `known_at` (raw items): when the system could first know the record. Usually equal to `occurred_at`.
 - `known_at` (outcomes): when the outcome could first be observed. For a reply it is the reply's send time. For a window-close weak outcome it is `occurred_at + window`.
@@ -466,3 +471,28 @@ use only the compact fields above; details remain in the outcomes table.
 - Real exports live under `data/private/` (gitignored). Synthetic data lives under `data/synth/`.
 - A `probation db purge --before DATE` command may delete `raw_items`, `situations` text and `drafts`, but never the ledger.
 - `drafts.body_text` contains restored personal names and is class B data (`SECURITY_PRIVACY.md` section 4). So is `extractions.content_text`, because it reveals what the user saved.
+
+
+## 6. Approved event/approval target (D1-D4/D6)
+
+Add versioned outcome events with stable event/situation/proposal/response/action
+references, observed_at/known_at, kind, source, strength and correction linkage.
+Resolver appends normal feedback/footprints/overrides; Executor appends its own
+undo/cancel corrections only. Immutable events and their source decisions cannot
+be replaced. HistoryView reconstructs the decision/evidence view as of its cutoff.
+A rejection has no invented alternate action; undo is never a policy action label.
+The legacy outcomes row is a derived/compatibility projection, not an overwriteable
+source of truth. Preserve old outcomes and ledger bytes during migration.
+
+Responses carry request identity, exact reviewed payload hash, optional edited
+body/action and explicit forward recipient where applicable. Store generated and
+edited draft provenance separately. API inserts immutable intents; each worker
+owns its typed receipt/status result. Executor action records distinguish explicit
+owner approval from autonomous authority and bind the exact connection, resource,
+payload and restriction revision. Do not encode consent as level_required=0.
+
+These are approved model requirements, not executable DDL. Review exact constraints,
+FKs, indexes, role checks and schema compatibility before enabling a migration.
+Test as-of corrections, duplicate/conflicting responses, transaction rollback,
+restart, event immutability and unchanged historical ledger hashes (V03-V05,
+V08-V10, V16-V21). No raw draft text or recipient address enters ledger payloads.

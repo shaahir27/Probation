@@ -14,15 +14,12 @@ def webfacts_vet(
     brand: str | None = typer.Option(None, "--brand", "-b", help="Display brand name token"),
 ) -> None:
     """Vet an entity domain and display derived EntityFacts and sources."""
-    from probation.db.connection import apply_schema
+    from probation.db.connection import ensure_schema
     from probation.workers.webfacts import vet_entity
 
     conn = get_connection(settings.db_path)
     try:
-        cur = conn.cursor()
-        cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='web_facts';")
-        if not cur.fetchone():
-            apply_schema(conn)
+        ensure_schema(conn)
 
         console.print(f"[bold cyan]Vetting domain:[/] {domain} (brand: {brand or 'auto'})...")
         res = vet_entity(conn, domain=domain, brand_token=brand)
@@ -49,15 +46,12 @@ def webfacts_vet_batch(
     as_of: str | None = typer.Option(None, "--as-of", help="Historical cutoff timestamp (ISO)"),
 ) -> None:
     """Vet sender and link entities for situations batch."""
-    from probation.db.connection import apply_schema
+    from probation.db.connection import ensure_schema
     from probation.workers.webfacts import vet_situations_batch
 
     conn = get_connection(settings.db_path)
     try:
-        cur = conn.cursor()
-        cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='web_facts';")
-        if not cur.fetchone():
-            apply_schema(conn)
+        ensure_schema(conn)
 
         count = vet_situations_batch(conn, as_of=as_of)
         conn.commit()
@@ -69,15 +63,13 @@ def webfacts_vet_batch(
 @webfacts_app.command("audit")
 def webfacts_audit() -> None:
     """Display recorded Tavily calls and credit consumption."""
-    from probation.db.connection import apply_schema
+    from probation.db.connection import ensure_schema
 
     conn = get_connection(settings.db_path)
     try:
-        cur = conn.cursor()
-        cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='tavily_calls';")
-        if not cur.fetchone():
-            apply_schema(conn)
+        ensure_schema(conn)
 
+        cur = conn.cursor()
         cur.execute(
             """
             SELECT COUNT(*) AS total_calls, COALESCE(SUM(credits), 0) AS total_credits
@@ -127,15 +119,12 @@ def webfacts_audit() -> None:
 @webfacts_app.command("load-fixtures")
 def webfacts_load_fixtures() -> None:
     """Load recorded entity facts fixtures into web_facts table."""
-    from probation.db.connection import apply_schema
+    from probation.db.connection import ensure_schema
     from probation.web.fixtures import load_web_facts_fixtures
 
     conn = get_connection(settings.db_path)
     try:
-        cur = conn.cursor()
-        cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='web_facts';")
-        if not cur.fetchone():
-            apply_schema(conn)
+        ensure_schema(conn)
 
         count = load_web_facts_fixtures(conn)
         console.print(f"[bold green]Loaded {count} entity facts fixtures into web_facts table.[/]")

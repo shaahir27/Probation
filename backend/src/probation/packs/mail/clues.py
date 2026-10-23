@@ -19,6 +19,7 @@ from probation.core.identity import (
     extract_domain,
     is_automated_sender,
     normalize_address,
+    normalize_user_addresses,
 )
 from probation.core.types import Situation
 
@@ -73,7 +74,9 @@ def extract_mail_clues(
     # 3. Context clues from payload
     to_field = payload.get("to") or ""
     cc_field = payload.get("cc") or ""
-    recipients = [r for r in (to_field + "," + cc_field).split(",") if r.strip()]
+    # Parsed as an RFC 2822 address list, not split on commas: a quoted display name such as
+    # "Krishnamurthy, Meena" contains a comma and would otherwise count as two recipients.
+    recipients = normalize_user_addresses([str(to_field), str(cc_field)])
     n_recipients = max(1, len(recipients))
     has_attachment = bool(payload.get("has_attachment", False))
 
@@ -90,13 +93,9 @@ def extract_mail_clues(
     msg_id = payload.get("message_id") or ""
     in_reply_to = payload.get("in_reply_to") or ""
 
-    if user_addresses is not None:
-        if isinstance(user_addresses, str):
-            user_addrs = [normalize_address(a) for a in user_addresses.split(",") if a.strip()]
-        else:
-            user_addrs = [normalize_address(a) for a in user_addresses if a.strip()]
-    else:
-        user_addrs = [normalize_address(a) for a in settings.user_addresses.split(",") if a.strip()]
+    user_addrs = normalize_user_addresses(
+        user_addresses if user_addresses is not None else settings.user_addresses
+    )
 
     # High-performance indexed lookups strictly bounded by hist.as_of (Invariant I-6)
     n_prior_in = hist.count_prior_sender_messages(sender_key, exclude_situation_id=s.id)

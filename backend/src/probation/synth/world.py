@@ -10,6 +10,23 @@ import sqlite3
 from pathlib import Path
 from typing import Any
 
+from probation.core.clock import timestamp_key
+from probation.core.identity import normalize_user_addresses
+
+
+def _exists_at(value: str, bound: str) -> bool:
+    """True when an item's own timestamp is at or before `bound`.
+
+    Compares instants rather than spellings, matching the `UTC_TIMESTAMP` collation the engine
+    database uses. An unparseable timestamp fails closed: an item whose arrival cannot be placed
+    in time is treated as not yet present instead of being shown to an earlier observer.
+    """
+    try:
+        return timestamp_key(value) <= timestamp_key(bound)
+    except ValueError:
+        return False
+
+
 WORLD_SCHEMA = """
 PRAGMA journal_mode = WAL;
 PRAGMA foreign_keys = ON;
@@ -101,23 +118,80 @@ CREATE TABLE IF NOT EXISTS user_actions (
 );
 CREATE INDEX IF NOT EXISTS idx_actions_acted ON user_actions(acted_at);
 CREATE INDEX IF NOT EXISTS idx_actions_item ON user_actions(item_id);
+
+CREATE TABLE IF NOT EXISTS world_meta (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
 """
 
 
 class SimWorld:
     """Manages the simulated environment state in world.db."""
 
-    def __init__(self, db_path: str | Path) -> None:
+    def __init__(
+        self,
+        db_path: str | Path,
+        user_addresses: list[str] | str | None = None,
+    ) -> None:
         self.db_path = Path(db_path)
+        # Whose world this is. `None` means "not told", so callers fall back to the persisted
+        # or configured owner rather than concluding the mailbox has no owner. Supplying it
+        # here is what lets a resolver attribute a sent message or an RSVP to the owner
+        # instead of reading every record as someone else's (plan section 6.1.3).
+        self.user_addresses: list[str] | None = (
+            None if user_addresses is None else normalize_user_addresses(user_addresses)
+        )
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self.conn = sqlite3.connect(str(self.db_path))
         self.conn.row_factory = sqlite3.Row
         self._init_db()
+        if self.user_addresses is None:
+            # Reopening a world must not lose whose world it is: a resolver that cannot name the
+            # owner attributes no sent message and no RSVP to them, so every outcome collapses to
+            # its WEAK default (plan section 6.1.3).
+            stored = self._get_meta("user_addresses")
+            if stored:
+                self.user_addresses = normalize_user_addresses(json.loads(stored))
+        else:
+            self._set_meta("user_addresses", json.dumps(self.user_addresses))
 
     def _init_db(self) -> None:
         """Apply world schema."""
         self.conn.executescript(WORLD_SCHEMA)
         self.conn.commit()
+
+    def _get_meta(self, key: str) -> str | None:
+        """Read one world metadata value.
+
+        The table is `world_meta`, not `meta`: the engine schema owns `meta` and the two schemas
+        must stay independent even when a caller applies both to one connection (CONTRACT I-17).
+        """
+        row = self.conn.execute("SELECT value FROM world_meta WHERE key = ?", (key,)).fetchone()
+        return None if row is None else str(row["value"])
+
+    def _set_meta(self, key: str, value: str) -> None:
+        """Write one world metadata value."""
+        self.conn.execute(
+            "INSERT OR REPLACE INTO world_meta (key, value) VALUES (?, ?)",
+            (key, value),
+        )
+        self.conn.commit()
+
+    def declare_initial_state(self) -> None:
+        """Record that stored labels and RSVP status are the state at world creation.
+
+        Only the writer may declare this. A world that baked the *final* state into those columns
+        has no footprints to replay, so projecting them at an earlier `as_of` would hand a resolver
+        an outcome that has not happened yet (CONTRACT I-6). Undeclared worlds are therefore read
+        conservatively by `_project_message_labels` and `_project_event_status`.
+        """
+        self._set_meta("state_model", "initial")
+
+    @property
+    def stores_initial_state(self) -> bool:
+        """Whether the stored columns may be trusted as the pre-footprint state."""
+        return self._get_meta("state_model") == "initial"
 
     def close(self) -> None:
         """Close connection."""
@@ -178,6 +252,8 @@ class SimWorld:
         results: list[dict[str, Any]] = []
         for r in rows:
             d = dict(r)
+            if as_of is not None and not _exists_at(str(d["received_at"]), as_of):
+                continue
             labels = list(json.loads(d["labels"]))
             if as_of is not None:
                 labels = self._project_message_labels(d["message_id"], labels, as_of)
@@ -194,6 +270,8 @@ class SimWorld:
         if not row:
             return None
         d = dict(row)
+        if as_of is not None and not _exists_at(str(d["received_at"]), as_of):
+            return None
         labels = list(json.loads(d["labels"]))
         if as_of is not None:
             labels = self._project_message_labels(message_id, labels, as_of)
@@ -210,9 +288,15 @@ class SimWorld:
             (message_id, as_of),
         )
         actions = cur.fetchall()
-        if not actions:
-            return ["INBOX"]
-        labels = {"INBOX"}
+        if not self.stores_initial_state:
+            # Undeclared world: the stored labels may already be the final state, so only a dated
+            # footprint can prove a label existed at `as_of`. Starting from INBOX is the one state
+            # that is true of every message before the owner has done anything to it.
+            if not actions:
+                return ["INBOX"]
+            labels = {"INBOX"}
+        else:
+            labels = set(current_labels)
         for act in actions:
             atype = act["action_type"]
             if atype == "TRASH":
@@ -282,7 +366,12 @@ class SimWorld:
         self.conn.commit()
 
     def get_events(self, as_of: str | None = None) -> list[dict[str, Any]]:
-        """Retrieve all calendar events, optionally projected as of timestamp."""
+        """Retrieve all calendar events, optionally projected as of timestamp.
+
+        Events are not existence-bounded by `as_of`: the table records only when an event *starts*,
+        and an invite must be visible before it starts or its RSVP window could never be observed.
+        Only the response status is projected.
+        """
         cur = self.conn.cursor()
         cur.execute("SELECT * FROM events ORDER BY start_time ASC")
         rows = cur.fetchall()
@@ -320,12 +409,15 @@ class SimWorld:
             (uid, as_of),
         )
         actions = cur.fetchall()
+        # An undeclared world may already hold the final RSVP in `my_status`, so without a dated
+        # footprint the only safe reading is that the owner has not responded yet.
+        fallback = current_status if self.stores_initial_state else "NEEDS_ACTION"
         if not actions:
-            return "NEEDS_ACTION"
+            return fallback
         last_action = actions[-1]["action_type"]
         if last_action in ("ACCEPT", "DECLINE", "TENTATIVE"):
             return f"{last_action}ED" if last_action != "TENTATIVE" else "TENTATIVE"
-        return "NEEDS_ACTION"
+        return fallback
 
     def update_rsvp(self, uid: str, rsvp_status: str) -> None:
         """Update user attendee response status (ACCEPTED, DECLINED, TENTATIVE)."""
@@ -368,23 +460,30 @@ class SimWorld:
         """Retrieve all file catalog entries, optionally projected as of timestamp."""
         cur = self.conn.cursor()
         cur.execute("SELECT * FROM files ORDER BY downloaded_at ASC")
+        rows = cur.fetchall()
         results: list[dict[str, Any]] = []
-        for r in cur.fetchall():
+        for r in rows:
             d = dict(r)
             if as_of is not None:
-                cur.execute(
-                    "SELECT action_type, details_json FROM user_actions WHERE item_id = ? AND acted_at <= ? ORDER BY acted_at ASC",
+                if not _exists_at(str(d["downloaded_at"]), as_of):
+                    continue
+                acts = self.conn.cursor()
+                acts.execute(
+                    "SELECT details_json FROM user_actions WHERE item_id = ? AND acted_at <= ? ORDER BY acted_at ASC",
                     (d["path"], as_of),
                 )
-                act = cur.fetchone()
-                if act:
+                # The last move before `as_of` decides where the file is; taking the first would
+                # report a stale destination for anything relocated more than once.
+                dest = ""
+                for act in acts.fetchall():
                     try:
-                        det = json.loads(act["details_json"])
-                        dest = det.get("destination_path")
-                        if dest:
-                            d["path"] = dest
-                    except Exception:
-                        pass
+                        candidate = json.loads(act["details_json"]).get("destination_path")
+                    except (ValueError, TypeError, AttributeError):
+                        continue
+                    if candidate:
+                        dest = str(candidate)
+                if dest:
+                    d["path"] = dest
             results.append(d)
         return results
 

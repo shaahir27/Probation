@@ -259,7 +259,8 @@ def ingest_cmd() -> None:
     conn = get_connection(settings.db_path)
     try:
         sit_count = ingest_situations(conn)
-        feat_count = extract_features_for_situations(conn)
+        # Live ingest is the reader model's intended caller; replay opts in separately.
+        feat_count = extract_features_for_situations(conn, allow_live_llm=True)
         conn.commit()
         console.print(
             f"[bold green]Ingestion complete.[/] Situations extracted: {sit_count}, "

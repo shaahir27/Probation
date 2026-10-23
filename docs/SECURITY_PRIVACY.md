@@ -46,7 +46,7 @@ Rules at each boundary: CONTRACT section 3 (who may read, write, hold credential
 | **T4** | **Provider retention or training** on prompts | Read Nebius's data-retention and privacy terms before using any real data **(check, open question O-3)**; until then the demo and repo use synthetic data only (I-18) | Manual check |
 | **T5** | **Licence poisoning**: an attacker sends many harmless items to earn trust, then exploits it | Classes are keyed by sender tier; `unknown` senders are capped at level 1 for outward actions; only strong outcomes count for level 2 and 3 (I-11); the exam's directional operators; audit holdout gives unbiased evidence (I-12); CUSUM and the two-undos rule | T-EVIDENCE, T-CUSUM, T-EXAM |
 | **T6** | **Ledger tampering** | Append-only triggers and hash chain (I-8); `GET /ledger/verify`. **Limitation:** someone with full write access to the database file can recompute the chain. Mitigation: publish the head hash (for example in the submission text) so later tampering is detectable | T-LEDGER |
-| **T7** | **Credential theft or over-privilege** | Only the Executor holds write credentials (I-2); per-container environment variables; least-privilege scopes; no secrets in logs or prompts (I-19) | T-SEC |
+| **T7** | **Credential theft or over-privilege** | Write credentials remain inside trusted Executor deployment boundary (I-2); role-protected OS/deployment secret stores or environment injection; least privilege, refresh/revocation tests and no secrets in logs/prompts (I-19) | T-SEC |
 | **T8** | **Cost runaway or demo abuse** | Budget guard (I-15); per-IP rate limits; replay mode with saved answers; kill-switch; no free-text input to the LLM in the public demo | T-LLM |
 | **T9** | **Supply chain** (packages, model files) | Lockfiles; few dependencies; run the ecosystem audit tools (`pip-audit`, `npm audit`) before release **(check availability)**; fetch the embedding model from its official source and record its hash | Release checklist |
 | **T10** | **Wrong action** from model error | Licences, hold queue, undo, audit holdout, fail closed (I-3, I-12, I-20) | T-GATE, T-EXEC |
@@ -67,7 +67,7 @@ Rules at each boundary: CONTRACT section 3 (who may read, write, hold credential
 
 | Class | Examples | Rules |
 |---|---|---|
-| **A: secrets** | API keys, OAuth tokens, passwords | Environment variables only; never committed, logged, sent to an LLM, or pasted into an agent prompt |
+| **A: secrets** | API keys, OAuth tokens, passwords | Role-protected OS credential store/deployment secret manager or environment injection; never ordinary DB/command payloads, committed, logged, sent to an LLM, or pasted into an agent prompt |
 | **B: personal data** | Real mail, calendar, files, filenames, the `drafts` table (restored names in reply text), saved links and `extractions` (they reveal what the user saved) | Local only under `data/private/`; gitignored; never in the repo, demo, issue tracker or screenshots |
 | **C: synthetic data** | Generated personas and items | May be committed in small fixtures; may be sent to an LLM |
 | **D: aggregates** | Metrics, figures | May be published |
@@ -101,7 +101,7 @@ Rules at each boundary: CONTRACT section 3 (who may read, write, hold credential
 - [ ] No debug endpoints; no stack traces in responses.
 - [ ] Dependency audit run; lockfiles committed.
 - [ ] Executor in the demo acts only on the simulated world.
-- [ ] Tavily calls in the public demo come from recorded fixtures; the live key is not exposed to the browser; the daily cap and monthly credit budget are enforced.
+- [ ] Main demo Tavily calls use recorded fixtures. The approved domain-only checker design may be deployed live only after its separate public-endpoint/resource/budget authorization and quota/abuse tests; keys stay server-side. Daily/monthly caps remain enforced.
 - [ ] The demo stays up until the end of the judging period (15 Dec 2026) at a cost you have checked.
 
 ---
@@ -143,3 +143,18 @@ Human setup: in Antigravity, require review for terminal commands that use the n
 3. **Check:** `probation ledger verify`; review `exposure_log` and `actions`.
 4. **Fix** with a test that reproduces the problem.
 5. **Record** what happened in `DECISIONS_AND_OPEN_QUESTIONS.md`.
+
+
+## Approved integration boundary clarification (22 October 2026)
+
+CONTRACT v2 sections 3/15 govern the D9 design. Write-grant exchange/refresh and
+signing secrets stay inside the trusted Executor deployment boundary; read grants
+are separate. Select and test the concrete secret backend per platform before
+provisioning credentials. Callback/auth handlers bind owner, account, scope and
+resource; no tokens/codes/private feed URLs enter API commands or logs.
+External runtimes/MCP can submit validated proposals but cannot bypass Executor.
+A permission response or signed receipt does not provide a bearer write bypass;
+verify exact binding, expiry/revocation/replay protection and current authority.
+The synthetic-stimulus study design is approved; actual protocol/recruitment and
+private collection still require scoped authorization. No personal-account data
+or surveillance is approved. All F01-F42 security evidence remains required.

@@ -14,6 +14,7 @@ import filecmp
 import json
 import sqlite3
 import tempfile
+from collections.abc import Callable
 from pathlib import Path
 
 from probation.db.connection import apply_schema, get_connection
@@ -191,11 +192,12 @@ def test_t_synth_static_isolation_check() -> None:
     assert not violations, "Static isolation violations detected:\n" + "\n".join(violations)
 
 
-def test_t_id_importer_idempotency() -> None:
+def test_t_id_importer_idempotency(persona_owner: Callable[[Path], list[str]]) -> None:
     """T-ID: Importers parse records into raw_items, and re-importing alters nothing."""
     with tempfile.TemporaryDirectory() as tmp_dir:
         out_dir = Path(tmp_dir)
         generate_synthetic_world(persona_id=0, seed=7, size="tiny", out_dir=out_dir)
+        owner = persona_owner(out_dir)
 
         # Set up an in-memory SQLite database with schema
         conn = sqlite3.connect(":memory:")
@@ -206,12 +208,20 @@ def test_t_id_importer_idempotency() -> None:
         manifest_file = out_dir / "files_manifest.json"
 
         # 1. First Import
-        res_mail1 = import_mail(mbox_file, conn, user_addresses=["meena.k@example.ac.in"])
-        res_cal1 = import_calendar(ics_file, conn, user_addresses=["meena.k@example.ac.in"])
+        res_mail1 = import_mail(mbox_file, conn, user_addresses=owner)
+        res_cal1 = import_calendar(ics_file, conn, user_addresses=owner)
         res_files1 = import_files(manifest_file, conn)
 
         assert res_mail1.items_imported > 0
         assert res_mail1.items_skipped == 0
+
+        # The persona's own sent mail must be recognized as sent. An owner address that
+        # matches nothing in the export classifies every message as incoming, which hides all
+        # reply evidence and leaves every outcome at its WEAK default.
+        sent_rows = conn.execute(
+            "SELECT COUNT(*) FROM raw_items WHERE item_kind='mail_sent'"
+        ).fetchone()[0]
+        assert sent_rows > 0, f"no sent mail recognized for owner {owner}"
 
         assert res_cal1.items_imported > 0
         assert res_cal1.items_skipped == 0
@@ -226,8 +236,8 @@ def test_t_id_importer_idempotency() -> None:
         assert total_raw_after_first > 0
 
         # 2. Second Import of Identical Files (Idempotency test)
-        res_mail2 = import_mail(mbox_file, conn, user_addresses=["meena.k@example.ac.in"])
-        res_cal2 = import_calendar(ics_file, conn, user_addresses=["meena.k@example.ac.in"])
+        res_mail2 = import_mail(mbox_file, conn, user_addresses=owner)
+        res_cal2 = import_calendar(ics_file, conn, user_addresses=owner)
         res_files2 = import_files(manifest_file, conn)
 
         assert res_mail2.items_imported == 0

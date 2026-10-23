@@ -1,5 +1,11 @@
 # PACKS_SPEC
 
+> CONTRACT v2 approval (22 October 2026): public source/since ingestion is retained
+> with an internal observation mapper. Explicit one-operation approval is independent
+> of an autonomous licence. Edited replies use immutable validated response text;
+> forwards require an owner-selected recipient and their own content contract.
+> Implement/version/verify these workflows before presenting them as available.
+
 What each domain pack must implement. Interface: `CONTRACT.md` section 5. Algorithms: `ENGINE_SPEC.md`. Prompts: `PROMPTS.md`.
 
 Build priority: **mail, calendar, files, chains** are required. **Radar** is required and **Reading** is next (section 5b; `TAVILY_AND_NEW_PACKS.md`). The **GitHub** pack was dropped from the plan.

@@ -1,5 +1,10 @@
 # ENGINE_SPEC
 
+> CONTRACT v2 amendment approved 22 October 2026 supersedes earlier pending
+> approval statements below. Resolver-owned immutable feedback, as-of correction
+> projections and exact explicit-owner authority are approved targets; implementation
+> remains subject to the migration/lifecycle acceptance gates in the amendment register.
+
 > WP1 ownership addendum (user-approved CCR-F, 22 October 2026): API enqueues typed
 > administrative requests; Examiner applies them. Examiner consumes bounded immutable
 > outcome ledger events into append-only drift receipts/state/alarms. Executor never
@@ -7,7 +12,9 @@
 > before nightly derivation and via `probation examiner-tick`; replay invokes the same
 > Examiner-owned operation. See `docs/reports/wp1-closure-2026-10-22.md` and
 > `docs/DECISIONS_AND_OPEN_QUESTIONS.md`. Full WP6 correction projection and remote
-> reconciliation remain later work; no outcome-storage amendment is inferred here.
+> reconciliation remain implementation work. The subsequently approved CONTRACT v2
+> outcome-event amendment now supplies the governing design; this earlier WP1 note
+> is not a claim that the event migration has been implemented.
 
 Exact algorithms, formulas and default numbers. Authority: below `CONTRACT.md` and above `SYSTEM_DESIGN.md`.
 Every number is a named constant in `config.py` (section 12 lists the defaults). Numbers marked *(assumption)* are starting values to tune on the evaluation.
@@ -182,7 +189,12 @@ def decide(...):
 - `audit_draw = int(sha256(situation_id + "|" + AUDIT_SEED)[:8], 16) / 2**32` (reproducible).
 - Predicted `LEAVE` and `NO_RESPONSE` are no-op actions with cap 0, so the gate returns `SHADOW`.
 - `SUGGEST` puts a prepared item in the queue (one tap). `ASK` puts a question in the digest.
-- On a user's `accept` of a suggestion (or `edit`), the Executor performs the action **immediately**, with no hold, because the user approved it explicitly (CONTRACT section 8).
+- Accept/Edit records an immutable request and returns pending (HTTP 202). Executor
+  may execute its exact validated owner-approved operation immediately, including at
+  autonomous licence level 0; no hold is required for this explicit authority. It
+  still checks hands-off, catalog, consent/resource/payload and draft constraints.
+  Resolver records the decision independently of remote success. Later body/target
+  changes require fresh approval. The pure autonomous gate above is unchanged.
 
 ### 7.1 Order of work inside `brain.process` (the proposal is written once, after all of this)
 
@@ -422,3 +434,16 @@ For a family over a period (strong outcomes only):
 - **different** = strong outcome and `action != observed_action`
 - **would_ask** = proposals with `gate == ASK` or `action == ABSTAIN`
 - Items with no outcome (censored) are listed separately and excluded from "same" and "different".
+
+
+## Approved evidence provenance clarification (22 October 2026)
+
+For live permission, count eligible prospective committed predictions only.
+Retrospective backfill/replay may train/evaluate with explicit as-of provenance but
+cannot unlock a live autonomous licence. All evidence/training consumes the bounded
+outcome-event projection. Count a proposal decision at most once; retain linked
+corrections at their own known time. Rejection gives disagreement without a guessed
+alternative label. Explicit decision evidence and execution success are distinct.
+Undo/override/cancel corrections feed Examiner-owned drift, not Beta agreement or
+policy action labels. New event schemas and live cohorts require their regression
+proof before activation; legacy executable code is not certified by this text.

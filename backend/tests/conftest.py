@@ -3,15 +3,50 @@
 Authority: docs/TEST_PLAN.md section 1.
 """
 
+import json
 import sqlite3
-from collections.abc import Generator
+from collections.abc import Callable, Generator
+from pathlib import Path
 
 import pytest
 
 from probation.core.clock import Clock
 from probation.core.enums import ClockMode
+from probation.core.identity import normalize_user_addresses
 from probation.core.types import Situation
 from probation.db.connection import apply_schema, get_connection
+
+
+def owner_addresses(directory: Path) -> list[str]:
+    """Read the owner identity from a generated persona directory.
+
+    Tests must not hardcode an owner address. A literal that matches nothing in the fixture
+    silently turns every situation into unowned incoming mail: no message is recognized as
+    sent by the owner, so no REPLY can ever be attributed and every outcome collapses to a
+    WEAK default (docs/CHANGES_IMPLEMENTATION_PLAN.md section 6.1.3).
+    """
+    with open(directory / "persona.json", encoding="utf-8") as f:
+        addresses = normalize_user_addresses(str(json.load(f)["email"]))
+    assert addresses, f"No usable owner address in {directory / 'persona.json'}"
+    return addresses
+
+
+@pytest.fixture
+def tiny_synth_dir() -> Path:
+    """Directory holding the tracked tiny synthetic fixture."""
+    return Path(__file__).resolve().parent / "fixtures" / "tiny_synth"
+
+
+@pytest.fixture
+def tiny_synth_owner(tiny_synth_dir: Path) -> list[str]:
+    """Owner identity of the tracked tiny synthetic fixture, read from its persona."""
+    return owner_addresses(tiny_synth_dir)
+
+
+@pytest.fixture
+def persona_owner() -> Callable[[Path], list[str]]:
+    """Owner identity reader for persona directories generated inside a test."""
+    return owner_addresses
 
 
 @pytest.fixture

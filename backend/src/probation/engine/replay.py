@@ -9,6 +9,7 @@ Processes a merged timeline of:
 """
 
 import json
+import logging
 import sqlite3
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -16,7 +17,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from probation.config import settings
-from probation.core.clock import Clock, use_clock
+from probation.core.clock import Clock, timestamp_key, use_clock
 from probation.core.enums import GateDecision, LedgerKind
 from probation.core.hashing import canonical_json
 from probation.core.history import HistoryView
@@ -40,11 +41,11 @@ from probation.packs.base import ExecutorIO, WorldView
 from probation.packs.calendar.resolver import resolve_calendar_outcome
 from probation.packs.chains.mining import mine_chains
 from probation.packs.chains.proposer import create_chain_situations_and_proposals
-from probation.packs.identity import world_user_addresses
+from probation.packs.identity import persisted_or_configured_owner, world_user_addresses
 from probation.packs.mail.resolver import MailResolverIndex, resolve_mail_outcome
 from probation.packs.registry import registry
 from probation.web.view import WebFactsView
-from probation.workers.brain import extract_features_for_situations
+from probation.workers.brain import build_reader_client, extract_features_for_situations
 from probation.workers.drift import review_outcome_events
 from probation.workers.executor import Executor
 
@@ -52,6 +53,8 @@ PRIORITY_OUTCOME_KNOWN = 0
 PRIORITY_LICENCE_REVIEW = 1
 PRIORITY_RETRAIN = 2
 PRIORITY_SITUATION = 3
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -62,15 +65,22 @@ class ReplayEvent:
     priority: int
     kind: str
     payload: Any = None
+    tie_id: str = ""
 
-    def sort_key(self) -> tuple[datetime, int]:
-        """Compute sort key guaranteeing non-decreasing time and tie-break ordering."""
+    def sort_key(self) -> tuple[datetime, int, str]:
+        """Compute sort key guaranteeing non-decreasing time and tie-break ordering.
+
+        `tie_id` makes the order total. Without it, two events at the same instant and
+        priority fall back to list position, which is whatever the producing SQL query
+        returned; SQLite does not guarantee that order for equal keys, so an index or
+        planner change could silently reorder a replay and change its ledger head.
+        """
         dt = datetime.fromisoformat(self.timestamp.replace("Z", "+00:00"))
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=UTC)
         else:
             dt = dt.astimezone(UTC)
-        return (dt, self.priority)
+        return (dt, self.priority, self.tie_id)
 
 
 def _parse_utc_dt(ts_str: str) -> datetime:
@@ -88,6 +98,7 @@ def run_replay(
     until: str | None = None,
     world: WorldView | None = None,
     reader_callable: Callable[[Situation], tuple[dict[str, Any] | None, bool]] | None = None,
+    allow_live_llm: bool = False,
 ) -> dict[str, Any]:
     """Own one clock context for every role participating in this replay."""
     if clock is None:
@@ -101,7 +112,9 @@ def run_replay(
         )
         clock = Clock.replay(start)
     with use_clock(clock):
-        return _run_replay(conn, clock, family, until, world, reader_callable)
+        return _run_replay(
+            conn, clock, family, until, world, reader_callable, allow_live_llm=allow_live_llm
+        )
 
 
 def _run_replay(
@@ -111,6 +124,7 @@ def _run_replay(
     until: str | None = None,
     world: WorldView | None = None,
     reader_callable: (Callable[[Situation], tuple[dict[str, Any] | None, bool]] | None) = None,
+    allow_live_llm: bool = False,
 ) -> dict[str, Any]:
     """Execute event-sourced replay over historical raw items up to until.
 
@@ -120,8 +134,13 @@ def _run_replay(
     - Emits immutable proposals with gate=SHADOW (Phase 4).
     - Appends proposal records to the hash-chained ledger.
     """
-    # 1. Ensure features are extracted for any unfeaturized situations
-    extract_features_for_situations(conn, reader_callable=reader_callable, clock=clock)
+    # 1. Build the reader once. Features are derived per situation inside the loop below,
+    #    at that situation's own cutoff: history clues count prior outcomes, so a batch run
+    #    here would read an empty outcomes table and collapse them to their defaults
+    #    (plan section 6.3.3).
+    reader_client = (
+        None if reader_callable is not None else build_reader_client(clock, allow_live_llm)
+    )
 
     # 2. Query situations to replay
     query_sit = "SELECT s.* FROM situations s WHERE 1=1"
@@ -141,10 +160,10 @@ def _run_replay(
     if not sit_rows:
         return generate_report_card(conn, family=family, as_of=until)
 
-    # 3. Check for existing outcomes or dynamically stage from world (Invariant I-7)
-    cur.execute("SELECT COUNT(*) FROM outcomes;")
-    outcomes_count = cur.fetchone()[0]
-
+    # 3. Outcomes already persisted, plus any still missing that the world can supply.
+    #    The two sources are additive, never alternatives: a resumed replay has some
+    #    outcomes stored and still needs the remainder staged. Treating the stored ones
+    #    as sufficient silently dropped every outcome after the resume point (I-7).
     events: list[ReplayEvent] = []
     timestamps: list[str] = []
 
@@ -158,70 +177,87 @@ def _run_replay(
                 priority=PRIORITY_SITUATION,
                 kind="SITUATION",
                 payload=s_row,
+                tie_id=str(s_row["id"]),
             )
         )
 
-    if outcomes_count > 0:
-        # Pre-existing outcomes in database
-        query_out = "SELECT o.*, s.family FROM outcomes o JOIN situations s ON o.situation_id = s.id WHERE 1=1"
-        params_out: list[Any] = []
-        if family is not None:
-            query_out += " AND s.family = ?"
-            params_out.append(family)
-        if until is not None:
-            query_out += " AND o.known_at COLLATE UTC_TIMESTAMP <= ?"
-            params_out.append(until)
-        query_out += " ORDER BY o.known_at COLLATE UTC_TIMESTAMP ASC;"
+    query_out = (
+        "SELECT o.*, s.family FROM outcomes o JOIN situations s ON o.situation_id = s.id WHERE 1=1"
+    )
+    params_out: list[Any] = []
+    if family is not None:
+        query_out += " AND s.family = ?"
+        params_out.append(family)
+    if until is not None:
+        query_out += " AND o.known_at COLLATE UTC_TIMESTAMP <= ?"
+        params_out.append(until)
+    query_out += " ORDER BY o.known_at COLLATE UTC_TIMESTAMP ASC;"
 
-        cur.execute(query_out, tuple(params_out))
-        out_rows = cur.fetchall()
-        for o_row in out_rows:
-            known = str(o_row["known_at"])
-            timestamps.append(known)
-            events.append(
-                ReplayEvent(
-                    timestamp=known,
-                    priority=PRIORITY_OUTCOME_KNOWN,
-                    kind="OUTCOME_KNOWN",
-                    payload=o_row,
-                )
+    cur.execute(query_out, tuple(params_out))
+    for o_row in cur.fetchall():
+        known = str(o_row["known_at"])
+        timestamps.append(known)
+        events.append(
+            ReplayEvent(
+                timestamp=known,
+                priority=PRIORITY_OUTCOME_KNOWN,
+                kind="OUTCOME_KNOWN",
+                payload=o_row,
+                tie_id=str(o_row["situation_id"]),
             )
-    else:
-        # Stage outcomes dynamically from world without writing to DB or ledger yet
+        )
+
+    # Every situation without a stored outcome is still owed one. Stage those from the
+    # world without writing to the database or the ledger yet.
+    cur.execute("SELECT situation_id FROM outcomes;")
+    resolved_ids = {str(row[0]) for row in cur.fetchall()}
+    unresolved = [row for row in sit_rows if str(row["id"]) not in resolved_ids]
+
+    if unresolved:
         sim_world_instance: Any | None = None
         target_world: WorldView | None = world
+
+        # The owner identity is resolved before any world is opened, so that a world this
+        # function has to construct for itself is told whose world it is. Resolving afterwards
+        # would leave the constructed world anonymous and no reply could be attributed.
+        eff_addrs = persisted_or_configured_owner(cur)
+        if world is not None and (w_addrs := world_user_addresses(world)) is not None:
+            eff_addrs = w_addrs
+
         if target_world is None and settings.world_db_path.exists():
             from probation.synth.world import SimWorld
 
-            sim_world_instance = SimWorld(settings.world_db_path)
+            sim_world_instance = SimWorld(settings.world_db_path, user_addresses=eff_addrs)
             target_world = sim_world_instance
 
         if target_world is not None:
-            cur.execute(
-                """
+            stage_sql = """
                 SELECT s.*, r.payload_json
                 FROM situations s
                 LEFT JOIN raw_items r ON s.raw_item_id = r.id
-                ORDER BY s.occurred_at COLLATE UTC_TIMESTAMP ASC;
-                """
-            )
+                WHERE 1=1
+            """
+            stage_params: list[Any] = []
+            if family is not None:
+                stage_sql += " AND s.family = ?"
+                stage_params.append(family)
+            if until is not None:
+                stage_sql += " AND s.occurred_at COLLATE UTC_TIMESTAMP <= ?"
+                stage_params.append(until)
+            stage_sql += " ORDER BY s.occurred_at COLLATE UTC_TIMESTAMP ASC;"
+            cur.execute(stage_sql, tuple(stage_params))
             sit_for_out = cur.fetchall()
 
             # Pre-index messages for high-speed resolution
             try:
-                if (w_addrs := world_user_addresses(target_world)) is not None:
-                    eff_addrs = w_addrs
-                else:
-                    cur.execute("SELECT value FROM meta WHERE key = 'user_addresses';")
-                    m_row = cur.fetchone()
-                    eff_addrs = (
-                        [a.strip() for a in str(m_row[0]).split(",") if a.strip()]
-                        if m_row
-                        else [a.strip() for a in settings.user_addresses.split(",") if a.strip()]
-                    )
                 mail_index = MailResolverIndex(eff_addrs, target_world.get_messages())
             except Exception:
-                eff_addrs = [a.strip() for a in settings.user_addresses.split(",") if a.strip()]
+                # Without the index no reply can be attributed, so every mail situation would
+                # resolve to a WEAK LEAVE. That is evidence-safe but silently hollow, so it is
+                # logged rather than swallowed.
+                logger.warning(
+                    "Could not index world messages for outcome resolution", exc_info=True
+                )
                 mail_index = None
 
             eval_dt = datetime(2099, 1, 1, tzinfo=UTC)
@@ -232,8 +268,6 @@ def _run_replay(
                     pass
 
             for s_row in sit_for_out:
-                if family is not None and str(s_row["family"]) != family:
-                    continue
                 sit = Situation(
                     id=s_row["id"],
                     raw_item_id=s_row["raw_item_id"],
@@ -275,7 +309,12 @@ def _run_replay(
                 else:
                     try:
                         p_adapter = registry.get_descriptor(sit.pack)
-                        out_obj = p_adapter.resolve_outcome(sit, target_world, eval_dt)
+                        # A Situation carries hashes and redacted text only, so the source
+                        # identity a resolver needs (a file's rel_path, a link's url) lives in the
+                        # raw payload, which is already parsed here and must be handed over.
+                        out_obj = p_adapter.resolve_observed_outcome(
+                            sit, target_world, eval_dt, raw_payload
+                        )
                     except KeyError:
                         continue
 
@@ -289,6 +328,7 @@ def _run_replay(
                             priority=PRIORITY_OUTCOME_KNOWN,
                             kind="OUTCOME_KNOWN",
                             payload=out_obj,
+                            tie_id=str(out_obj.situation_id),
                         )
                     )
 
@@ -356,7 +396,7 @@ def _run_replay(
 
     # 7. Execute replay loop
     for ev in timeline:
-        ev_dt, _ = ev.sort_key()
+        ev_dt = ev.sort_key()[0]
 
         # Monotonically advance clock
         clock.set_time(ev_dt)
@@ -526,6 +566,36 @@ def _run_replay(
             cur.execute("SELECT id FROM proposals WHERE situation_id = ?;", (sit_id,))
             if cur.fetchone() is not None:
                 continue
+
+            # Outcome-known events sort before situations at the same instant, so an outcome
+            # can already be durable by the time this situation is reached. Proposing then
+            # would make proposed_at >= known_at and land the proposal's ledger entry after
+            # the outcome's, breaking I-7 both ways. That evidence is unusable: fail closed.
+            cur.execute("SELECT known_at FROM outcomes WHERE situation_id = ?;", (sit_id,))
+            prior_out = cur.fetchone()
+            occurred_at = str(s_row["occurred_at"])
+            if prior_out is not None and timestamp_key(str(prior_out["known_at"])) <= timestamp_key(
+                occurred_at
+            ):
+                logger.warning(
+                    "No proposal for situation %s: outcome known_at %s is not strictly after "
+                    "occurred_at %s, so I-7 cannot hold",
+                    sit_id,
+                    prior_out["known_at"],
+                    occurred_at,
+                )
+                continue
+
+            # Derive this situation's features now, at its own historical cutoff, so reply
+            # and folder history see exactly the outcomes that were durable when it occurred.
+            extract_features_for_situations(
+                conn,
+                reader_callable=reader_callable,
+                clock=clock,
+                situation_id=sit_id,
+                llm_client=reader_client,
+            )
+            conn.commit()
 
             # Fetch stored features for situation
             cur.execute("SELECT * FROM features WHERE situation_id = ?;", (sit_id,))

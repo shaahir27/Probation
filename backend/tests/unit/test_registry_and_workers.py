@@ -3,12 +3,15 @@
 Authority: docs/CONTRACT.md section 2 (Invariants), section 5, and docs/TEST_PLAN.md T-ID, T-PACK.
 """
 
+import sqlite3
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 from unittest.mock import MagicMock
 
 import pytest
 
+from probation.core.clock import Clock
+from probation.core.enums import ClockMode
 from probation.core.types import ActionSpec, ReaderSpec
 from probation.db.connection import get_connection, init_db
 from probation.packs.base import PackAdapter
@@ -103,7 +106,7 @@ def test_ingestor_empty_db(tmp_path: Any) -> None:
         conn.close()
 
 
-def test_ingestor_and_brain_idempotence(tmp_path: Any) -> None:
+def test_ingestor_and_brain_idempotence(tmp_path: Any, tiny_synth_owner: list[str]) -> None:
     """Ingestion and feature extraction are idempotent on successive runs."""
     db_path = tmp_path / "test_idemp.db"
     init_db(db_path)
@@ -111,7 +114,7 @@ def test_ingestor_and_brain_idempotence(tmp_path: Any) -> None:
     try:
         fixture_dir = Path(__file__).resolve().parent.parent / "fixtures" / "tiny_synth"
         mbox_path = fixture_dir / "mailbox.mbox"
-        import_mail(mbox_path, conn, user_addresses=["meena.k@example.ac.in"])
+        import_mail(mbox_path, conn, user_addresses=tiny_synth_owner)
 
         # First ingestion
         s_count_1 = ingest_situations(conn)
@@ -133,7 +136,61 @@ def test_ingestor_and_brain_idempotence(tmp_path: Any) -> None:
         conn.close()
 
 
-def test_vet_situations_batch(tmp_path: Any) -> None:
+class _RecordingLLMClient:
+    """Stands in for LLMClient so a test can prove whether one was built at all."""
+
+    built: ClassVar[list["_RecordingLLMClient"]] = []
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        type(self).built.append(self)
+
+    def chat_json(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
+        return {}
+
+
+def _populated_replay_db(path: Path, owner: list[str]) -> sqlite3.Connection:
+    """Build a database with imported mail and ingested situations, ready to replay."""
+    init_db(path)
+    conn = get_connection(path)
+    fixture_dir = Path(__file__).resolve().parent.parent / "fixtures" / "tiny_synth"
+    import_mail(fixture_dir / "mailbox.mbox", conn, user_addresses=owner)
+    assert ingest_situations(conn) > 0
+    return conn
+
+
+def test_replay_does_not_spend_on_the_llm_without_opt_in(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch, tiny_synth_owner: list[str]
+) -> None:
+    """A configured API key must not turn a replay into paid, non-reproducible calls.
+
+    Authority: docs/CONTRACT.md fail-closed rule and docs/ENGINE_SPEC.md section 1.2.
+    """
+    from probation.config import settings
+    from probation.engine.replay import run_replay
+    from probation.workers import brain
+
+    monkeypatch.setattr(settings, "llm_api_key", "fake-key-for-guard-test")
+    monkeypatch.setattr(brain, "LLMClient", _RecordingLLMClient)
+
+    _RecordingLLMClient.built.clear()
+    guarded = _populated_replay_db(tmp_path / "guard_off.db", tiny_synth_owner)
+    try:
+        run_replay(guarded, clock=Clock(mode=ClockMode.REPLAY))
+        assert _RecordingLLMClient.built == [], "replay built a live LLM client without opt-in"
+        assert guarded.execute("SELECT COUNT(*) FROM features").fetchone()[0] > 0
+    finally:
+        guarded.close()
+
+    _RecordingLLMClient.built.clear()
+    opted_in = _populated_replay_db(tmp_path / "guard_on.db", tiny_synth_owner)
+    try:
+        run_replay(opted_in, clock=Clock(mode=ClockMode.REPLAY), allow_live_llm=True)
+        assert _RecordingLLMClient.built, "allow_live_llm=True must reach the reader client"
+    finally:
+        opted_in.close()
+
+
+def test_vet_situations_batch(tmp_path: Any, tiny_synth_owner: list[str]) -> None:
     """vet_situations_batch vets sender domains for situations into web_facts table."""
     db_path = tmp_path / "test_vet_batch.db"
     init_db(db_path)
@@ -141,7 +198,7 @@ def test_vet_situations_batch(tmp_path: Any) -> None:
     try:
         fixture_dir = Path(__file__).resolve().parent.parent / "fixtures" / "tiny_synth"
         mbox_path = fixture_dir / "mailbox.mbox"
-        import_mail(mbox_path, conn, user_addresses=["meena.k@example.ac.in"])
+        import_mail(mbox_path, conn, user_addresses=tiny_synth_owner)
         ingest_situations(conn)
 
         vetted = vet_situations_batch(conn)

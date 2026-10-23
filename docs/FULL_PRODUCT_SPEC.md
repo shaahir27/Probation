@@ -65,25 +65,29 @@ No plan can prove future code perfect. This specification makes completion falsi
 | <a id="f41"></a>F41 | Honest README, video, results, feedback and submission | Core WP11; extension 20 | Claim→artifact register, licence/setup/reproduction, required access and maintenance |
 | <a id="f42"></a>F42 | Operator controls, retention, backup/restore, upgrades and support | Extensions 4/13/19 | Restore drills, disconnect/purge policy, service SLOs, migration/rollback runbook |
 
-## 3. Decisions that must be resolved before dependent implementation
+## 3. Approved directions and remaining implementation/operational gates
 
-Core CCR-A through CCR-G and DOC-A through DOC-C remain in the audit report. The new full scope adds the following decisions. They are concrete proposed resolutions, not approved contract amendments; only a human edits CONTRACT.md. Their blocked state does not delete their tasks.
+The owner approved the recommended D1-D9 directions on 22 October 2026 and
+expressly delegated the CONTRACT v2 amendment. The historical audit remains evidence
+of the original conflicts. [The approval register](CONTRACT_AMENDMENT_2026-10-22.md)
+maps every FP gate below. Architecture approval does not imply implemented schemas,
+new role grants, live resource authorization or feature completion.
 
-| ID | Conflict or missing contract | Proposed resolution | Alternative and consequence |
+| ID | Conflict or missing contract | Approved direction | Remaining gate |
 |---|---|---|---|
-| FP-D1 | Source/since interface versus raw-item implementation | Keep public source/since entry; pure internal raw-record mapper; common observation envelopes | Changing public interface requires explicit human amendment. |
-| FP-D2 | Real backfill versus I-7 prospective commitment | Separate retrospective replay ledger/run provenance from live commitments; decide explicitly which retrospective evidence, if any, can qualify live licences | Start live evidence prospectively only; still use history for eligible training. Do not silently treat historical reconstruction as a past real commitment. |
-| FP-D3 | New connection/cursor/command/event tables not in role matrix | Approve exact table/row ownership in section 5, including lifecycle commands | Ledger-only encodings need equivalent typed ownership/idempotency proofs. |
-| FP-D4 | SECURITY_PRIVACY currently allows secrets in environment variables only; refresh tokens/receipt keys need a lifecycle | Select environment-injected, per-role protected credentials for first deployment; explicitly approve an OS secret-store design before durable OAuth/key storage | Manual re-provisioning on every restart limits unattended operation; it cannot be called complete always-on auth. |
-| FP-D5 | API may write only user_responses but Connections, pause, habits, receipt revocation and admin operations need commands | Approve typed command_requests written by API, consumed by the designated role; raw tokens never in commands | Separate privileged local CLI control is possible, but does not fulfill full dashboard controls unless linked safely. |
-| FP-D6 | Only Executor holds write credentials; ordinary OAuth callbacks/MCP servers may hold them elsewhere | Write-grant callback/exchange and execution gateway run inside the trusted Executor deployment boundary; read grants are separate | A separate credential broker or remote write MCP server requires explicit role/boundary amendment; never assert read/write isolation from a tool-name filter alone. |
-| FP-D7 | I-1 data-only LLMs versus Hermes/NemoClaw model-controlled tools | External runtimes provide proposals through a schema-validating adapter; Probation's own reader/writer/examiner remain data-only; clarify the external-runtime trust boundary explicitly | If broad I-1 forbids even external orchestration tools, use deterministic interoperability until human clarification. That does not fulfill an autonomous runtime claim. |
-| FP-D8 | CONTRACT non-goal “anything irreversible” versus held REPLY/RSVP action catalog | Clarify supported non-recallable outward actions, prohibited permanently destructive actions and explicit-approval behavior; retain cap/hold rules | Do not add any extra irreversible catalog action without review. |
-| FP-D9 | Public fixture-only Tavily rule versus proposed public live domain checker | Approve a narrow public-entity lookup command with independent quota, webfacts worker ownership and no generic LLM/free-form search | Keep live check in a controlled operator session; public checker remains incomplete until its selected requirement is satisfied. |
-| FP-D10 | Full scope versus old cut lines and phase numbering | Record the user's no-cut instruction and explicit repair/extension slices under original phase ownership; amend lower-authority plans after approval | A deadline-constrained submission is separately labelled partial. |
-| FP-D11 | Editable habits versus evidence-derived authority | User edits descriptive labels/notes or denies patterns; semantic rule changes become explicit prospective feedback with provenance, never edits to historical counts/caps | Keep separate correction request rather than free-form policy rules. |
-| FP-D12 | Human participants versus synthetic-only agent workflow | Approve a separate consented study using synthetic stimuli and anonymous labels, private storage and aggregate reporting | Simulated humans remain a test harness; they do not fulfill the study requirement. |
-| FP-D13 | FORWARD is in the catalog at suggestion-only cap, but the current response contract lacks a forwarding-recipient field | Approve a typed, explicit owner-selected recipient binding and forward payload contract; validate account, target, content/attachment rules and persist it immutably before Executor consumes it | Keep forwarding unavailable in intermediate builds until approved; F17 remains incomplete. Do not reuse the original-sender-only REPLY validator or allow an LLM to invent recipients. |
+| FP-D1 | Source/since interface versus raw-item implementation | Keep public source/since with shared internal raw-observation mapping (D5). | Adapter/cursor conformance implementation. |
+| FP-D2 | Real backfill versus I-7 prospective commitment | Use eligible backfill for training and separate retrospective runs; live autonomy evidence starts prospectively. | Enforce provenance/cohort isolation and I-7; no live qualification from reconstructed predictions. |
+| FP-D3 | New connection/cursor/command/event tables not in role matrix | Explicit per-role/per-row ownership; immutable events/intents and worker-owned results. | Exact connector/cursor/lease/budget DDL, constraints, role matrix and migration review before use. |
+| FP-D4 | SECURITY_PRIVACY previously allowed environment-only secrets; refresh tokens/receipt keys need a lifecycle | Role-protected OS credential store/deployment secret manager or environment injection. | Choose/test concrete store, refresh/rotation/revocation, dependencies and provisioning; no keys approved here. |
+| FP-D5 | API may write only user_responses but Connections, pause, habits, receipt revocation and admin operations need commands | Typed API command requests consumed by their designated role; no raw tokens. | Versioned lifecycle request/receipt schemas, consumer ownership and auth tests. |
+| FP-D6 | Only Executor holds write credentials; ordinary OAuth callbacks/MCP servers may hold them elsewhere | Write-grant exchange/refresh/callback inside trusted Executor deployment boundary; separate observation grants. | Registered flow/endpoints, account/resource scopes and isolated secret delivery. |
+| FP-D7 | I-1 data-only LLMs versus Hermes/NemoClaw model-controlled tools | External runtimes/MCP submit validated proposals; protected writes remain Executor-only and internal LLMs data-only. | Pinned runtime/tool manifests/transport and no-bypass proof; no arbitrary external write authority. |
+| FP-D8 | CONTRACT non-goal “anything irreversible” versus held REPLY/RSVP action catalog | Supported non-recallable replies, owner-approved forwards and RSVPs permitted under cap/hold/approval rules. | Catalog/effect evidence and clear cancellation versus undo; prohibited permanent destruction/payments/sharing remain blocked. |
+| FP-D9 | Public fixture-only Tavily rule versus proposed public live domain checker | Bounded domain-only, independently quotaed Webfacts-owned public checker design. | Endpoint/abuse design, explicit public deployment and live resource/spending authorization. |
+| FP-D10 | Full scope versus old cut lines and phase numbering | All F01-F42 and six packs retained under original phase ownership/dependencies. | Per-feature acceptance evidence; any incomplete release is labelled partial. |
+| FP-D11 | Editable habits versus evidence-derived authority | Descriptive edits/denial allowed; semantic corrections become prospective provenance-bearing feedback. | Exact request/consumer/UI behavior; never mutate historical counts, caps or policy labels directly. |
+| FP-D12 | Human participants versus synthetic-only agent workflow | Separate consented study on synthetic stimuli with anonymous decision records/aggregates. | Concrete protocol/withdrawal/retention and authorization for recruitment/collection; simulation is not the study. |
+| FP-D13 | FORWARD is in the catalog at suggestion-only cap, but the current response contract lacks a forwarding-recipient field | Explicit owner-selected validated forward recipient and immutable reviewed payload; REPLY stays original-sender-only. | Dedicated forward content/attachment/request/provider contract, versioning and send-reconciliation tests. |
 
 No credential, signing key, private feed or real export should be pasted into an agent chat. Development tests use fabricated credentials and synthetic provider resources. Live verification requires explicit authorized account/resource scope later.
 
@@ -162,7 +166,7 @@ class WriteConnector(Protocol):
 | source_observations | Immutable native version + observation ID; local payload reference; no answer key | Ingestor |
 | outcome_events | Immutable event/response/action IDs, known time, strength/source; no destructive replacement | Resolver for normal feedback/footprints; Executor for undo events, per approved matrix |
 | command_requests | Immutable owner/action payload; idempotency key; no credentials | API |
-| command_receipts | One consumer/result per request; role/type authorization | Designated consumer role only |
+| command_receipts | One designated consumer per typed command; feedback has separate role-owned decision and execution receipts keyed by request/consumer | Designated consumer role only; no cross-role result writes |
 | execution_attempts | Durable action/attempt IDs, expected native version, confirmed/ambiguous result, reconciliation status | Executor |
 | policy_snapshots | Complete model/encoder/calibration/feature provenance; immutable version and as-of | Approved training owner, proposed examiner |
 | worker_leases | Role/resource/job key, monotonic fencing token, expiry from Clock | The owning role; scheduler merely coordinates |
@@ -600,7 +604,7 @@ Complete architecture/setup/licence/model/Tavily/results sections, screenshots f
 
 ### 20.2 Full delivery order
 
-1. **Design closure:** approve the recorded conflict resolutions, complete source/opinion mapping, provider distribution scope, credential boundaries and test plan. No contract amendment is applied by an agent.
+1. **Design closure:** approve the recorded conflict resolutions, complete source/opinion mapping, provider distribution scope, credential boundaries and test plan. The 22 October D1-D9 amendment was expressly delegated; future amendments still require explicit human approval.
 2. **Foundation repair:** Core WP0-WP5 in reviewed original-phase slices; correct data/strict schemas/transactions before spending on real inference.
 3. **Closed synthetic loop:** Core WP6-WP9, all six packs and all three chain actions; real pipeline API/browser tests and no-peeking proof cases.
 4. **Connector foundation:** common envelopes, per-role storage/credentials, OAuth/consent UI and fake-provider conformance tests.

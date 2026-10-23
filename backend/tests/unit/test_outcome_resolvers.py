@@ -18,7 +18,13 @@ from probation.packs.mail.resolver import resolve_mail_outcome
 
 
 class MockWorldView:
-    """Mock WorldView with configurable messages and events."""
+    """Mock WorldView with configurable messages and events.
+
+    A message may carry ``label_history``: a list of ``[valid_from_iso, labels]`` pairs in ascending
+    order, with ``initial_labels`` for the state before the first entry. Resolvers ask for the state
+    at an observation point, so a double that can only answer with its final state cannot exercise
+    them.
+    """
 
     def __init__(
         self,
@@ -28,19 +34,33 @@ class MockWorldView:
         self.messages = messages or []
         self.events = events or []
 
-    def get_messages(self, label: str | None = None) -> list[dict[str, Any]]:
-        return self.messages
+    @staticmethod
+    def _project(message: dict[str, Any], as_of: str | None) -> dict[str, Any]:
+        history = message.get("label_history")
+        if as_of is None or not history:
+            return message
+        labels = message.get("initial_labels", ["INBOX"])
+        for valid_from, current in history:
+            if str(valid_from) > as_of:
+                break
+            labels = current
+        return {**message, "labels": list(labels)}
 
-    def get_message(self, message_id: str) -> dict[str, Any] | None:
+    def get_messages(
+        self, label: str | None = None, as_of: str | None = None
+    ) -> list[dict[str, Any]]:
+        return [self._project(m, as_of) for m in self.messages]
+
+    def get_message(self, message_id: str, as_of: str | None = None) -> dict[str, Any] | None:
         for m in self.messages:
             if m.get("message_id") == message_id:
-                return m
+                return self._project(m, as_of)
         return None
 
-    def get_events(self) -> list[dict[str, Any]]:
+    def get_events(self, as_of: str | None = None) -> list[dict[str, Any]]:
         return self.events
 
-    def get_event(self, uid: str) -> dict[str, Any] | None:
+    def get_event(self, uid: str, as_of: str | None = None) -> dict[str, Any] | None:
         for e in self.events:
             if e.get("uid") == uid:
                 return e
@@ -148,6 +168,104 @@ def test_t_resolve_mail_censoring() -> None:
     out_resolved = resolve_mail_outcome(sit, world, now_past, raw_payload)
     assert out_resolved is not None
     assert out_resolved.observed_action == "LEAVE"
+
+
+def test_a_label_applied_after_the_window_is_not_knowledge_at_the_deadline() -> None:
+    """C9: a late archive must not be reported as something the system could know at window close.
+
+    Every label outcome carries ``known_at = window close``. Reading the label state "as of now"
+    made a full-persona run resolve against the end of the story, so an owner who archived on day 20
+    produced evidence dated day 12 -- earlier than the fact -- and the policy learned from it.
+    """
+    sit = Situation(
+        id="sit-mail-late",
+        raw_item_id="raw-late",
+        pack="mail",
+        family="email_action",
+        occurred_at="2026-03-05T10:00:00Z",
+        content_hash="hlate",
+        created_at="2026-03-05T10:00:00Z",
+    )
+    late_archive = {
+        "message_id": "<msg-late@test.local>",
+        "initial_labels": ["INBOX"],
+        "labels": ["ARCHIVED"],
+        "label_history": [["2026-03-25T09:00:00Z", ["ARCHIVED"]]],
+    }
+    world = MockWorldView(messages=[late_archive])
+    payload = {"message_id": "<msg-late@test.local>", "labels": ["ARCHIVED"]}
+
+    out = resolve_mail_outcome(sit, world, datetime(2026, 4, 1, tzinfo=UTC), payload)
+    assert out is not None
+    assert out.observed_action == "LEAVE"
+    assert out.known_at == "2026-03-12T10:00:00Z"
+    # The exported payload still carries the final label set for later resolution; what changed is
+    # that it can no longer answer a question dated at the deadline.
+    assert payload["labels"] == ["ARCHIVED"]
+
+    # An archive applied before the deadline is still read as an archive, so nothing about the
+    # world has been forgotten -- only dated to when it was true.
+    as_of_archive = MockWorldView(
+        messages=[{**late_archive, "label_history": [["2026-03-11T09:00:00Z", ["ARCHIVED"]]]}]
+    )
+    early_owner_action = resolve_mail_outcome(
+        sit, as_of_archive, datetime(2026, 4, 1, tzinfo=UTC), payload
+    )
+    assert early_owner_action is not None
+    assert early_owner_action.observed_action == "ARCHIVE"
+
+
+def test_a_world_that_cannot_answer_as_of_yields_no_label_outcome() -> None:
+    """Plan 6.2.6: an adapter without an observation point is not a licence to read the final state."""
+
+    class NoHorizonWorld:
+        def get_messages(self, label: str | None = None) -> list[dict[str, Any]]:
+            return []
+
+        def get_message(self, message_id: str) -> dict[str, Any] | None:
+            return {"message_id": message_id, "labels": ["TRASH"]}
+
+        def get_events(self) -> list[dict[str, Any]]:
+            return []
+
+        def get_event(self, uid: str) -> dict[str, Any] | None:
+            return None
+
+    sit = Situation(
+        id="sit-mail-no-horizon",
+        raw_item_id="raw-nh",
+        pack="mail",
+        family="email_action",
+        occurred_at="2026-03-01T10:00:00Z",
+        content_hash="hnh",
+        created_at="2026-03-01T10:00:00Z",
+    )
+    payload = {"message_id": "<nh@domain.test>", "labels": ["INBOX", "TRASH"]}
+
+    assert resolve_mail_outcome(
+        sit, NoHorizonWorld(), datetime(2026, 3, 10, tzinfo=UTC), payload
+    ) is (None)
+
+
+def test_a_message_missing_from_the_world_is_unresolved_not_read_from_the_export() -> None:
+    """Failing closed beats inventing a verdict from the archive's own label header."""
+    sit = Situation(
+        id="sit-mail-absent",
+        raw_item_id="raw-abs",
+        pack="mail",
+        family="email_action",
+        occurred_at="2026-03-01T10:00:00Z",
+        content_hash="habs",
+        created_at="2026-03-01T10:00:00Z",
+    )
+    world = MockWorldView(messages=[])
+
+    assert (
+        resolve_mail_outcome(
+            sit, world, datetime(2026, 3, 10, tzinfo=UTC), {"message_id": "<gone@domain.test>"}
+        )
+        is None
+    )
 
 
 def test_t_resolve_calendar_outcomes_and_censoring() -> None:

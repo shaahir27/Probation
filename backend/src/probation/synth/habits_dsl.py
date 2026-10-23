@@ -10,16 +10,9 @@ from typing import Any
 
 from probation.synth.personas import Persona
 
-# Action catalogs per family (PACKS_SPEC sections 1..5b)
-FAMILY_ACTION_CATALOG: dict[str, list[str]] = {
-    "email_action": ["REPLY", "FORWARD", "ARCHIVE", "TRASH", "LEAVE"],
-    "invite_rsvp": ["ACCEPT", "DECLINE", "TENTATIVE"],
-    "file_destination": ["MOVE_TO_FOLDER", "LEAVE"],
-    "opportunity_triage": ["TRACK", "DISMISS", "LEAVE"],
-    "link_triage": ["FILE_TO_COLLECTION", "ARCHIVE_LINK", "LEAVE"],
-}
-
-# Baseline default action distributions when no explicit rule matches
+# Baseline default action distributions when no explicit rule matches.
+# Keys are realizable actions, spelled exactly as the world records them; the canonical action-type
+# vocabulary for each family lives in core/actions.py and is not duplicated here.
 FAMILY_DEFAULT_DISTRIBUTIONS: dict[str, dict[str, float]] = {
     "email_action": {
         "LEAVE": 0.50,
@@ -179,18 +172,19 @@ def evaluate_habit(
 
     candidate_action = _sample_action(distribution, rng)
 
-    # Apply noise: with probability noise, substitute with a random alternative action
+    # Apply noise: with probability `noise`, substitute a different realizable action.
+    # Alternatives come from the rule and default distributions rather than a declared action-type
+    # vocabulary, because those are the only actions the world can actually render. A bare type
+    # name such as `MOVE_TO_FOLDER` carries no destination, so nothing is written to user_actions
+    # or to the file tree, and truth.json would claim a footprint that does not exist.
     noise_applied = False
     final_action = candidate_action
     if rng.random() < habits.noise:
-        noise_applied = True
-        catalog = FAMILY_ACTION_CATALOG.get(family, list(distribution.keys()))
-        # Choose from catalog
-        alternatives = [a for a in catalog if a != candidate_action]
+        realizable = sorted(set(distribution) | set(FAMILY_DEFAULT_DISTRIBUTIONS.get(family, {})))
+        alternatives = [a for a in realizable if a != candidate_action]
         if alternatives:
             final_action = rng.choice(alternatives)
-        else:
-            final_action = rng.choice(catalog)
+            noise_applied = True
 
     return EvaluationResult(
         candidate_action=candidate_action,

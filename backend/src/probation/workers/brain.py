@@ -24,33 +24,66 @@ logger = logging.getLogger(__name__)
 FEATURIZER_VERSION = "v1.0"
 
 
+def build_reader_client(clock: Clock | None, allow_live_llm: bool) -> LLMClient | None:
+    """Build the live reader once per run, or return None when reading is deterministic.
+
+    A replay featurizes one situation per event, so constructing the client inline would
+    rebuild it hundreds of times. Callers that opt in to live reading build it once here
+    and pass it to `extract_features_for_situations`.
+    """
+    if not settings.llm_api_key:
+        return None
+    if not allow_live_llm:
+        logger.warning(
+            "LLM API key is configured but live reading was not requested; featurizing "
+            "deterministically. Pass allow_live_llm=True to spend against the reader model."
+        )
+        return None
+    return LLMClient(api_key=settings.llm_api_key, clock=clock or get_clock())
+
+
 def extract_features_for_situations(
     conn: sqlite3.Connection,
     reader_callable: (Callable[[Situation], tuple[dict[str, Any] | None, bool]] | None) = None,
     clock: Clock | None = None,
+    allow_live_llm: bool = False,
+    situation_id: str | None = None,
+    llm_client: LLMClient | None = None,
 ) -> int:
     """Compute and store features for unfeaturized situations.
 
     Authority: docs/ENGINE_SPEC.md section 3 and docs/DATA_MODEL.md section 1.
-    Uses real LLMClient when settings.llm_api_key is set and reader_callable is None.
+    A live reader is used only when `allow_live_llm` is passed explicitly: it spends
+    real money and its output is not reproducible, so a replay must never trigger one
+    just because an API key happens to be configured.
+
+    Pass `situation_id` to featurize exactly one situation. A replay must do this at the
+    moment that situation's event fires: history clues count prior outcomes, and a batch
+    run before the timeline starts reads an empty `outcomes` table, collapsing every
+    reply-history clue to its degenerate default (plan section 6.3.3).
     """
     access_conn = RoleAccess(conn, Role.BRAIN)
     read_cursor = access_conn.conn.cursor()
 
-    llm_client: LLMClient | None = None
-    if reader_callable is None and settings.llm_api_key:
-        llm_client = LLMClient(api_key=settings.llm_api_key, clock=clock or get_clock())
+    if llm_client is None and reader_callable is None:
+        # A per-situation call inside a replay is handed the run's client by its caller, so
+        # it must not rebuild one (or re-warn) for every situation on the timeline.
+        if allow_live_llm or situation_id is None:
+            llm_client = build_reader_client(clock, allow_live_llm)
 
     # Find situations without features
-    read_cursor.execute(
-        """
+    query = """
         SELECT s.*
         FROM situations s
         LEFT JOIN features f ON s.id = f.situation_id
         WHERE f.situation_id IS NULL
-        ORDER BY s.occurred_at COLLATE UTC_TIMESTAMP ASC;
         """
-    )
+    params: tuple[Any, ...] = ()
+    if situation_id is not None:
+        query += " AND s.id = ?"
+        params = (situation_id,)
+    query += " ORDER BY s.occurred_at COLLATE UTC_TIMESTAMP ASC;"
+    read_cursor.execute(query, params)
     rows = read_cursor.fetchall()
     count = 0
 

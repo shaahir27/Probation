@@ -251,6 +251,20 @@ def check_family_shift(
 
         max_psi = max(psi_results.values()) if psi_results else 0.0
         alarm = int(max_psi > psi_alarm_threshold)
+        psi_json = json.dumps(psi_results)
+
+        # A resumed replay regenerates every weekly tick from the start of the timeline, so
+        # this week may already be recorded. family_shift is read positionally because
+        # callers hand in plain sqlite3 connections as well as Row-factory ones.
+        prior = cur.execute(
+            "SELECT alarm, psi_json FROM family_shift WHERE family=? AND week_start=?",
+            (family, as_of),
+        ).fetchone()
+        # Only an identical recheck is skipped. A recomputation that disagrees with the
+        # recorded week is new information and must still reach the audit trail.
+        already_recorded = (
+            prior is not None and int(prior[0]) == alarm and str(prior[1]) == psi_json
+        )
 
         access.execute_write(
             "family_shift",
@@ -258,10 +272,10 @@ def check_family_shift(
             INSERT OR REPLACE INTO family_shift (family, week_start, psi_json, alarm)
             VALUES (?, ?, ?, ?);
             """,
-            (family, as_of, json.dumps(psi_results), alarm),
+            (family, as_of, psi_json, alarm),
         )
 
-        if alarm == 1:
+        if alarm == 1 and not already_recorded:
             access.append_ledger(
                 kind=LedgerKind.DRIFT_ALARM,
                 ref_id=f"shift-{family}-{as_of}",

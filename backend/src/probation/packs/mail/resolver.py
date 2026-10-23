@@ -9,10 +9,10 @@ from typing import Any
 
 from probation.config import settings
 from probation.core.enums import EvidenceStrength
+from probation.core.identity import normalize_address, normalize_user_addresses
 from probation.core.types import Outcome, Situation
 from probation.packs.base import WorldView
 from probation.packs.identity import world_user_addresses
-from probation.packs.mail.clues import normalize_address
 
 DEFAULT_MAIL_WINDOW_DAYS = 7
 
@@ -28,11 +28,15 @@ class MailResolverIndex:
         self.replies_by_in_reply_to: dict[str, list[tuple[datetime, dict[str, Any]]]] = {}
         self.user_forwards: list[tuple[datetime, dict[str, Any]]] = []
 
-        norm_addrs = [normalize_address(a) for a in user_addrs if a.strip()]
+        # Exact membership only. This decides which world messages are the owner's own sent
+        # mail, and therefore whether a REPLY or FORWARD is attributed to the owner at all; a
+        # substring test would let an unrelated sender whose address merely contains an owner
+        # token manufacture STRONG evidence (plan section 6.1.3, invariant I-7 fail-closed).
+        owner = set(normalize_user_addresses(user_addrs))
 
         for m in messages:
             m_from = normalize_address(m.get("from_addr") or m.get("from") or "")
-            if not any(u in m_from for u in norm_addrs):
+            if not m_from or m_from not in owner:
                 continue
 
             rec_str = m.get("received_at")
@@ -89,14 +93,11 @@ def resolve_mail_outcome(
     subject = payload.get("subject") or ""
 
     if user_addresses is not None:
-        if isinstance(user_addresses, str):
-            user_addrs = [normalize_address(a) for a in user_addresses.split(",") if a.strip()]
-        else:
-            user_addrs = [normalize_address(a) for a in user_addresses if a.strip()]
+        user_addrs = normalize_user_addresses(user_addresses)
     elif (world_addrs := world_user_addresses(world)) is not None:
-        user_addrs = [normalize_address(a) for a in world_addrs]
+        user_addrs = world_addrs
     else:
-        user_addrs = [normalize_address(a) for a in settings.user_addresses.split(",") if a.strip()]
+        user_addrs = normalize_user_addresses(settings.user_addresses)
 
     # Use pre-built index or build on the fly
     mail_index = index or MailResolverIndex(user_addrs, world.get_messages())
@@ -153,15 +154,29 @@ def resolve_mail_outcome(
     if now < window_end:
         return None
 
-    # Retrieve current label state for this message as of now
-    now_iso = now.strftime("%Y-%m-%dT%H:%M:%SZ")
+    # Project the label state at the close of the response window, not at the moment of reading.
+    # Everything below claims known_at = window close, so the state it inspects has to be the state
+    # the message had then; reading it "as of now" reports a trash or archive the owner performed
+    # later as if it had been visible at the deadline. The early return above guarantees the window
+    # has closed, so this observation point is never in the future.
     orig_msg: dict[str, Any] | None = None
     if msg_id:
         try:
-            orig_msg = world.get_message(msg_id, as_of=now_iso)  # type: ignore[call-arg]
+            orig_msg = world.get_message(msg_id, as_of=window_end_iso)  # type: ignore[call-arg]
         except TypeError:
-            orig_msg = world.get_message(msg_id)
-    labels = orig_msg.get("labels", []) if orig_msg else payload.get("labels", ["INBOX"])
+            # A world that cannot answer as of an observation point can only offer its final state,
+            # and the final state is precisely what a decision taken at the deadline must not be
+            # shown (I-6, plan 6.2.1). Retrying without the horizon would turn every unbounded read
+            # into proof.
+            orig_msg = None
+    if orig_msg is None:
+        # The exported payload does carry a label set, but it is the set the archive was taken with
+        # at the end of the story, so it can say ARCHIVE about a message the owner was still reading.
+        # Absent a state that is legitimately knowable at the deadline, the honest answer is that
+        # this stays unresolved -- the same censoring the early return above already models.
+        return None
+
+    labels = orig_msg.get("labels", [])
 
     labels_upper = [str(lbl).upper() for lbl in labels]
 
