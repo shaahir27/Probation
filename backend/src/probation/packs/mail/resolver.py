@@ -162,7 +162,7 @@ def resolve_mail_outcome(
     orig_msg: dict[str, Any] | None = None
     if msg_id:
         try:
-            orig_msg = world.get_message(msg_id, as_of=window_end_iso)  # type: ignore[call-arg]
+            orig_msg = world.get_message(msg_id, as_of=window_end_iso)
         except TypeError:
             # A world that cannot answer as of an observation point can only offer its final state,
             # and the final state is precisely what a decision taken at the deadline must not be

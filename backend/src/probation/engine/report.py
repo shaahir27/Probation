@@ -1,13 +1,83 @@
-"""Report card aggregation and evaluation summaries.
-
-Authority: docs/ENGINE_SPEC.md section 17 and docs/EVALUATION_PLAN.md section 4.
-"""
+"""Bounded report cohorts with explicit denominators (ENGINE_SPEC 17)."""
 
 import sqlite3
+from collections.abc import Mapping
 from typing import Any
 
-from probation.core.clock import timestamp_key
-from probation.core.enums import GateDecision
+from probation.core.clock import get_clock, timestamp_key
+from probation.core.history import HistoryView
+
+
+def rate(numerator: int, denominator: int) -> dict[str, Any]:
+    return {
+        "numerator": numerator,
+        "denominator": denominator,
+        "rate": numerator / denominator if denominator else None,
+    }
+
+
+def summarize_proposals(
+    proposals: list[dict[str, Any]],
+    decisions: Mapping[str, Mapping[str, Any]],
+    b0_predictions: dict[str, str] | None,
+    b2_predictions: dict[str, str] | None,
+) -> dict[str, Any]:
+    same = different = weak = unresolved = ineligible = non_abstained = 0
+    baseline = {
+        "b0": {"numerator": 0, "denominator": 0, "missing": 0},
+        "b2": {"numerator": 0, "denominator": 0, "missing": 0},
+    }
+    tasks: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
+    for p in proposals:
+        tasks.setdefault((str(p["family"]), str(p["class_key"]), str(p["action"])), []).append(p)
+        decision = decisions.get(str(p["situation_id"]))
+        if decision is None:
+            unresolved += 1
+            continue
+        if not decision.get("eligible", False):
+            ineligible += 1
+            continue
+        if decision.get("strength") != "STRONG":
+            weak += 1
+            continue
+        agree = p["action"] != "ABSTAIN" and p["action"] == decision.get("observed_action")
+        same += int(agree)
+        different += int(not agree)
+        non_abstained += int(p["action"] != "ABSTAIN")
+        for name, predictions in (("b0", b0_predictions), ("b2", b2_predictions)):
+            sid = str(p["situation_id"])
+            if predictions is None or sid not in predictions:
+                baseline[name]["missing"] += 1
+                continue
+            baseline[name]["denominator"] += 1
+            baseline[name]["numerator"] += int(predictions[sid] == decision.get("observed_action"))
+    total = same + different
+    asked = sum(p["gate"] == "ASK" or p["action"] == "ABSTAIN" for p in proposals)
+    all_agreement = rate(same, total)
+    baselines = {
+        name: {**rate(x["numerator"], x["denominator"]), "missing": x["missing"]}
+        for name, x in baseline.items()
+    }
+    return {
+        "total_proposals": len(proposals),
+        "total_evaluated": total,
+        "same": same,
+        "different": different,
+        "would_ask": asked,
+        "unresolved": unresolved,
+        "weak": weak,
+        "ineligible": ineligible,
+        "censored": unresolved + weak + ineligible,
+        "accuracy": all_agreement["rate"],
+        "agreement_all": all_agreement,
+        "agreement_non_abstained": rate(same, non_abstained),
+        "coverage": rate(non_abstained, total),
+        "baselines": baselines,
+        "b0_accuracy": baselines["b0"]["rate"],
+        "b2_accuracy": baselines["b2"]["rate"],
+        "b0_same": baseline["b0"]["numerator"],
+        "b2_same": baseline["b2"]["numerator"],
+    }
 
 
 def generate_report_card(
@@ -16,166 +86,62 @@ def generate_report_card(
     as_of: str | None = None,
     b0_predictions: dict[str, str] | None = None,
     b2_predictions: dict[str, str] | None = None,
+    *,
+    since: str | None = None,
+    class_key: str | None = None,
+    action: str | None = None,
 ) -> dict[str, Any]:
-    """Generate aggregate report card metrics across packs and families.
-
-    Authority: docs/ENGINE_SPEC.md section 17:
-    - same = proposals where action == observed_action (strong outcomes only)
-    - different = strong outcome and action != observed_action
-    - would_ask = proposals with gate == ASK or action == ABSTAIN
-    - Items with no outcome (censored) are listed separately and excluded from same/different.
-    """
-    cur = conn.cursor()
-    query = """
-        SELECT
-            p.id,
-            p.situation_id,
-            p.family,
-            p.class_key,
-            p.action,
-            p.gate,
-            p.proposed_at,
-            o.observed_action,
-            o.strength,
-            o.known_at
-        FROM proposals p
-        LEFT JOIN outcomes o ON p.situation_id = o.situation_id
-        WHERE 1=1
-    """
-    params: list[Any] = []
-    if family is not None:
-        query += " AND p.family = ?"
-        params.append(family)
-    if as_of is not None:
-        query += " AND p.proposed_at COLLATE UTC_TIMESTAMP <= ?"
-        params.append(as_of)
-
-    query += " ORDER BY p.proposed_at COLLATE UTC_TIMESTAMP ASC;"
-    cur.execute(query, tuple(params))
-    rows = cur.fetchall()
-
-    same = 0
-    different = 0
-    would_ask = 0
-    censored = 0
-
-    b0_same = 0
-    b2_same = 0
-
-    task_groups: dict[tuple[str, str], dict[str, Any]] = {}
-
-    for r in rows:
-        sit_id = str(r["situation_id"])
-        action = str(r["action"])
-        gate = str(r["gate"])
-        obs_action = r["observed_action"]
-        strength = r["strength"]
-        known_at = r["known_at"]
-        class_key = str(r["class_key"]) if "class_key" in r.keys() else "unknown"
-        task_family = str(r["family"])
-
-        t_key = (class_key, action)
-        if t_key not in task_groups:
-            task_groups[t_key] = {
-                "class_key": class_key,
-                "action": action,
-                "family": task_family,
-                "same": 0,
-                "different": 0,
-                "would_ask": 0,
-                "censored": 0,
-            }
-
-        # Check if censored (no outcome or outcome known in the future relative to as_of).
-        # timestamp_key, not string ordering: must agree with the COLLATE UTC_TIMESTAMP bound above.
-        if obs_action is None or (
-            as_of is not None and known_at and timestamp_key(known_at) > timestamp_key(as_of)
-        ):
-            censored += 1
-            task_groups[t_key]["censored"] += 1
-            continue
-
-        if strength != "STRONG":
-            censored += 1
-            task_groups[t_key]["censored"] += 1
-            continue
-
-        obs_act_str = str(obs_action)
-        if action == obs_act_str:
-            same += 1
-            task_groups[t_key]["same"] += 1
-        else:
-            different += 1
-            task_groups[t_key]["different"] += 1
-
-        if gate == GateDecision.ASK.value or action == "ABSTAIN":
-            would_ask += 1
-            task_groups[t_key]["would_ask"] += 1
-
-        if b0_predictions and sit_id in b0_predictions:
-            if b0_predictions[sit_id] == obs_act_str:
-                b0_same += 1
-
-        if b2_predictions and sit_id in b2_predictions:
-            if b2_predictions[sit_id] == obs_act_str:
-                b2_same += 1
-
-    total_evaluated = same + different
-    accuracy = (same / total_evaluated) if total_evaluated > 0 else 0.0
-    b0_acc = (b0_same / total_evaluated) if total_evaluated > 0 else 0.0
-    b2_acc = (b2_same / total_evaluated) if total_evaluated > 0 else 0.0
-
-    tasks_list: list[dict[str, Any]] = []
-    for (ck, act), stats in task_groups.items():
-        if act == "ABSTAIN":
-            continue
-        t_eval = stats["same"] + stats["different"]
-        if t_eval < 3:
-            status = "not_enough_history"
-            needs_attention = False
-            t_acc: float | None = None
-        elif (stats["same"] / t_eval) >= 0.90 and stats["different"] <= 1:
-            status = "stable"
-            needs_attention = False
-            t_acc = stats["same"] / t_eval
-        else:
-            status = "needs_attention"
-            needs_attention = True
-            t_acc = stats["same"] / t_eval
-
-        tasks_list.append(
+    cutoff = as_of if as_of is not None else get_clock().now_iso()
+    if since is not None and timestamp_key(since) > timestamp_key(cutoff):
+        raise ValueError("invalid_report_period")
+    history = HistoryView(conn, cutoff)
+    proposals = [
+        dict(p)
+        for p in history.get_proposals(class_key=class_key, action=action)
+        if (family is None or p["family"] == family)
+        and (since is None or timestamp_key(str(p["proposed_at"])) >= timestamp_key(since))
+    ]
+    decisions = history.get_decision_projection()
+    summary = summarize_proposals(proposals, decisions, b0_predictions, b2_predictions)
+    groups: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
+    for p in proposals:
+        if p["action"] != "ABSTAIN":
+            groups.setdefault((p["family"], p["class_key"], p["action"]), []).append(p)
+    tasks = []
+    for (fam, key, act), rows in sorted(groups.items()):
+        item = summarize_proposals(rows, decisions, b0_predictions, b2_predictions)
+        sufficient = item["total_evaluated"] >= 3
+        # Preserve the legacy display heuristic, explicitly separate from permission.
+        attention = sufficient and (item["accuracy"] < 0.9 or item["different"] > 1)
+        tasks.append(
             {
-                "class_key": ck,
+                **item,
+                "family": fam,
+                "class_key": key,
                 "action": act,
-                "family": stats["family"],
-                "total_evaluated": t_eval,
-                "same": stats["same"],
-                "different": stats["different"],
-                "would_ask": stats["would_ask"],
-                "censored": stats["censored"],
-                "accuracy": t_acc,
-                "needs_attention": needs_attention,
-                "lagging": needs_attention,
-                "status": status,
+                "status": "not_enough_history"
+                if not sufficient
+                else "needs_attention"
+                if attention
+                else "stable",
+                "needs_attention": attention,
+                "lagging": attention,
             }
         )
-
-    # Sort attention-first, then by total evaluated descending
-    tasks_list.sort(key=lambda x: (not x["needs_attention"], -x["total_evaluated"]))
-
+    tasks.sort(
+        key=lambda item: (
+            not item["needs_attention"],
+            -item["total_evaluated"],
+            item["class_key"],
+            item["action"],
+        )
+    )
     return {
-        "as_of": as_of,
+        **summary,
+        "as_of": cutoff,
+        "since": since,
         "family": family or "all",
-        "total_proposals": len(rows),
-        "total_evaluated": total_evaluated,
-        "same": same,
-        "different": different,
-        "would_ask": would_ask,
-        "censored": censored,
-        "accuracy": accuracy,
-        "b0_accuracy": b0_acc,
-        "b2_accuracy": b2_acc,
-        "b0_same": b0_same,
-        "b2_same": b2_same,
-        "tasks": tasks_list,
+        "class_key": class_key,
+        "action": action,
+        "tasks": tasks,
     }

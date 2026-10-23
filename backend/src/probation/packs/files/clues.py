@@ -16,6 +16,7 @@ import publicsuffix2
 
 from probation.config import settings
 from probation.core.clock import get_clock
+from probation.core.file_tokens import tokenize_name
 from probation.core.history import HistoryView
 from probation.core.types import Situation
 
@@ -160,12 +161,6 @@ def extract_size_bucket(size_bytes: int) -> str:
     elif size_bytes < 10 * 1024 * 1024:
         return "m"
     return "l"
-
-
-def tokenize_name(name: str) -> set[str]:
-    """Tokenize filename into alphanumeric tokens."""
-    stem = Path(name).stem.lower()
-    return set(re.findall(r"[a-z0-9]+", stem))
 
 
 def extract_files_clues(

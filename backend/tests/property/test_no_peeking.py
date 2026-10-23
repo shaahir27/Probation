@@ -316,6 +316,19 @@ def test_t_nopeek_future_mutation_leaves_the_past_intact(
     monkeypatch.setattr(settings, "files_allowed_roots", str(tmp_path / "no-such-root"))
     monkeypatch.setattr(settings, "files_watch_dirs", "Downloads,Desktop")
 
+    # Explicit small-data harness override, not a production threshold change.
+    # Preserve the trained-policy and licensed-execution assertions below.
+    from probation.engine import replay
+    from probation.engine.novelty import NoveltyDetector
+    from tests.stubs.embeddings import RecordedEmbeddings
+
+    monkeypatch.setattr(settings, "cold_start_min_situations", 20)
+
+    def test_novelty(*args: Any, **kwargs: Any) -> NoveltyDetector:
+        return NoveltyDetector(*args, embedder=RecordedEmbeddings(), **kwargs)
+
+    monkeypatch.setattr(replay, "NoveltyDetector", test_novelty)
+
     pristine = _build_pristine_input(tiny_synth_dir, tiny_synth_owner)
     world_db = tiny_synth_dir / "world.db"
 

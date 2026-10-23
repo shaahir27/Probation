@@ -1,3 +1,5 @@
+> WP4 remediation update, 23 October 2026: the historical report below is not current acceptance evidence. See [WP4 checkpoint](wp4-checkpoint-2026-10-23.md). Independent components are implemented, but final WP3 integration and real offline MiniLM acceptance remain open. Earlier 20-row/in-sample-calibration claims are superseded by the remediation; do not interpret them as current behavior.
+
 # Phase 4 Handoff: Engine Core and Backtest
 
 **Branch:** `phase-4-engine-core-backtest`  

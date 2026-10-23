@@ -52,6 +52,7 @@ class Settings(BaseSettings):
     files_watch_dirs: str = "data/synth/1/fs/Downloads,data/synth/1/fs/Desktop"
     files_allowed_roots: str = "data/synth/1/fs"
     files_reader_enabled: bool = False
+    files_topk_folders: int = 15
     outcome_window_file_days: int = 14
 
     # --- Phase 8b: Radar & Reading Packs & Link Substrate ---
@@ -84,7 +85,7 @@ class Settings(BaseSettings):
     exam_other_max_violation_rate: float = 0.05
     retrain_interval_days: int = 7
     train_half_life_days: float = 90.0
-    cold_start_min_situations: int = 20
+    cold_start_min_situations: int = 200
     novelty_k: int = 10
     novelty_pctl: float = 95.0
     pooling_kappa: float = 10.0

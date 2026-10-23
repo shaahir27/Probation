@@ -27,6 +27,40 @@ class HistoryView:
     def as_of(self) -> str:
         return self._as_of
 
+    def get_decision_projection(self) -> dict[str, dict[str, Any]]:
+        """As-of immutable legacy events; never current outcome overwrite truth."""
+        from probation.core.history_wp4 import decision_projection
+
+        return decision_projection(self._conn, self.as_of)
+
+    def get_training_records(self, family: str) -> list[dict[str, Any]]:
+        from probation.core.history_wp4 import training_records
+
+        return training_records(self._conn, self.as_of, family)
+
+    def sender_statistics(
+        self, sender: str, exclude_situation_id: str | None = None
+    ) -> dict[str, Any]:
+        from probation.core.history_statistics import sender_statistics
+
+        return sender_statistics(self._conn, self.as_of, sender, exclude_situation_id)
+
+    def file_statistics(
+        self, origin: str, exclude_situation_id: str | None = None
+    ) -> dict[str, Any]:
+        from probation.core.history_statistics import file_statistics
+
+        return file_statistics(self._conn, self.as_of, origin, exclude_situation_id)
+
+    def calendar_statistics(
+        self, organizer: str, current_id: str, start: str, end: str, timezone: str
+    ) -> dict[str, Any]:
+        from probation.core.history_statistics import calendar_statistics
+
+        return calendar_statistics(
+            self._conn, self.as_of, organizer, current_id, start, end, timezone
+        )
+
     def get_raw_item(self, raw_item_id: str) -> sqlite3.Row | None:
         """Fetch a single item only if it was knowable at this cut."""
         return cast(

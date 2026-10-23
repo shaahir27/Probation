@@ -355,3 +355,6 @@ CREATE TABLE clock_state (
   speed REAL NOT NULL DEFAULT 1.0,
   running INTEGER NOT NULL DEFAULT 0
 );
+
+-- WP4: bounded immutable event projection by subject; no ledger bytes are changed.
+CREATE INDEX idx_ledger_kind_time ON ledger(kind, created_at COLLATE UTC_TIMESTAMP);
