@@ -8,6 +8,7 @@ import json
 import logging
 import sqlite3
 import time
+from dataclasses import dataclass
 from typing import Any, TypeVar
 
 import httpx
@@ -17,7 +18,13 @@ from probation.config import settings
 from probation.core.clock import Clock, get_clock
 from probation.core.hashing import canonical_json
 from probation.db.inference import record_inference
-from probation.llm.budget import BudgetGuard, calculate_cost
+from probation.llm.budget import (
+    BudgetGuard,
+    cost_units,
+    input_token_bound,
+    rates_for,
+    units_to_usd,
+)
 from probation.llm.cache import compute_cache_key, get_cached_response
 from probation.llm.jobs import validate_job_output
 from probation.llm.schema import UnsupportedSchema, compile_schema
@@ -32,6 +39,33 @@ class LLMValidationError(Exception):
     """Raised when LLM output fails schema validation or repair."""
 
     pass
+
+
+@dataclass(frozen=True, slots=True)
+class AttemptAccounting:
+    """What one physical request cost, and how much of that is the provider's own count."""
+
+    tokens_in: int
+    tokens_out: int
+    charge_units: int
+    usage_provenance: str
+
+
+def _reported_usage(response: httpx.Response) -> tuple[int, int] | None:
+    """The provider's token counts, or None when it did not report them useably."""
+    try:
+        usage = response.json().get("usage")
+    except Exception:
+        return None
+    if not isinstance(usage, dict):
+        return None
+    counts: list[int] = []
+    for key in ("prompt_tokens", "completion_tokens"):
+        value = usage.get(key)
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            return None
+        counts.append(value)
+    return counts[0], counts[1]
 
 
 def extract_json_from_text(text: str) -> dict[str, Any]:
@@ -94,45 +128,118 @@ class LLMClient:
         )
 
     def _post_with_retries(
-        self, client: httpx.Client, endpoint: str, payload: dict[str, Any]
-    ) -> httpx.Response:
-        """Execute POST request with exponential backoff and Retry-After support."""
+        self,
+        client: httpx.Client,
+        endpoint: str,
+        payload: dict[str, Any],
+        *,
+        model: str,
+        tokens_in: int,
+    ) -> tuple[httpx.Response, int]:
+        """Send one authorized physical attempt, retrying it at most `max_retries` times.
+
+        Each send reserves its own worst-case cost before the bytes leave. A retry that was
+        rejected by status or that timed out after dispatch stays charged at that bound; only
+        a request that never reached the socket gives its reservation back, because a live
+        request may have been billed whatever its outcome looked like from here.
+        """
         attempt = 0
         backoff = 0.5
+        max_tokens = int(payload.get("max_tokens") or 0)
 
         while True:
             attempt += 1
+            held = self.budget_guard.reserve_units(
+                model, tokens_in=tokens_in, tokens_out_bound=max_tokens
+            )
             try:
                 response = client.post(endpoint, json=payload)
-                if (
-                    response.status_code in (429, 500, 502, 503, 504)
-                    and attempt <= self.max_retries
-                ):
-                    retry_after = response.headers.get("Retry-After")
-                    sleep_time = (
-                        float(retry_after)
-                        if retry_after and retry_after.replace(".", "", 1).isdigit()
-                        else backoff
-                    )
-                    logger.warning(
-                        "LLM call received status %d on attempt %d. Backing off for %.2fs.",
-                        response.status_code,
-                        attempt,
-                        sleep_time,
-                    )
-                    time.sleep(sleep_time)
+            except httpx.ConnectError:
+                self.budget_guard.release_hold(held)
+                if attempt <= self.max_retries:
+                    logger.warning("LLM connect failed on attempt %d. Backing off.", attempt)
+                    time.sleep(backoff)
                     backoff *= 2.0
                     continue
-                return response
-            except (httpx.ConnectError, httpx.ReadTimeout, httpx.WriteTimeout) as exc:
+                raise
+            except (httpx.ReadTimeout, httpx.WriteTimeout):
+                self.budget_guard.charge_bound(
+                    model, tokens_in=tokens_in, tokens_out_bound=max_tokens, held=held
+                )
                 if attempt <= self.max_retries:
                     logger.warning(
-                        "LLM connection error on attempt %d: %s. Backing off.", attempt, exc
+                        "LLM timed out after dispatch on attempt %d. Backing off.", attempt
                     )
                     time.sleep(backoff)
                     backoff *= 2.0
                     continue
                 raise
+            if response.status_code in (429, 500, 502, 503, 504) and attempt <= self.max_retries:
+                self._account(
+                    model=model,
+                    tokens_in=tokens_in,
+                    tokens_out_bound=max_tokens,
+                    response=response,
+                    held=held,
+                )
+                retry_after = response.headers.get("Retry-After")
+                sleep_time = (
+                    float(retry_after)
+                    if retry_after and retry_after.replace(".", "", 1).isdigit()
+                    else backoff
+                )
+                logger.warning(
+                    "LLM call received status %d on attempt %d. Backing off for %.2fs.",
+                    response.status_code,
+                    attempt,
+                    sleep_time,
+                )
+                time.sleep(sleep_time)
+                backoff *= 2.0
+                continue
+            return response, held
+
+    def _account(
+        self,
+        *,
+        model: str,
+        tokens_in: int,
+        tokens_out_bound: int,
+        response: httpx.Response,
+        held: int,
+    ) -> AttemptAccounting:
+        """Book the attempt this call just made, usable answer or not.
+
+        The provider's own count is used when it reported one. Otherwise the attempt is
+        charged at the bound it was authorized with rather than an invented typical case,
+        because a request that left this process may still have been billed.
+        """
+        if response.status_code == 200:
+            reported = _reported_usage(response)
+            if reported is not None:
+                rate_in, rate_out = rates_for(model, self.budget_guard.price_table)
+                charge = cost_units(reported[0], reported[1], rate_in, rate_out)
+                if charge > held:
+                    logger.warning(
+                        "LLM charge exceeded its authorization code=charge_over_estimate model=%s",
+                        model,
+                    )
+                return AttemptAccounting(
+                    tokens_in=reported[0],
+                    tokens_out=reported[1],
+                    charge_units=self.budget_guard.settle_units(held=held, charge_units=charge),
+                    usage_provenance="reported",
+                )
+            logger.warning("LLM usage absent code=usage_estimated model=%s", model)
+        units = self.budget_guard.charge_bound(
+            model, tokens_in=tokens_in, tokens_out_bound=tokens_out_bound, held=held
+        )
+        return AttemptAccounting(
+            tokens_in=tokens_in,
+            tokens_out=tokens_out_bound,
+            charge_units=units,
+            usage_provenance="estimated",
+        )
 
     def chat_json(
         self,
@@ -170,9 +277,9 @@ class LLMClient:
                 logger.debug("LLM cache hit for key %s", cache_key)
                 return cached
 
-        # Pre-call budget estimation
-        estimated_cost = calculate_cost(model, 1000, max_tokens, self.budget_guard.price_table)
-        self.budget_guard.check_and_reserve(estimated_cost)
+        # Every physical attempt below reserves this bound before it sends.
+        tokens_in_bound = input_token_bound(len(system) + len(user))
+        accounting: AttemptAccounting
 
         with self._get_http_client() as client:
             data: dict[str, Any] | None = None
@@ -199,7 +306,20 @@ class LLMClient:
                     },
                 }
 
-                resp = self._post_with_retries(client, "/chat/completions", structured_payload)
+                resp, held = self._post_with_retries(
+                    client,
+                    "/chat/completions",
+                    structured_payload,
+                    model=model,
+                    tokens_in=tokens_in_bound,
+                )
+                accounting = self._account(
+                    model=model,
+                    tokens_in=tokens_in_bound,
+                    tokens_out_bound=max_tokens,
+                    response=resp,
+                    held=held,
+                )
                 if resp.status_code == 200:
                     body = resp.json()
                     choices = body.get("choices", [])
@@ -236,7 +356,20 @@ class LLMClient:
                     "response_format": {"type": "json_object"},
                 }
 
-                resp_fb = self._post_with_retries(client, "/chat/completions", fallback_payload)
+                resp_fb, held_fb = self._post_with_retries(
+                    client,
+                    "/chat/completions",
+                    fallback_payload,
+                    model=model,
+                    tokens_in=tokens_in_bound,
+                )
+                accounting = self._account(
+                    model=model,
+                    tokens_in=tokens_in_bound,
+                    tokens_out_bound=max_tokens,
+                    response=resp_fb,
+                    held=held_fb,
+                )
                 if resp_fb.status_code == 200:
                     body = resp_fb.json()
                     choices = body.get("choices", [])
@@ -274,7 +407,20 @@ class LLMClient:
                         "max_tokens": max_tokens,
                         "response_format": {"type": "json_object"},
                     }
-                    resp_rep = self._post_with_retries(client, "/chat/completions", repair_payload)
+                    resp_rep, held_rep = self._post_with_retries(
+                        client,
+                        "/chat/completions",
+                        repair_payload,
+                        model=model,
+                        tokens_in=tokens_in_bound,
+                    )
+                    accounting = self._account(
+                        model=model,
+                        tokens_in=tokens_in_bound,
+                        tokens_out_bound=max_tokens,
+                        response=resp_rep,
+                        held=held_rep,
+                    )
                     if resp_rep.status_code == 200:
                         body = resp_rep.json()
                         choices = body.get("choices", [])
@@ -310,14 +456,8 @@ class LLMClient:
                     "Failed to obtain valid JSON schema response from LLM endpoint."
                 )
 
-            # Record usage and cost
-            usage = body.get("usage", {})
-            tokens_in = int(usage.get("prompt_tokens", 800))
-            tokens_out = int(usage.get("completion_tokens", 150))
-            actual_cost = calculate_cost(
-                model, tokens_in, tokens_out, self.budget_guard.price_table
-            )
-            self.budget_guard.record_spend(actual_cost)
+            tokens_in = accounting.tokens_in
+            tokens_out = accounting.tokens_out
 
             now_iso = self.clock.now_iso()
 
@@ -332,7 +472,7 @@ class LLMClient:
                     response_data=data,
                     tokens_in=tokens_in,
                     tokens_out=tokens_out,
-                    cost_usd=actual_cost,
+                    cost_usd=float(units_to_usd(accounting.charge_units)),
                     created_at=now_iso,
                     situation_id=situation_id,
                     redaction_counts=redaction_counts,
@@ -371,8 +511,7 @@ class LLMClient:
                     raise LLMValidationError("Text output must be a nonempty string")
                 return text
 
-        estimated_cost = calculate_cost(model, 1000, max_tokens, self.budget_guard.price_table)
-        self.budget_guard.check_and_reserve(estimated_cost)
+        tokens_in_bound = input_token_bound(len(system) + len(user))
 
         with self._get_http_client() as client:
             payload = {
@@ -384,7 +523,16 @@ class LLMClient:
                 "temperature": 0.0,
                 "max_tokens": max_tokens,
             }
-            resp = self._post_with_retries(client, "/chat/completions", payload)
+            resp, held = self._post_with_retries(
+                client, "/chat/completions", payload, model=model, tokens_in=tokens_in_bound
+            )
+            accounting = self._account(
+                model=model,
+                tokens_in=tokens_in_bound,
+                tokens_out_bound=max_tokens,
+                response=resp,
+                held=held,
+            )
             if resp.status_code != 200:
                 raise LLMValidationError(
                     f"LLM text completion failed with status {resp.status_code}"
@@ -397,13 +545,8 @@ class LLMClient:
                 raise LLMValidationError("Invalid text response shape") from exc
             if not isinstance(text_result, str) or not text_result.strip():
                 raise LLMValidationError("Text output must be a nonempty string")
-            usage = body.get("usage", {})
-            tokens_in = int(usage.get("prompt_tokens", 800))
-            tokens_out = int(usage.get("completion_tokens", max_tokens))
-            actual_cost = calculate_cost(
-                model, tokens_in, tokens_out, self.budget_guard.price_table
-            )
-            self.budget_guard.record_spend(actual_cost)
+            tokens_in = accounting.tokens_in
+            tokens_out = accounting.tokens_out
 
             now_iso = self.clock.now_iso()
 
@@ -418,7 +561,7 @@ class LLMClient:
                     response_data={"text": text_result},
                     tokens_in=tokens_in,
                     tokens_out=tokens_out,
-                    cost_usd=actual_cost,
+                    cost_usd=float(units_to_usd(accounting.charge_units)),
                     created_at=now_iso,
                     situation_id=situation_id,
                     redaction_counts=redaction_counts,

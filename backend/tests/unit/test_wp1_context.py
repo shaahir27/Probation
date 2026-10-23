@@ -3,12 +3,22 @@
 import json
 import sqlite3
 from datetime import UTC, datetime
+from decimal import Decimal
 
 import httpx
 import pytest
 
 from probation.core.clock import Clock
+from probation.llm.budget import BudgetGuard
 from probation.llm.client import LLMClient
+
+
+def _guard() -> BudgetGuard:
+    """A guard that prices this file's synthetic model: no verified price means no dispatch."""
+    return BudgetGuard(
+        limit_usd="1.00",
+        price_table={"synthetic-model": (Decimal("0.06"), Decimal("0.24"))},
+    )
 
 
 @pytest.mark.parametrize("content", [None, 12, {}, []])
@@ -38,7 +48,9 @@ def test_text_output_rejects_non_string_without_coercion(
             0,
             "2026-01-01T00:00:00Z",
         )
-    client = LLMClient(api_key="synthetic", transport=httpx.MockTransport(respond))
+    client = LLMClient(
+        api_key="synthetic", transport=httpx.MockTransport(respond), budget_guard=_guard()
+    )
     with pytest.raises(LLMValidationError):
         client.chat_text(
             kind="writer",
@@ -82,7 +94,9 @@ def test_inference_uses_the_shared_context_clock(memory_db: sqlite3.Connection) 
 
     clock = Clock.replay(datetime(2026, 6, 1, 10, 0, 0, 123456, tzinfo=UTC))
     with use_clock(clock):
-        client = LLMClient(api_key="synthetic", transport=httpx.MockTransport(_response))
+        client = LLMClient(
+            api_key="synthetic", transport=httpx.MockTransport(_response), budget_guard=_guard()
+        )
         _infer(client, memory_db)
     assert memory_db.execute("SELECT created_at FROM exposure_log").fetchone()[0] == clock.now_iso()
     assert memory_db.execute("SELECT created_at FROM llm_cache").fetchone()[0] == clock.now_iso()
@@ -95,7 +109,9 @@ def test_inference_recording_rolls_back_cache_if_exposure_fails(
         "CREATE TRIGGER reject_exposure BEFORE INSERT ON exposure_log BEGIN SELECT RAISE(ABORT,'synthetic failure'); END"
     )
     memory_db.commit()
-    client = LLMClient(api_key="synthetic", transport=httpx.MockTransport(_response))
+    client = LLMClient(
+        api_key="synthetic", transport=httpx.MockTransport(_response), budget_guard=_guard()
+    )
     with pytest.raises(sqlite3.DatabaseError):
         _infer(client, memory_db)
     assert memory_db.execute("SELECT count(*) FROM llm_cache").fetchone()[0] == 0
@@ -104,7 +120,9 @@ def test_inference_recording_rolls_back_cache_if_exposure_fails(
 def test_inference_cannot_commit_its_callers_transaction(memory_db: sqlite3.Connection) -> None:
     memory_db.commit()
     memory_db.execute("BEGIN")
-    client = LLMClient(api_key="synthetic", transport=httpx.MockTransport(_response))
+    client = LLMClient(
+        api_key="synthetic", transport=httpx.MockTransport(_response), budget_guard=_guard()
+    )
     _infer(client, memory_db)
     memory_db.rollback()
     assert memory_db.execute("SELECT count(*) FROM llm_cache").fetchone()[0] == 0

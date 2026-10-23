@@ -83,6 +83,19 @@ Governed by [`docs/BUILD_LOGGING_PROTOCOL.md`](file:///d:/Desktop/project/Probat
 |---|---|---|---|---|
 | WP3 static audit and implementation plan (implementation not started) | Phase 3 / cross-phase planning | [Planning record](phase_03_mail_calendar_packs/feature_wp3_audit_plan.md) | Deferred | 2026-10-23 |
 
+## WP3 implementation record - 23 October 2026
+
+Branch `phase-3-wp3-reader-pipeline`, packages P00-P04 of `docs/wp3/WORK_PACKAGES.md`. Requirement
+statuses and what remains are tracked per requirement in
+[`docs/reports/wp3-requirements-coverage-2026-10-23.csv`](file:///d:/Desktop/project/Probation/docs/reports/wp3-requirements-coverage-2026-10-23.csv).
+
+| Feature | Phase | File | Status | Last Updated |
+|---|---|---|---|---|
+| WP3 P01 typed job and outcome contracts | Phase 3 — WP3 | [P01 contracts](phase_03_mail_calendar_packs/feature_wp3_p01_job_contracts.md) | Built | 2026-10-23 |
+| WP3 P02 immutable prompt catalog and verified assets | Phase 3 — WP3 | [P02 prompt catalog](phase_03_mail_calendar_packs/feature_wp3_p02_prompt_catalog.md) | Built | 2026-10-23 |
+| WP3 P03 bounded request context and request-scoped redaction | Phase 3 — WP3 | [P03 bounded context](phase_03_mail_calendar_packs/feature_wp3_p03_bounded_context_redaction.md) | Built | 2026-10-23 |
+| WP3 P04 per-attempt spend authority in exact units | Phase 3 — WP3 | [P04 spend authority](phase_03_mail_calendar_packs/feature_wp3_p04_spend_authority.md) | Deferred | 2026-10-23 (durable store gated on [W3-D03 review](file:///d:/Desktop/project/Probation/docs/wp3/W3_D03_SPEND_ACCOUNTING_REVIEW.md)) |
+
 
 ## WP2 audit record - 23 October 2026
 
