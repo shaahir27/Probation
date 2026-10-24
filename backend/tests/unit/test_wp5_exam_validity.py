@@ -100,3 +100,37 @@ def test_incompatible_or_future_snapshot_is_not_authority(memory_db, field, valu
     details["snapshot"][field] = value
     memory_db.execute("UPDATE exam_runs SET details_json=?", (json.dumps(details),))
     assert not check_exam_ok(memory_db, "mail|request|known", "ARCHIVE", T, 2)
+
+
+@pytest.mark.parametrize("mutation", ["unknown", "missing", "inflated", "noninteger"])
+def test_operator_proof_must_match_actual_catalogue_and_distinct_bases(memory_db, mutation):
+    import json
+
+    exam(memory_db)
+    details = json.loads(memory_db.execute("SELECT details_json FROM exam_runs").fetchone()[0])
+    if mutation == "unknown":
+        details["required_operators"] = ["nonexistent_operator"]
+        details["operator_coverage"] = {"nonexistent_operator": 20}
+    elif mutation == "missing":
+        removed = details["required_operators"].pop()
+        del details["operator_coverage"][removed]
+    else:
+        name = details["required_operators"][0]
+        details["operator_coverage"][name] = 21 if mutation == "inflated" else 20.0
+    memory_db.execute("UPDATE exam_runs SET details_json=?", (json.dumps(details),))
+    assert not check_exam_ok(memory_db, "mail|request|known", "ARCHIVE", T, 2)
+
+
+@pytest.mark.parametrize("field", ["model_cutoff", "history_cutoff"])
+def test_frozen_snapshot_must_exist_before_exam_started(memory_db, field):
+    import json
+
+    exam(memory_db, finish=T)
+    details = json.loads(memory_db.execute("SELECT details_json FROM exam_runs").fetchone()[0])
+    details["snapshot"]["model_cutoff"] = FINISH
+    details["snapshot"]["history_cutoff"] = FINISH
+    details["snapshot"][field] = "2026-05-31T12:00:00Z"
+    if field == "model_cutoff":
+        details["snapshot"]["history_cutoff"] = T
+    memory_db.execute("UPDATE exam_runs SET details_json=?", (json.dumps(details),))
+    assert not check_exam_ok(memory_db, "mail|request|known", "ARCHIVE", T, 2)

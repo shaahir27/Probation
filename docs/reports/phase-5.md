@@ -1,3 +1,30 @@
+# D2 pre-merge review update ? 24 October 2026
+
+The owner explicitly authorized merging Phase 5/D2 into main, pushing both branches,
+and then creating the D3 branch from updated main. This supersedes the earlier
+no-push/no-merge instructions retained in the historical D2 handoff below.
+
+Independent review found and repaired three additional D2 validation gaps before
+integration: stored proof must match the authoritative operator catalogue with
+integer distinct-base coverage; model/history snapshots must exist by exam start;
+and a fail-closed pipeline error on a directional edit cannot count as a successful
+safety response. The new conditional-cap failure regression first demonstrated an
+incorrect passing exam, then passed after the repair. Catalogue metadata was moved
+unchanged into a pure shared module; licences still import no web/connectors.
+
+Focused review gate: 47 passed in 59.50s, plus the red/green injected cap-failure
+regression (green 1 passed in 5.52s). Final isolated pre-merge gate: 689 passed in 476.08s; exit0; lint/format/application typing/strict core-engine typing pass; protected fixture/result hashes unchanged.
+AST Graphify update: 5755 nodes / 14162 edges / 265 communities. No dependencies,
+accounts, provider calls, costs, CONTRACT changes or ledger rewrites for this repair.
+GitHub access in this continuation is limited to the owner's explicitly authorized
+Git verification/push. Source/runtime account access remains unauthorized.
+
+This update and correction are committed as `phase-5: harden exam proof before integration`.
+D2 email acceptance remains separate from whole-WP5 obligations. D3 starts only
+from verified main containing this correction; its implementation is separate.
+
+---
+
 # Phase 5 / WP5 D2 handoff: permissions and meaningful exams
 
 24 October 2026. **D2 implemented; review pending. Whole WP5 is not accepted.**

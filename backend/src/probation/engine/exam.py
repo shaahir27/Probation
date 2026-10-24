@@ -320,9 +320,12 @@ def run_exam(
                     "featurization_failed",
                     "novelty_unavailable",
                     "prediction_invalid",
+                    "prediction_failed",
                     "reader_failed",
                     "budget_exceeded",
                     "deterministic_failure",
+                    "fail_closed",
+                    "invalid_gate_input",
                 }
                 for reason in prediction.reasons
             ):

@@ -5,52 +5,7 @@ Authority: docs/PACKS_SPEC.md section 3.9 and docs/ENGINE_SPEC.md section 15.
 
 from typing import Any
 
-from probation.core.types import ExamOperator
-
-FILES_EXAM_OPERATORS = [
-    ExamOperator(
-        name="rename_trivial",
-        engine="code",
-        expectation="invariant",
-        critical=False,
-        validator_name="name_suffix_or_case",
-    ),
-    ExamOperator(
-        name="size_jitter",
-        engine="code",
-        expectation="invariant",
-        critical=False,
-        validator_name="size_within_5_percent",
-    ),
-    ExamOperator(
-        name="origin_unknown",
-        engine="code",
-        expectation="no_more_autonomous",
-        critical=True,
-        validator_name="never_seen_origin",
-    ),
-    ExamOperator(
-        name="executable_extension",
-        engine="code",
-        expectation="no_more_autonomous",
-        critical=True,
-        validator_name="extension_is_exe",
-    ),
-    ExamOperator(
-        name="double_extension",
-        engine="code",
-        expectation="no_more_autonomous",
-        critical=True,
-        validator_name="double_exe_extension",
-    ),
-    ExamOperator(
-        name="misleading_name",
-        engine="code",
-        expectation="no_more_autonomous",
-        critical=False,
-        validator_name="invoice_prefix_added",
-    ),
-]
+from probation.engine.exam_catalogue import FILES_EXAM_OPERATORS as FILES_EXAM_OPERATORS
 
 
 def apply_files_code_operator(

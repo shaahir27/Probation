@@ -44,6 +44,30 @@ def test_missing_critical_operator_coverage_cannot_pass(memory_db, monkeypatch):
     assert "add_money_request" in result.details["missing_operators"]
 
 
+def test_failed_conditional_cap_is_not_a_successful_directional_exam(memory_db, monkeypatch):
+    from probation.packs.registry import registry
+
+    _populate_test_situations(memory_db)
+    pack = registry.get("mail")
+    original = pack.level_cap
+
+    def broken_cap(action, situation, features):
+        if (features.reader or {}).get("money_involved"):
+            raise ValueError("injected_cap_failure")
+        return original(action, situation, features)
+
+    monkeypatch.setattr(pack, "level_cap", broken_cap)
+    result = run_exam(
+        memory_db,
+        "mail|request|known",
+        "REPLY",
+        as_of="2026-07-01T00:00:00Z",
+        prediction_context=context_for(memory_db, SoundPolicy()),
+    )
+    assert result.passed is False
+    assert result.details["pipeline_failures"] > 0
+
+
 def test_model_fitted_after_history_cutoff_is_invalid(memory_db):
     _populate_test_situations(memory_db)
     policy = SoundPolicy()

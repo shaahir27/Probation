@@ -159,3 +159,11 @@ and stop the affected change for review rather than silently expanding this plan
   Preserve historical handoff as explicitly superseded context, not current proof.
 - [x] If committing, run required check first and use `phase-5: ...`; no push or
   merge. Stop after D2 handoff for review. D3/WP6 and full WP5 remain downstream.
+
+## Owner-authorized integration continuation ? 24 October 2026
+
+The owner now authorized merge/push of D2 and a new D3 branch from updated main.
+Independent subagent review prompted test-first hardening of actual catalogue
+coverage, snapshot-before-start and fail-closed directional-case accounting.
+Final correction gate and exact integration evidence are recorded in the Phase 5
+handoff and subsequent D3 baseline; earlier no-push wording is historical.
