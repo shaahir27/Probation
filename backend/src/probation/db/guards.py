@@ -139,3 +139,16 @@ class ReadConnection:
 
     def execute(self, query: str, params: tuple[Any, ...] = ()) -> ReadCursor:
         return self.cursor().execute(query, params)
+
+    def frozen(self, as_of: str) -> "ReadConnection":
+        """Own a consistent read snapshot without committing the caller's writes."""
+        from probation.db.history_snapshot import freeze_history
+
+        own_read = not self._conn.in_transaction
+        if own_read:
+            self._conn.execute("BEGIN")
+        try:
+            return freeze_history(self, as_of)
+        finally:
+            if own_read:
+                self._conn.rollback()

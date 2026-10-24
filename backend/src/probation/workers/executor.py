@@ -17,8 +17,7 @@ from probation.core.hashing import canonical_json
 from probation.core.types import Action, ExecResult
 from probation.db.access import Role, RoleAccess
 from probation.db.actions import persist_action
-from probation.engine.evidence import aggregate_evidence
-from probation.engine.licence import check_exam_ok, derive_licence_level
+from probation.engine.licence import derive_licences
 from probation.packs.base import ExecutorIO
 from probation.packs.registry import registry
 from probation.workers.drift import has_pending_drift
@@ -61,20 +60,8 @@ class Executor:
             if has_pending_drift(self.conn, class_key, action, as_of):
                 return 0
             reader = self.role_access.conn
-            stats = aggregate_evidence(reader, as_of=as_of, persist=False).get((class_key, action))
-            if stats is None:
-                return 0
-            return int(
-                derive_licence_level(
-                    action=action,
-                    n_all=stats.n_all,
-                    lb_all=stats.lb_all,
-                    n_strong=stats.n_strong,
-                    lb_strong=stats.lb_strong,
-                    n_recent=stats.n_recent,
-                    exam_ok_fn=lambda level: check_exam_ok(reader, class_key, action, as_of, level),
-                )
-            )
+            view = derive_licences(reader, as_of, pair=(class_key, action)).get((class_key, action))
+            return int(view.level) if view else 0
         except (sqlite3.Error, ValueError, TypeError):
             return 0
 

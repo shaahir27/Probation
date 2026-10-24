@@ -141,6 +141,9 @@ class LicenceView(BaseDomainModel):
     action: str
     level: LicenceLevel
     lower_bound: float
+    lb_strong: float = 0.0
+    lb_all: float = 0.0
+    exam_ok: bool = False
     n_strong: int
     k_strong: int
     n_all: int

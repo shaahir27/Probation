@@ -13,7 +13,8 @@ from fastapi import APIRouter, HTTPException
 
 from probation.api.db import connect_api as get_connection
 from probation.config import settings
-from probation.engine.licence import derive_licence_level
+from probation.core.clock import get_clock
+from probation.engine.licence import derive_licences
 
 router = APIRouter(prefix="/api", tags=["licences"])
 
@@ -33,81 +34,14 @@ def get_licences() -> dict[str, Any]:
     conn = _get_db()
     try:
         cursor = conn.cursor()
-        # Find all distinct (class_key, action) pairs in proposals or class_stats
-        cursor.execute(
-            """
-            SELECT DISTINCT class_key, action FROM proposals
-            UNION
-            SELECT DISTINCT class_key, action FROM class_stats;
-            """
-        )
-        pairs = cursor.fetchall()
-
+        as_of = get_clock().now_iso()
+        views = derive_licences(conn, as_of)
         licences = []
-        for pair in pairs:
-            ck = pair["class_key"]
-            act = pair["action"]
-
-            # Query class stats for this pair
-            cursor.execute(
-                """
-                SELECT * FROM class_stats
-                WHERE class_key = ? AND action = ?
-                ORDER BY as_of COLLATE UTC_TIMESTAMP DESC LIMIT 1;
-                """,
-                (ck, act),
-            )
-            s_row = cursor.fetchone()
-
-            # Query licence cache if present
-            cursor.execute(
-                """
-                SELECT level, lower_bound, reasons_json, exam_run_id, valid_until
-                FROM licence_cache
-                WHERE class_key = ? AND action = ?;
-                """,
-                (ck, act),
-            )
-            c_row = cursor.fetchone()
-
-            if s_row:
-                n_strong = int(s_row["n_strong"])
-                k_strong = int(s_row["k_strong"])
-                n_all = int(s_row["n_all"])
-                k_all = int(s_row["k_all"])
-                n_recent = int(s_row["n_recent"])
-                lb_strong = float(s_row["lb_strong"])
-                lb_all = float(s_row["lb_all"])
-                valid_until = c_row["valid_until"] if c_row else ""
-                exam_run_id = c_row["exam_run_id"] if c_row else None
-                reasons = (
-                    json.loads(c_row["reasons_json"]) if c_row and c_row["reasons_json"] else []
-                )
-
-                level_val = derive_licence_level(
-                    action=act,
-                    n_all=n_all,
-                    lb_all=lb_all,
-                    n_strong=n_strong,
-                    lb_strong=lb_strong,
-                    n_recent=n_recent,
-                )
-                level = int(level_val.value)
-                lb = lb_strong
-            elif c_row:
-                level = int(c_row["level"])
-                lb = float(c_row["lower_bound"])
-                n_strong, k_strong, n_all, k_all, n_recent = 0, 0, 0, 0, 0
-                valid_until = c_row["valid_until"]
-                exam_run_id = c_row["exam_run_id"]
-                reasons = json.loads(c_row["reasons_json"]) if c_row["reasons_json"] else []
-            else:
-                level = 0
-                lb = 0.0
-                n_strong, k_strong, n_all, k_all, n_recent = 0, 0, 0, 0, 0
-                valid_until = ""
-                exam_run_id = None
-                reasons = ["not_enough_history"]
+        for (ck, act), view in views.items():
+            n_strong, k_strong = view.n_strong, view.k_strong
+            n_all, k_all, n_recent = view.n_all, view.k_all, view.n_recent
+            valid_until, exam_run_id = view.valid_until, view.exam_run_id
+            reasons, level, lb = view.reasons, int(view.level), view.lower_bound
 
             # Query last 5 ledger licence changes for this (class_key, action)
             cursor.execute(
@@ -117,9 +51,10 @@ def get_licences() -> dict[str, Any]:
                 WHERE kind = 'licence_change'
                   AND json_extract(payload_json, '$.class_key') = ?
                   AND json_extract(payload_json, '$.action') = ?
+                  AND created_at COLLATE UTC_TIMESTAMP <= ?
                 ORDER BY seq DESC LIMIT 5;
                 """,
-                (ck, act),
+                (ck, act, as_of),
             )
             change_rows = cursor.fetchall()
             history = []
@@ -132,13 +67,14 @@ def get_licences() -> dict[str, Any]:
                         "old_level": p.get("old_level", p.get("prev_level")),
                         "new_level": p.get("new_level"),
                         "reason": p.get("reason"),
+                        "reasons": p.get("reasons", [p["reason"]] if p.get("reason") else []),
                     }
                 )
 
             # Check for drift state / alarms
             cursor.execute(
-                "SELECT cusum, baseline_err, last_alarm_at FROM drift_state WHERE class_key = ? AND action = ?;",
-                (ck, act),
+                "SELECT cusum, baseline_err, last_alarm_at FROM drift_state WHERE class_key = ? AND action = ? AND (last_alarm_at IS NULL OR last_alarm_at COLLATE UTC_TIMESTAMP <= ?);",
+                (ck, act, as_of),
             )
             d_row = cursor.fetchone()
             drift_info = None
@@ -155,6 +91,11 @@ def get_licences() -> dict[str, Any]:
                     "action": act,
                     "level": level,
                     "lower_bound": lb,
+                    "exam_ok": view.exam_ok,
+                    "lb_strong": view.lb_strong,
+                    "lb_all": view.lb_all,
+                    "agreement_strong": k_strong / n_strong if n_strong else None,
+                    "as_of": as_of,
                     "n_strong": n_strong,
                     "k_strong": k_strong,
                     "n_all": n_all,

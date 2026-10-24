@@ -99,6 +99,9 @@ def test_t_evidence_filtering_and_counts(tmp_path: Path) -> None:
     )
     conn.commit()
 
+    from tests.unit.wp5_fixture_ledger import commit_fixture_decisions
+
+    commit_fixture_decisions(conn)
     stats = aggregate_evidence(conn, as_of=as_of)
     assert (c_key, act) in stats
     s = stats[(c_key, act)]

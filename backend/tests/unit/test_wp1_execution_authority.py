@@ -51,6 +51,19 @@ def test_execution_evidence_query_has_no_write_or_commit_capability(
         (basic_situation.id,),
     )
     memory_db.commit()
+    RoleAccess(memory_db, Role.RESOLVER).append_ledger(
+        "outcome",
+        basic_situation.id,
+        {
+            "situation_id": basic_situation.id,
+            "observed_action": "ARCHIVE",
+            "strength": "STRONG",
+            "source": "footprint",
+            "known_at": "2026-01-02T00:00:00Z",
+        },
+        created_at="2026-01-02T00:00:00Z",
+    )
+    memory_db.commit()
     readonly = RoleAccess(memory_db, Role.EXECUTOR).conn
     stats = aggregate_evidence(readonly, as_of="2026-01-03T00:00:00Z", persist=False)
     assert stats[("mail|request|known", "ARCHIVE")].n_strong == 1

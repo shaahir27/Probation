@@ -512,3 +512,20 @@ The cap is enforced by BEGIN IMMEDIATE + derived SUM(charged reconciled attempts
 Unknown dispatch keeps its hold, including process death. A restarted worker does not steal leases, release uncertain charges or resend an already claimed semantic request. Sequential dispatch remains; automatic recovery/operator resolution and parallel supervisor scheduling are later runtime work.
 
 Rollback: stop paid workers, export/retain the accounting audit, use bootstrap-only drop_spend_accounting, verify all other rows/ledger remain unchanged. The nullable cost_units column is intentionally retained. Removing the cost audit requires operator control and cannot be used to reset/reopen a live budget. Missing accounting denies subsequent paid dispatch.
+
+## WP5 D2 implementation note (24 October 2026)
+
+No DDL, migration, role grant or historical-row rewrite. Existing exam_runs rows
+are claimed with NULL finished_at/passed before inference and count toward the
+scheduled operational attempt quota. Completion updates only the unfinished
+attempt, inserting its exam_cases and append-only EXAM_RUN ledger entry atomically;
+completed retries cannot rewrite results. details_json carries snapshot identity,
+cutoffs, exact base IDs, per-operator distinct coverage and failed/discarded reasons.
+Interrupted attempts remain unfinished and cannot authorize permission.
+
+class_stats/licence_cache are Examiner-owned derived projections. API, Brain/replay
+and Executor do not treat cached levels as authority. Permission evidence uses
+HistoryView's as-of immutable proposal/decision ledger projection; ambiguous
+legacy provenance is excluded. Legacy rows and ledger bytes are preserved. Bare
+legacy passed exams lacking meaningful snapshot/coverage proof are ineligible,
+requiring a new real exam; no fabricated migration supplies missing proof.

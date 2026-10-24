@@ -1,3 +1,233 @@
+# Phase 5 / WP5 D2 handoff: permissions and meaningful exams
+
+24 October 2026. **D2 implemented; review pending. Whole WP5 is not accepted.**
+Branch: `phase-5-demo-permissions-exams`. Base: local main and local origin/main
+`fd459420d45c22a259a32db409faa665828941db`; Phase 3 `398729e` is an ancestor.
+This verifies available refs without accessing an account or fetching the remote.
+The implementation commit is the `phase-5: meaningful exams and derived permissions`
+commit containing this handoff; inspect `git log -1` for its exact hash.
+No push, merge, deployment or next package is authorized or performed.
+
+## Done
+
+The requirement/task/test/ownership matrix is in
+[WP5_D2_IMPLEMENTATION_PLAN.md](../WP5_D2_IMPLEMENTATION_PLAN.md), D2-01 through
+D2-12. Implementation remains in the isolated `data/wp5/worktree` checkout,
+created directly from verified main without copying unfinished work. Root's two
+preexisting dirty construction records and the other WP4/WP9 worktrees were
+preserved. No CONTRACT change, dependency install or schema migration.
+
+- Eligible evidence is reconstructed through HistoryView from committed prospective
+  proposals and their first genuine immutable decision. Exact class/action scope,
+  strong/all/recent counts and audit holdouts remain distinct. Automated effects,
+  no-op/ABSTAIN, backfill, corrections and duplicate votes cannot inflate authority.
+  Rejection is disagreement without an invented alternative training label.
+- One read-only licence path serves API, replay/Brain, Examiner and Executor's final
+  authority recheck. Fresh evidence, configured thresholds, strong-only higher
+  levels, current caps, meaningful exams, expiry and applicable alarms determine
+  permission. Caches never authorize; aged-out/disappeared pairs demote. Existing
+  golden bounds, audit semantics and production cold-start 200 are preserved.
+- Real exams freeze a fitted policy, bounded history, novelty references and shared
+  WP3/WP4 prediction settings. Physically materialized read-only history excludes
+  future rows. No edited-case refit or operational proposal/action/evidence write.
+  Original base identity preserves audit draws. Full identity includes policy,
+  feature/model/history cutoffs, novelty/provider, seed and exact cohort IDs.
+- Exact class/action/candidate-level, month-stratified action-taking bases undergo
+  every required operator. Each operator needs the configured minimum distinct
+  bases. Missing readers/models/coverage and failed edits stay visible and fail
+  closed. Code grades action/gate invariance, directional autonomy and hazard caps;
+  there is no invented confidence, LLM verdict or default passing result.
+- Durable unfinished exam claims precede inference and consume scheduled quota.
+  Completed retries cannot replace results; explicit new ordinals distinguish new
+  attempts. Deterministic oldest-candidate ordering and unchanged-insufficient
+  suppression survive review/restart. Completion and its cases/ledger are atomic.
+  No automatic lease recovery or parallel dispatch was added.
+- Missing/failed/incomplete/stale/future/pre-alarm/incompatible exam proof cannot
+  authorize higher autonomy. Pair/family alarm aliases and historical reads are
+  covered. Legacy bare passing rows remain present but cannot supply missing proof.
+  API exposes agreement, strong/all bounds and exam validity separately.
+
+## Files changed
+
+All source paths below are relative to `backend/src/probation/`:
+
+| Area | Files / purpose |
+|---|---|
+| Bounded evidence/history | `core/history.py`, new `core/permission_history.py`; `db/guards.py`, new `db/history_snapshot.py` for consistent read-only physically bounded exam history |
+| Derived authority | `engine/evidence.py`, `engine/licence.py`, new `engine/exam_validity.py`; additive `core/types.py` fields; missing default tunables in `config.py` |
+| Exams | `engine/exam.py`, `exam_prediction.py`, `exam_storage.py`; new `exam_candidates.py`, `exam_context.py`, `exam_grading.py`, `exam_mutations.py`, `exam_other_ops.py` |
+| Operators | `packs/mail/exam_ops.py`, `packs/calendar/exam_ops.py`: provider failure cannot fall back to fabricated valid edits |
+| Shared consumers | `api/routes/licences.py`, `engine/replay.py`, `workers/examiner.py`, `workers/scheduler.py`, narrow `workers/executor.py` authority consumption |
+| Feature identity | New `llm/feature_identity.py`; unchanged semantic identity extracted from `llm/feature_pipeline.py` to keep licence validity independent of pack/connector imports |
+
+New regressions under `backend/tests/`: unit `test_wp5_evidence.py`,
+`test_wp5_licence_derivation.py`, `test_wp5_exam_validity.py`, `test_wp5_exams.py`,
+`test_wp5_scheduling.py`; integration `test_wp5_permission_parity.py`,
+`test_wp5_permissions_exams.py`; property `test_wp5_no_peeking.py`.
+Fixture helpers: `unit/wp5_fixture_ledger.py`, `unit/wp5_exam_fixtures.py`.
+Existing evidence/exam/WP1 fixture tests now carry genuine immutable commitments
+or explicit proof fixtures; existing assertions/golden tests were not weakened.
+
+Records: this report and [sanitized acceptance manifest](phase-5-d2-acceptance.json),
+D2 plan, decision note and DATA_MODEL implementation note. No executable DDL changes.
+Local feature logs updated in their original Phase 5/7 locations with historical
+text retained and marked superseded. Local Phase 5 summary/index updated. Existing
+tracked construction changes are intentionally unstaged under BUILD_LOGGING_PROTOCOL;
+no root construction record was overwritten.
+
+## Tests
+
+Tests were written red before repairs for evidence, derived licences, exam validity,
+gate parity and no-peeking. Red failures exposed mutable-outcome/cache authority,
+legacy empty exam proof, future alarms, missing full-pipeline context/operator
+coverage and physical future rows in the initial frozen copy. Repairs addressed
+those behaviors; no test was skipped/deleted/weakened to pass.
+
+**PASS: 682 tests in 377.68 seconds; exit 0.** Ruff lint and format pass
+(287 files); application mypy passes 175 source files; strict core/engine mypy
+passes 41 source files. Protected fixture/result hashes are unchanged in source
+and isolated snapshot. Two installed Typer/Click deprecation warnings remain;
+no dependency change is in scope. Git emitted a sandbox global-ignore-read warning;
+the isolated checker completed successfully. `git diff --check` passes.
+
+The required portable `python -B scripts/check.py` is the repository's isolated
+make-check equivalent. It checks lint/format, application typing, strict core/engine
+typing, full non-live regressions and unchanged protected fixture/result hashes in
+source and its synthetic isolated snapshot. Local log:
+`data/wp5/final-check-current.log`. Tests use a secret-free synthetic cwd/config,
+existing installed toolchain and workspace-local pytest temp directories.
+The previous complete source run passed **681 tests in 328.89 seconds**; after the
+last bounded-snapshot hardening, its focused suite passed **25 tests in 51.75 seconds**.
+The final current-source result above governs acceptance. The 25-test focused
+command selected unit/test_wp5_exams.py, unit/test_exam_board.py and
+integration/test_wp5_permissions_exams.py through pytest with workspace-local
+--basetemp and the isolated synthetic cwd.
+
+CONTRACT Git blob is unchanged: `7c29f227420d2334ad9e5ce5696fc1ae215f213e`
+(normalized SHA256 `09c515bd60facc504e7890fd292fb49c9b1b6487ffa9f0f07da67dd405e8e1c5`).
+Working-checkout CRLF normalization was accounted for; no CONTRACT edit.
+
+Coverage mapping: T-EVIDENCE/T-LB (golden pooling and strong/all maths), T-CAPS/T-GATE
+(caps, audit/economics and missing proof blocks), T-EXAM (actual fitted sound/shortcut
+policies, coverage/claims/retries), T-NOPEEK (50 seeded permission cuts plus existing
+replay properties), T-LEDGER/T-SEC/T-WEBISO (append-only, roles, independence),
+T-API/T-E2E permission parity and all-family regressions. Existing T-CUSUM/T-PSI/
+T-EXEC remain regressions; D3's new lifecycle algorithms were not implemented.
+
+### Deterministic acceptance (synthetic providers)
+
+Reproduce with the full checker or focused test modules
+`integration/test_wp5_permissions_exams.py` and `unit/test_exam_board.py`.
+The tracked JSON manifest contains exact IDs, ledger heads, cutoffs and snapshot
+identities. Local complete manifests are in `data/wp5/acceptance.json`.
+
+| Case | Actual exam result | Permission consequence |
+|---|---|---|
+| Qualifying prospective scenario | 27 bases x 10 operators = 270 cases; flip rate 0; critical violations 0; no pipeline/invalid-edit loss | `mail|fyi|frequent` / ARCHIVE, 105/105 strong and recent 105; strong LB 0.9742644357171694; level 1 before exam, level 2 after pass, level 1 after same-cutoff alarm |
+| Nonsemantic embedding control | 270 cases; flip rate 0.75; fails | No higher permission; retained as a negative result |
+| Actually fitted shortcut classifier | 23 bases x 10 = 230 cases; flip rate 0.5; fails | Cannot qualify an exam |
+
+The prospective fixture is `d2-scenario-v1`, seed 705, 340 chronologically committed
+situations; production cold-start 200 and two effective actions. Model cutoff
+`2026-05-09T08:00:00Z`, exam/history cutoff `2026-05-15T05:00:00Z`.
+All three ledgers verify and independent replay identities/heads match. There are
+zero operational actions from exam cases. Stale/missing/future/insufficient/alarmed
+controls remain blocked in the regression suite.
+
+These are explicitly fake readers/editors and semantic fixture embeddings. The
+SHA256 embedding control correctly fails rather than being tuned into promotion.
+The shortcut uses a fitted Policy over validated reader features, not a replacement
+exam predictor. No generation-truth file enters prediction. These prove code
+behavior, not Nemotron language quality or real-model permission readiness.
+
+### Offline provisioned MiniLM regression
+
+Existing manifest-pinned `all-MiniLM-L6-v2` revision
+`d13954661f83248295ba75c1ed411eef3b7b936e` passed `scripts/verify_embeddings.py`:
+2 x 384 finite normalized repeatable vectors; duplicate novelty false/distance 0.
+The shared frozen-context smoke retains the actual ONNX runtime, cold-start 200,
+SHADOW at level 0 and ASK for missing reader. Provider identity:
+`e7874ae8decaf9bd21b3b36df6eb1cf6556be6dcb89b5e805ab7221840ef1ac6`.
+Rerun after final snapshot hardening passed with **0 network attempts**.
+This is an offline adapter regression, not a passing real-model counterfactual exam.
+
+## Invariants touched
+
+- I-1/I-2/I-3/I-4/I-5: schema-validated model data, Executor-only target effects,
+  fail-closed gates, unchanged hard caps/hands-off rules and code-only verdicts.
+- I-6/I-7/I-8/I-9: HistoryView-only bounded evidence, genuine prospective time/seq
+  ordering, append-only hash-chained ledger and injected clock. Frozen history
+  excludes physical future rows and does not commit the caller's transaction.
+- I-10/I-11/I-12/I-13: read-only derived authority, strong-only higher levels,
+  one eligible decision per proposal/audit holdouts, and fresh post-alarm exams.
+- I-14/I-15/I-16/I-17: shared redaction/registered budgeted consumers, deterministic
+  identity/cache path and the same synthetic/production prediction code.
+- I-18/I-19/I-20/I-21: synthetic evidence/no secrets, unchanged recallability and
+  pending-drift restrictions; web facts cannot increase permissions. Existing
+  web isolation regressions remain green; no web integration was added.
+
+## Deviations and assumptions
+
+D2 email acceptance is narrower than entire WP5 and the historical Phase 5 report
+below. Calendar's `introduce_conflict` payload-only mutation is invalid: the real
+pipeline derives conflict from accepted-event history. It requires a genuine bounded
+history overlay before whole-family acceptance; no fake counter passes it here.
+Reading/Chains remain unavailable pending their approved suppliers. Other families
+have shared dispatch/regression compatibility, not newly claimed whole-family exams.
+
+Existing trusted arithmetic-test seams remain optional Python arguments; production
+API/Executor do not accept supplied evidence/exam success from clients. No migration
+backfills fabricated proof. Unfinished attempts remain durable and fail closed;
+operator-directed recovery/explicit new attempts are downstream work.
+
+## Contract change requests
+
+None. CONTRACT.md is unchanged; existing approved cold-start/CCR-002/sequential
+scope and unavailable-supplier decisions remain in force.
+
+## New dependencies
+
+None. No install, credentials, account access or new network destination.
+Graphify warnings are recorded below; no optional dependency was installed.
+
+## LLM cost incurred
+
+**USD 0; 0 real provider calls.** Synthetic fake dispatch only. No .env access.
+No deployment, push or merge.
+
+## Open questions / remaining blockers
+
+- D2 is ready for owner review after the final gate; whole-WP5 acceptance remains
+  open for actual calendar conflict overlays and remaining full-family coverage.
+- No live Nemotron quality/evaluation, paid dispatch or external-provider acceptance
+  was attempted. Offline MiniLM proof does not replace those later evaluation gates.
+- D3/WP6 response/effect/hold/cancel/undo/correction lifecycle, approved Reading/Chains
+  suppliers, connectors, frontend and later release packages remain downstream.
+- Parallel model dispatch and automatic lease recovery remain deferred.
+- `graphify update .` completed: 5,740 nodes, 14,136 edges, 270 communities.
+  Local AST outputs are ignored. Warnings: synthetic text files named .pdf have no
+  PDF content; optional tree_sitter_sql is unavailable (3 SQL files not extracted).
+  No dependency installation or fixture modification was made. These limit graph
+  extraction, not the application/test results.
+
+## Suggested next step
+
+Review this D2 branch, acceptance manifest, changes and deliberately blocked controls.
+Do not merge/push without explicit authorization. Stop here; D3/WP6 has not started.
+
+Backout: stop scheduled examinations and hold autonomous execution pending review.
+Prefer a forward fix retaining existing attempts/evidence/ledger. There is no schema
+migration to undo. Do not reset attempts, rewrite ledger/history, drop spend accounting
+or restore cached authority. Local construction records must survive integration.
+
+---
+
+## Historical Phase 5 handoff retained (superseded, not current D2 acceptance proof)
+
+The original report below describes an earlier broad phase and includes claims that
+were not independently accepted by this D2 package. Use the new handoff above for
+current scope/results. Its lifecycle work is not a claim of D3/WP6 completion.
+
 # Phase 5 Handoff: Evidence, Licences, Gate, Executor, and Drift
 
 **Branch / Commit:** `phase-5-evidence-licences-gate` / `4770806`  

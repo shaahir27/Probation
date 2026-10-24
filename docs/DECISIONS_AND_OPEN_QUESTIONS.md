@@ -168,3 +168,25 @@ WP1 implementation decisions, 22 October 2026 (work remains in progress):
 ### Owner decisions - 23 October 2026 WP3/WP4 continuation
 
 Approved durable accounting as described in the supplied handoff; complete and push Phase 3, merge main, then integrate/verify Phase 4 on its own branch before merging/pushing main. Explicit follow-up approval: production cold-start 200 (20 only in controlled tests), CCR-002 listed prompt limits, Reading/Chains unavailable until their later evidence suppliers. Preserve CONTRACT.md; row-scoped accounting change request and exact deviations are recorded in reports/phase-3.md and wp3/W3_D03_SPEND_ACCOUNTING_REVIEW.md. No live provider/account deployment is approved.
+
+### D2 implementation decisions - 24 October 2026 (Phase 5 review pending)
+
+- WP5 permission authority is one read-only derived view of bounded immutable
+  prospective evidence, current caps, meaningful exam proof, expiry and pair/family
+  alarms. API/replay/Executor share it; Examiner alone persists presentation caches.
+  Ambiguous historical commitments and bare historical exam passes fail closed.
+- Exam history is physically materialized at its cutoff in a separate read-only
+  in-memory database. Fitted policy/novelty arrays are frozen; the provisioned
+  read-only ONNX runtime is retained. No refit, future rows or operational effects.
+- Existing exam_runs represents a durable unfinished claim before inference.
+  Failed/interrupted attempts consume scheduled quota; explicit new ordinals
+  distinguish retries. Completion is atomic with cases and ledger. No lease
+  stealing, automatic recovery, schema changes or new authority roles.
+- D2 email acceptance is separate from whole-WP5 completion. Calendar's accepted
+  conflict operator requires a genuine bounded accepted-event history overlay;
+  its old payload-only counter is invalid and cannot pass. Reading/Chains remain
+  unavailable without approved suppliers. No D3/WP6, connector or frontend work.
+- The qualifying synthetic fixture explicitly uses fake semantic embeddings;
+  the nonsemantic embedding fixture remains a failing negative control. No
+  production threshold/cold-start tuning or real-provider quality claim. See
+  reports/phase-5.md and phase-5-d2-acceptance.json for exact proof and limits.

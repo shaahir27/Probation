@@ -31,7 +31,12 @@ from probation.engine.drift import check_family_shift
 from probation.engine.evidence import aggregate_evidence
 from probation.engine.exam import run_exam
 from probation.engine.habits import mine_habits
-from probation.engine.licence import derive_and_cache_licences, find_exam_candidates
+from probation.engine.licence import (
+    derive_and_cache_licences,
+    derive_licences,
+    family_for_class,
+    find_exam_candidates,
+)
 from probation.engine.novelty import EmbeddingProvider, NoveltyDetector, NoveltyUnavailable
 from probation.engine.policy import Policy
 from probation.engine.prediction import PredictionSnapshot, evaluate_prediction, policy_inputs
@@ -552,19 +557,15 @@ def _run_replay(
 
         elif ev.kind == "LICENCE_REVIEW":
             day_iso = ev.timestamp
-            stats = aggregate_evidence(conn, as_of=day_iso)
+            stats = aggregate_evidence(
+                conn, as_of=day_iso, evidence_window_days=settings.evidence_window_days
+            )
+            conn.commit()
             candidates = find_exam_candidates(
                 conn, as_of=day_iso, max_candidates=settings.exam_max_per_day
             )
             for cand_ck, cand_act, cand_lvl in candidates:
-                pack_name = cand_ck.split("|")[0]
-                cand_fam = (
-                    "email_action"
-                    if pack_name in ("mail", "email")
-                    else "invite_rsvp"
-                    if pack_name in ("cal", "calendar")
-                    else "file_destination"
-                )
+                cand_fam = family_for_class(cand_ck)
                 from probation.engine.exam_prediction import ExamPredictionContext
                 from probation.llm.consumers import RegisteredConsumer, offline_consumer
                 from probation.llm.gateway import JobGateway, transport_authority
@@ -586,6 +587,7 @@ def _run_replay(
                             novelties[cand_fam],
                             settings.audit_seed,
                             settings.audit_fraction,
+                            settings.attention_cost,
                         ),
                         HistoryView(conn, day_iso),
                         exam_consumer,
@@ -600,6 +602,7 @@ def _run_replay(
                     as_of=day_iso,
                     policy=policies.get(cand_fam),
                     prediction_context=exam_context,
+                    scheduled=True,
                     clock=clock,
                 )
             derive_and_cache_licences(conn, as_of=day_iso, stats=stats)
@@ -761,13 +764,9 @@ def _run_replay(
             b2_act, _ = BaselineB2.predict(sit, feat_obj)
             b2_predictions[sit.id] = b2_act
 
-            # Fetch derived licence level
-            cur.execute(
-                "SELECT level FROM licence_cache WHERE class_key = ? AND action = ?;",
-                (c_key, action),
-            )
-            lic_row = cur.fetchone()
-            licence_level = int(lic_row["level"]) if lic_row else 0
+            # Re-derive current authority; a nightly cache is never permission truth.
+            licence = derive_licences(conn, as_of_iso, pair=(c_key, action)).get((c_key, action))
+            licence_level = int(licence.level) if licence else 0
 
             recallable = is_recallable(action)
             if feat_obj is not None:

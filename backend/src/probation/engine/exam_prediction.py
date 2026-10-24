@@ -1,6 +1,7 @@
 """Frozen counterfactual adapter: same feature/prediction code, no operational writes."""
 
 import copy
+import hashlib
 from dataclasses import dataclass
 from typing import Any
 
@@ -20,6 +21,32 @@ class ExamPredictionContext:
     history: HistoryView
     consumer: RegisteredConsumer | None = None
     reader_callable: ReaderCallable | None = None
+
+    def manifest(self) -> dict[str, Any]:
+        from probation.config import settings
+        from probation.llm.feature_pipeline import semantic_feature_version
+
+        novelty = self.snapshot.novelty
+        vectors = getattr(novelty, "training_vectors", None)
+        return {
+            "policy_digest": getattr(self.snapshot.policy, "policy_digest", ""),
+            "policy_version": self.snapshot.policy.policy_version,
+            "model_cutoff": getattr(self.snapshot.policy, "as_of", None),
+            "history_cutoff": self.history.as_of,
+            "history_digest": self.history.permission_history_digest(),
+            "feature_version": semantic_feature_version(stub=self.reader_callable is not None),
+            "novelty_type": type(novelty).__qualname__,
+            "novelty_vectors": hashlib.sha256(vectors.tobytes()).hexdigest()
+            if vectors is not None
+            else None,
+            "novelty_references": getattr(novelty, "reference_ids", []),
+            "novelty_threshold": getattr(novelty, "threshold", None),
+            "embedding_identity": getattr(getattr(novelty, "embedder", None), "identity", None),
+            "audit_seed": self.snapshot.audit_seed,
+            "audit_fraction": self.snapshot.audit_fraction,
+            "attention_cost": self.snapshot.attention_cost,
+            "configured_models": [settings.model_reader, settings.model_exam_edits],
+        }
 
     def frozen(self) -> "ExamPredictionContext":
         from probation.engine.novelty import NoveltyDetector
@@ -41,7 +68,9 @@ class ExamPredictionContext:
             self.snapshot.audit_fraction,
             self.snapshot.attention_cost,
         )
-        return ExamPredictionContext(snapshot, self.history, self.consumer, self.reader_callable)
+        return ExamPredictionContext(
+            snapshot, self.history.frozen(), self.consumer, self.reader_callable
+        )
 
     def predict(
         self, situation: Situation, payload: dict[str, Any], text: str, level: int
@@ -58,6 +87,15 @@ class ExamPredictionContext:
                     "redacted_text": text,
                 }
             )
+        elif situation.pack == "files":
+            if "name" in payload:
+                payload["filename"] = payload["name"]
+            if "size" in payload:
+                payload["size_bytes"] = payload["size"]
+            filename = str(payload.get("filename", ""))
+            # The descriptor's hands-off function reads the situation text.
+            text = f"Filename: {filename}"
+            situation = situation.model_copy(update={"redacted_text": text})
         situation = situation.model_copy(update={"redacted_text": text})
         view = self.history.with_current_payload(situation.raw_item_id, payload)
         features = compute_features(

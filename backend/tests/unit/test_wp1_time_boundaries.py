@@ -21,6 +21,9 @@ def test_future_fractional_exam_is_unavailable_at_whole_second_cut(
     memory_db.execute("""INSERT INTO exam_runs(id,class_key,action,level_tested,started_at,finished_at,n_cases,passed,details_json)
                        VALUES ('wp1-time-exam','mail|request|known','ARCHIVE',2,
                        '2026-01-01T10:00:00.500000Z','2026-01-01T10:00:00.500000Z',20,1,'{}')""")
+    from tests.unit.wp5_fixture_ledger import complete_validity_exam_fixture
+
+    complete_validity_exam_fixture(memory_db)
     assert not check_exam_ok(memory_db, "mail|request|known", "ARCHIVE", "2026-01-01T10:00:00Z", 2)
     assert check_exam_ok(
         memory_db, "mail|request|known", "ARCHIVE", "2026-01-01T15:30:00.600000+05:30", 2

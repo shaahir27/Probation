@@ -116,7 +116,8 @@ def apply_calendar_llm_operator(
                 if validate_calendar_operator_result(operator_name, payload, edited):
                     return edited
             except (JobFailure, PromptAssetError):
-                pass
+                return mutated
+            return mutated
 
         # Deterministic paraphrase fallback
         if "Demo" in title:

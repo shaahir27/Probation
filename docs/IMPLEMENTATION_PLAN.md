@@ -288,7 +288,7 @@ If any phase finishes more than 2 days late, cut in this order:
 | 2 | not started | | | |
 | 3 | not started | | | |
 | 4 | not started | | | |
-| 5 | not started | | | |
+| 5 | D2 ready for review; whole phase open | 24 Oct 2026 | | WP5 email permission/exam slice: 682 tests pass; see reports/phase-5.md. D3/WP6 untouched. |
 | 6 | not started | | | |
 | 6b | not started | | | |
 | 7 | not started | | | |

@@ -13,21 +13,32 @@ import pytest
 
 from probation.config import settings
 from probation.core.enums import GateDecision, LedgerKind
-from probation.core.history import HistoryView
 from probation.db.connection import apply_schema
 from probation.engine.exam import (
     autonomy_rank,
     evaluate_exam_run,
     run_exam,
 )
-from probation.engine.exam_prediction import ExamPredictionContext
 from probation.engine.licence import (
     check_exam_ok,
     derive_and_cache_licences,
     find_exam_candidates,
 )
-from probation.engine.policy import Policy
-from probation.engine.prediction import PredictionSnapshot
+from tests.unit.wp5_exam_fixtures import (
+    CheatingPolicy as CheatingPolicy,
+)
+from tests.unit.wp5_exam_fixtures import (
+    SoundPolicy as SoundPolicy,
+)
+from tests.unit.wp5_exam_fixtures import (
+    _populate_test_situations as _populate_test_situations,
+)
+from tests.unit.wp5_exam_fixtures import (
+    context_for as context_for,
+)
+from tests.unit.wp5_exam_fixtures import (
+    fixture_editor as fixture_editor,
+)
 
 
 @pytest.fixture
@@ -37,134 +48,6 @@ def exam_db() -> sqlite3.Connection:
     conn.row_factory = sqlite3.Row
     apply_schema(conn)
     return conn
-
-
-def _populate_test_situations(
-    conn: sqlite3.Connection,
-    count: int = 25,
-    class_key: str = "mail|request|known",
-    action: str = "REPLY",
-) -> None:
-    """Helper to seed test situations with raw items and known outcomes."""
-    cur = conn.cursor()
-    cur.execute(
-        """
-        INSERT OR IGNORE INTO sources (id, pack, kind, ref, imported_at)
-        VALUES ('src-1', 'mail', 'synthetic', 'ref-1', '2026-01-01T00:00:00Z');
-        """
-    )
-    for i in range(count):
-        sit_id = f"sit-test-{i:03d}"
-        raw_id = f"raw-test-{i:03d}"
-        month = f"2026-{(i % 6) + 1:02d}"
-        ts = f"{month}-15T10:00:00Z"
-
-        payload = {
-            "from": f"colleague{i}@college.edu",
-            "subject": f"Inquiry about project {i}",
-            "body": f"Hi Meena,\nCould you please reply regarding project {i}?\nBest regards,\nColleague",
-        }
-
-        cur.execute(
-            """
-            INSERT INTO raw_items (id, source_id, pack, item_kind, source_ref, occurred_at, known_at, payload_json, content_hash)
-            VALUES (?, 'src-1', 'mail', 'mail_in', ?, ?, ?, ?, 'hash');
-            """,
-            (raw_id, f"ref-msg-{i}", ts, ts, json.dumps(payload)),
-        )
-
-        cur.execute(
-            """
-            INSERT INTO situations (id, raw_item_id, pack, family, occurred_at, sender_key, content_hash, redacted_text, hands_off_reason, created_at)
-            VALUES (?, ?, 'mail', 'email_action', ?, ?, 'hash', ?, NULL, ?);
-            """,
-            (sit_id, raw_id, ts, payload["from"], payload["body"], ts),
-        )
-
-        cur.execute(
-            """
-            INSERT INTO outcomes (situation_id, observed_action, strength, source, observed_at, known_at, details_json, ledger_seq)
-            VALUES (?, ?, 'STRONG', 'footprint', ?, ?, '{}', ?);
-            """,
-            (sit_id, action, ts, ts, i + 1),
-        )
-
-        probs_json = json.dumps({action: 0.99, "LEAVE": 0.01})
-        cur.execute(
-            """
-            INSERT INTO proposals (id, situation_id, family, class_key, action, probs_json, p_max, novelty, novel, licence_level, cap, gate, reasons_json, policy_version, features_hash, proposed_at, ledger_seq)
-            VALUES (?, ?, 'email_action', ?, ?, ?, 0.99, 0.0, 0, 2, 2, 'HOLD_THEN_EXECUTE', '[]', 'v1', 'h1', ?, ?);
-            """,
-            (f"prop-{sit_id}", sit_id, class_key, action, probs_json, ts, i + 100),
-        )
-    for i in range(count):
-        earlier = f"earlier-{i}"
-        payload = json.dumps({"from": f"colleague{i}@college.edu", "body": "Earlier contact"})
-        conn.execute(
-            "INSERT INTO raw_items VALUES (?, 'src-1', 'mail', 'mail_in', ?, '2025-01-01T00:00:00Z', '2025-01-01T00:00:00Z', ?, 'h')",
-            (earlier, earlier, payload),
-        )
-        conn.execute(
-            "INSERT INTO situations(id,raw_item_id,pack,family,occurred_at,sender_key,content_hash,created_at) VALUES (?,?,'mail','email_action','2025-01-01T00:00:00Z',?,'h','2025-01-01T00:00:00Z')",
-            (earlier, earlier, f"colleague{i}@college.edu"),
-        )
-    conn.commit()
-
-
-class SoundPolicy(Policy):
-    """A fitted classifier over the same validated reader feature schema."""
-
-    def __init__(self) -> None:
-        super().__init__("email_action", cold_start_min=20)
-        self.fit(
-            [{"has_deadline": False}] * 1000 + [{"has_deadline": True}] * 1000,
-            ["REPLY"] * 1000 + ["LEAVE"] * 1000,
-            ["2026-01-01T00:00:00Z"] * 2000,
-            as_of="2026-07-01T00:00:00Z",
-        )
-
-
-class CheatingPolicy(Policy):
-    """A fitted shortcut classifier using greeting-sensitive reader formality."""
-
-    def __init__(self) -> None:
-        super().__init__("email_action", cold_start_min=20)
-        self.fit(
-            [{"formality": "casual"}] * 1000 + [{"formality": "formal"}] * 1000,
-            ["REPLY"] * 1000 + ["LEAVE"] * 1000,
-            ["2026-01-01T00:00:00Z"] * 2000,
-            as_of="2026-07-01T00:00:00Z",
-        )
-
-
-class ControlledNovelty:
-    def score(self, text):
-        return False, 0.0
-
-
-def controlled_reader(situation):
-    text = situation.redacted_text or ""
-    return {
-        "intent": "request",
-        "asks_me_to_do_something": True,
-        "has_deadline": False,
-        "deadline_text": None,
-        "money_involved": "$250" in text,
-        "urgency": 1,
-        "formality": "casual" if text.startswith("Hi Meena,") else "formal",
-        "asks_for_personal_info": "OTP" in text,
-        "looks_automated": False,
-    }, True
-
-
-def context_for(conn, policy):
-    return ExamPredictionContext(
-        PredictionSnapshot(
-            policy, ControlledNovelty(), settings.audit_seed, settings.audit_fraction
-        ),
-        HistoryView(conn, "2026-07-01T00:00:00Z"),
-        reader_callable=controlled_reader,
-    )
 
 
 # --- T-EXAM Tests ---
@@ -320,7 +203,9 @@ def test_t_exam_level_3_pass_satisfies_level_2(exam_db: sqlite3.Connection) -> N
         VALUES ('exam-l3-test', 'mail|tier1|known', 'ARCHIVE', 3, '2026-03-01T10:00:00Z', '2026-03-01T10:05:00Z', 30, 0.0, 0, 1, '{}');
         """
     )
-    exam_db.commit()
+    from tests.unit.wp5_fixture_ledger import complete_validity_exam_fixture
+
+    complete_validity_exam_fixture(exam_db)
 
     # Pass at Level 3 qualifies for Level 3
     assert (
@@ -341,7 +226,9 @@ def test_t_exam_level_3_pass_satisfies_level_2(exam_db: sqlite3.Connection) -> N
         VALUES ('exam-l2-test', 'mail|tier2|known', 'ARCHIVE', 2, '2026-03-01T10:00:00Z', '2026-03-01T10:05:00Z', 30, 0.0, 0, 1, '{}');
         """
     )
-    exam_db.commit()
+    from tests.unit.wp5_fixture_ledger import complete_validity_exam_fixture
+
+    complete_validity_exam_fixture(exam_db)
 
     assert (
         check_exam_ok(exam_db, "mail|tier2|known", "ARCHIVE", "2026-03-10T00:00:00Z", level=2)
@@ -364,7 +251,9 @@ def test_t_exam_stale_exam_expiry(exam_db: sqlite3.Connection) -> None:
         VALUES ('exam-old', 'mail|tier1|known', 'REPLY', 2, '2026-01-01T10:00:00Z', '2026-01-01T10:05:00Z', 30, 0.0, 0, 1, '{}');
         """
     )
-    exam_db.commit()
+    from tests.unit.wp5_fixture_ledger import complete_validity_exam_fixture
+
+    complete_validity_exam_fixture(exam_db)
 
     # Querying 100 days later: should be stale
     assert (
@@ -387,7 +276,9 @@ def test_t_exam_stale_exam_expiry(exam_db: sqlite3.Connection) -> None:
         VALUES ('mail|drift|known', 'REPLY', 5.5, 0.03, '2026-03-05T12:00:00Z');
         """
     )
-    exam_db.commit()
+    from tests.unit.wp5_fixture_ledger import complete_validity_exam_fixture
+
+    complete_validity_exam_fixture(exam_db)
 
     # Exam was finished before drift alarm, so it is stale and effective level cannot be 2
     assert (
@@ -408,7 +299,9 @@ def test_t_exam_max_per_day_cap(exam_db: sqlite3.Connection) -> None:
             """,
             (f"mail|class{i}|known",),
         )
-    exam_db.commit()
+    from tests.unit.wp5_fixture_ledger import complete_validity_exam_fixture
+
+    complete_validity_exam_fixture(exam_db)
 
     candidates = find_exam_candidates(exam_db, as_of="2026-06-01T00:00:00Z", max_candidates=3)
     assert len(candidates) == 3
@@ -425,19 +318,19 @@ def test_t_exam_licence_cache_integration(exam_db: sqlite3.Connection) -> None:
         VALUES ('exam-passed-123', 'mail|promo|known', 'REPLY', 2, '2026-06-01T10:00:00Z', '2026-06-01T10:05:00Z', 30, 0.0, 0, 1, '{}');
         """
     )
-    # Insert qualifying class_stats
-    cur.execute(
-        """
-        INSERT INTO class_stats (class_key, action, as_of, n_strong, k_strong, n_all, k_all, n_recent, lb_strong, lb_all)
-        VALUES ('mail|promo|known', 'REPLY', '2026-06-02T00:00:00Z', 60, 60, 60, 60, 25, 0.96, 0.96);
-        """
-    )
-    exam_db.commit()
+    # Genuine committed evidence, not a cached class_stats assertion, supplies authority.
+    from tests.unit.test_wp5_licence_derivation import cohort
+
+    cohort(exam_db)
+    exam_db.execute("UPDATE exam_runs SET class_key='mail|request|known',action='ARCHIVE'")
+    from tests.unit.wp5_fixture_ledger import complete_validity_exam_fixture
+
+    complete_validity_exam_fixture(exam_db)
 
     derive_and_cache_licences(exam_db, as_of="2026-06-02T00:00:00Z")
 
     cur.execute(
-        "SELECT level, exam_run_id FROM licence_cache WHERE class_key = 'mail|promo|known' AND action = 'REPLY';"
+        "SELECT level, exam_run_id FROM licence_cache WHERE class_key = 'mail|request|known' AND action = 'ARCHIVE';"
     )
     row = cur.fetchone()
     assert row is not None

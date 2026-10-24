@@ -96,6 +96,9 @@ class Settings(BaseSettings):
     lb_quantile: float = 0.05
     attention_cost: float = 1.0
     evidence_window_days: int = 180
+    strong_min_raw_n: int = 40
+    licence_min_recent_n: int = 20
+    licence_ttl_days: int = 30
     habit_min_support: int = 20
     habit_min_lift: float = 1.5
     habit_q: float = 0.01

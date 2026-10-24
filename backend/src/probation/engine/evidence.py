@@ -6,11 +6,14 @@ Authority: docs/CONTRACT.md invariants I-10, I-11, I-12 and docs/ENGINE_SPEC.md 
 import sqlite3
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from typing import Any, Final
+from typing import Final
 
 import scipy.stats
 
+from probation.config import settings
 from probation.core.actions import InvalidAction, parse_action
+from probation.core.clock import format_timestamp
+from probation.core.history import HistoryView
 from probation.db.access import AccessError, Role, RoleAccess
 from probation.db.guards import ReadConnection
 
@@ -85,6 +88,8 @@ def aggregate_evidence(
     evidence_window_days: int = EVIDENCE_WINDOW_DAYS_DEFAULT,
     recent_window_days: int = RECENT_WINDOW_DAYS_DEFAULT,
     persist: bool = True,
+    pooling_kappa: float | None = None,
+    lb_quantile: float | None = None,
 ) -> dict[tuple[str, str], ClassStats]:
     """Aggregate evidence for (class_key, action) pairs as of specified timestamp.
 
@@ -97,42 +102,19 @@ def aggregate_evidence(
     - Hierarchical empirical Bayes pooling applied from parent class key if n_parent >= 20.
     """
     as_of_dt = _parse_ts(as_of)
-    window_start = (as_of_dt - timedelta(days=evidence_window_days)).strftime("%Y-%m-%dT%H:%M:%SZ")
-    recent_start = (as_of_dt - timedelta(days=recent_window_days)).strftime("%Y-%m-%dT%H:%M:%SZ")
-
-    cur = conn.cursor()
-
-    query = """
-    SELECT
-        p.class_key,
-        p.action,
-        p.proposed_at,
-        p.audit_holdout,
-        p.gate,
-        o.observed_action,
-        o.strength,
-        o.source,
-        o.known_at
-    FROM proposals p
-    JOIN outcomes o ON p.situation_id = o.situation_id
-    WHERE p.gate IN ('SHADOW', 'SUGGEST', 'ASK')
-      AND o.source NOT IN ('undo', 'override')
-      AND p.proposed_at COLLATE UTC_TIMESTAMP >= ?
-      AND p.proposed_at COLLATE UTC_TIMESTAMP <= ?
-      AND o.known_at COLLATE UTC_TIMESTAMP <= ?
-    """
-    params: list[Any] = [window_start, as_of, as_of]
-    if family is not None:
-        query += " AND p.family = ?"
-        params.append(family)
-
-    cur.execute(query, tuple(params))
-    rows = cur.fetchall()
+    window_start = format_timestamp(as_of_dt - timedelta(days=evidence_window_days))
+    recent_start = format_timestamp(as_of_dt - timedelta(days=recent_window_days))
+    rows = HistoryView(conn, as_of).permission_records(family)
 
     # Raw counts per (class_key, action)
     counts: dict[tuple[str, str], dict[str, int]] = {}
 
-    for row in rows:
+    for record in rows:
+        if record["gate"] not in {"SHADOW", "SUGGEST", "ASK"}:
+            continue
+        if _parse_ts(record["proposed_at"]) < _parse_ts(window_start):
+            continue
+        row = {**record, **record["decision"]}
         c_key = str(row["class_key"])
         act = str(row["action"])
         try:
@@ -199,8 +181,12 @@ def aggregate_evidence(
         if n_p >= 20 and p_key != c_key:
             parent_mean = (k_p + 1.0) / (n_p + 2.0)
 
-        lb_strong = lower_bound(k=k_strong, n=n_strong, parent_mean=parent_mean)
-        lb_all = lower_bound(k=k_all, n=n_all, parent_mean=None)
+        kappa = settings.pooling_kappa if pooling_kappa is None else pooling_kappa
+        quantile = settings.lb_quantile if lb_quantile is None else lb_quantile
+        lb_strong = lower_bound(
+            k=k_strong, n=n_strong, parent_mean=parent_mean, kappa=kappa, q=quantile
+        )
+        lb_all = lower_bound(k=k_all, n=n_all, parent_mean=None, kappa=kappa, q=quantile)
 
         stat = ClassStats(
             class_key=c_key,

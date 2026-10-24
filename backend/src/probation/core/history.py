@@ -28,6 +28,32 @@ class HistoryView:
     def as_of(self) -> str:
         return self._as_of
 
+    def frozen(self) -> "HistoryView":
+        reader = (
+            self._conn if isinstance(self._conn, ReadConnection) else ReadConnection(self._conn)
+        )
+        return HistoryView(reader.frozen(self.as_of), self.as_of)
+
+    def permission_history_digest(self) -> str:
+        """Hash only knowable immutable events and observations for exam provenance."""
+        from probation.core.hashing import canonical_json, det_id
+
+        raw = self._conn.execute(
+            """SELECT id,content_hash,payload_json FROM raw_items
+               WHERE known_at COLLATE UTC_TIMESTAMP <= ? ORDER BY id""",
+            (self.as_of,),
+        ).fetchall()
+        events = self._conn.execute(
+            """SELECT seq,hash FROM ledger WHERE created_at COLLATE UTC_TIMESTAMP <= ?
+               AND kind IN ('proposal','outcome','drift_alarm') ORDER BY seq""",
+            (self.as_of,),
+        ).fetchall()
+        return det_id(
+            canonical_json(
+                {"raw": [tuple(row) for row in raw], "events": [tuple(row) for row in events]}
+            )
+        )
+
     def get_decision_projection(self) -> dict[str, dict[str, Any]]:
         """As-of immutable legacy events; never current outcome overwrite truth."""
         from probation.core.history_wp4 import decision_projection
@@ -38,6 +64,25 @@ class HistoryView:
         from probation.core.history_wp4 import training_records
 
         return training_records(self._conn, self.as_of, family)
+
+    def permission_records(self, family: str | None = None) -> list[dict[str, Any]]:
+        from probation.core.permission_history import permission_records
+
+        return permission_records(self._conn, self.as_of, family)
+
+    def permission_alarms(self, class_key: str, action: str, family: str) -> list[str]:
+        from probation.core.permission_history import alarm_times
+
+        return alarm_times(self._conn, self.as_of, class_key, action, family)
+
+    def permission_pairs(self) -> list[tuple[str, str]]:
+        rows = self._conn.execute(
+            """SELECT class_key,action FROM proposals WHERE proposed_at COLLATE UTC_TIMESTAMP <= ?
+               UNION SELECT class_key,action FROM licence_cache WHERE computed_at COLLATE UTC_TIMESTAMP <= ?
+               ORDER BY class_key,action""",
+            (self.as_of, self.as_of),
+        ).fetchall()
+        return [(str(row[0]), str(row[1])) for row in rows]
 
     def sender_statistics(
         self, sender: str, exclude_situation_id: str | None = None

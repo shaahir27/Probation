@@ -11,6 +11,7 @@ from probation.config import settings
 from probation.core.clock import Clock
 from probation.db.access import Role, RoleAccess
 from probation.engine.exam import ExamRunResult, run_exam
+from probation.engine.exam_prediction import ExamPredictionContext
 
 
 def run_examiner_job(
@@ -23,6 +24,8 @@ def run_examiner_job(
     llm_client: Any = None,
     clock: Clock | None = None,
     attempt_ordinal: int = 0,
+    prediction_context: ExamPredictionContext | None = None,
+    scheduled: bool = False,
 ) -> ExamRunResult:
     """Execute a single diagnostic exam run using Role.EXAMINER database boundaries."""
     access_conn = RoleAccess(conn, Role.EXAMINER)
@@ -31,6 +34,21 @@ def run_examiner_job(
     access_conn.verify_write("exam_cases")
     access_conn.verify_write("ledger")
 
+    if prediction_context is None:
+        from probation.core.clock import get_clock
+        from probation.engine.exam_context import build_exam_context
+        from probation.engine.novelty import NoveltyUnavailable
+        from probation.llm.consumers import RegisteredConsumer
+
+        try:
+            prediction_context = build_exam_context(
+                conn,
+                class_key,
+                as_of or (clock or get_clock()).now_iso(),
+                consumer=llm_client if isinstance(llm_client, RegisteredConsumer) else None,
+            )
+        except (NoveltyUnavailable, ValueError):
+            prediction_context = None
     return run_exam(
         conn=conn,
         class_key=class_key,
@@ -41,6 +59,8 @@ def run_examiner_job(
         llm_client=llm_client,
         clock=clock,
         attempt_ordinal=attempt_ordinal,
+        prediction_context=prediction_context,
+        scheduled=scheduled,
     )
 
 
@@ -65,6 +85,7 @@ def run_candidate_exams(
             level=target_level,
             as_of=as_of,
             clock=clock,
+            scheduled=True,
         )
         results.append(res)
 

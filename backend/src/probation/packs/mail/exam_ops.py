@@ -169,7 +169,8 @@ def apply_mail_llm_operator(
             if validate_mail_operator_result(operator_name, text, edited, payload, payload):
                 return edited, payload
         except (JobFailure, PromptAssetError):
-            pass
+            return text, payload
+        return text, payload
 
     # Deterministic fallback conforming to PROMPTS.md specs
     mutated = text
