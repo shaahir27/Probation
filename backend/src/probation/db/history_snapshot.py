@@ -10,6 +10,9 @@ def freeze_history(source: ReadConnection, as_of: str) -> ReadConnection:
 
     target = get_connection(":memory:")
     apply_schema(target)
+    # A followup proposal references its already-cancelled autonomous action, which
+    # in turn references the original proposal. Check that cycle at commit.
+    target.execute("PRAGMA defer_foreign_keys=ON")
     # Fixed queries, never caller-supplied SQL or a copy of future private rows.
     visible_situations = """SELECT s.id FROM situations s JOIN raw_items r ON r.id=s.raw_item_id
         WHERE s.occurred_at COLLATE UTC_TIMESTAMP <= ? AND r.known_at COLLATE UTC_TIMESTAMP <= ?"""
@@ -40,6 +43,31 @@ def freeze_history(source: ReadConnection, as_of: str) -> ReadConnection:
             "proposals",
             f"""SELECT * FROM proposals WHERE situation_id IN ({visible_situations})
             AND proposed_at COLLATE UTC_TIMESTAMP <= ?""",
+            (as_of, as_of, as_of),
+        ),
+        (
+            "actions",
+            f"""SELECT a.id,a.proposal_id,a.pack,a.type,'{{}}' AS params_json,
+            a.level_required,a.recallable,a.status,a.hold_until,a.created_at,a.updated_at,
+            a.executed_at,a.authority_kind FROM actions a JOIN proposals p ON p.id=a.proposal_id
+            WHERE p.situation_id IN ({visible_situations})
+            AND p.proposed_at COLLATE UTC_TIMESTAMP <= ?
+            AND a.authority_kind='autonomous' AND a.created_at COLLATE UTC_TIMESTAMP <= ?
+            AND a.updated_at COLLATE UTC_TIMESTAMP <= ?
+            AND a.id IN (SELECT followup_of_action_id FROM proposals
+                WHERE proposed_at COLLATE UTC_TIMESTAMP <= ?)""",
+            (as_of, as_of, as_of, as_of, as_of, as_of),
+        ),
+        (
+            "command_requests",
+            "SELECT * FROM command_requests WHERE created_at COLLATE UTC_TIMESTAMP <= ?",
+            (as_of,),
+        ),
+        (
+            "command_receipts",
+            """SELECT * FROM command_receipts WHERE command_id IN
+            (SELECT id FROM command_requests WHERE created_at COLLATE UTC_TIMESTAMP <= ?)
+            AND created_at COLLATE UTC_TIMESTAMP <= ? AND updated_at COLLATE UTC_TIMESTAMP <= ?""",
             (as_of, as_of, as_of),
         ),
         (

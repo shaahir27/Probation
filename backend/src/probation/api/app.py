@@ -9,12 +9,14 @@ from probation.api.db import connect_api as get_connection
 from probation.api.routes import (
     actions,
     boards,
+    controls,
     insights,
     items,
     licences,
     queue,
     replay,
     report,
+    responses,
     webfacts,
 )
 from probation.config import settings
@@ -58,6 +60,8 @@ async def custom_http_exception_handler(
 
 # Register sub-routers
 app.include_router(queue.router)
+app.include_router(responses.router)
+app.include_router(controls.router)
 app.include_router(items.router)
 app.include_router(actions.router)
 app.include_router(licences.router)

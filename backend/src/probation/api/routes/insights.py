@@ -12,10 +12,11 @@ Authority: CONTRACT.md section 9:
 
 import json
 import sqlite3
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from probation.api.authority import OwnerContext, optional_owner
 from probation.api.db import connect_api as get_connection
 from probation.config import settings
 from probation.core.clock import get_clock
@@ -315,11 +316,17 @@ def run_exam(body: RunExamBody) -> dict[str, Any]:
 
 
 @router.get("/commands/{command_id}")
-def get_command(command_id: str) -> dict[str, Any]:
+def get_command(
+    command_id: str, owner: Annotated[OwnerContext | None, Depends(optional_owner)]
+) -> dict[str, Any]:
     conn = _get_db()
     try:
         row = conn.execute("SELECT * FROM admin_commands WHERE id=?", (command_id,)).fetchone()
         if row is None:
+            from probation.api.routes.controls import control_status
+
+            if conn.execute("SELECT id FROM command_requests WHERE id=?", (command_id,)).fetchone():
+                return control_status(conn, command_id, owner)
             raise HTTPException(status_code=404, detail="Command not found")
         return {"command": command_record(row)}
     finally:

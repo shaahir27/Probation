@@ -22,12 +22,13 @@ from probation.synth.world import SimWorld
 from probation.workers.ingestor import ingest_situations
 
 
-def _run_full_pipeline(conn: sqlite3.Connection, owner: list[str]) -> dict[str, str]:
+def _run_full_pipeline(
+    conn: sqlite3.Connection, owner: list[str], world_db: Path
+) -> dict[str, str]:
     """Execute full import -> ingest -> resolve -> replay pipeline."""
     fixture_dir = Path(__file__).parent.parent / "fixtures" / "tiny_synth"
     mbox = fixture_dir / "mailbox.mbox"
     ics = fixture_dir / "calendar.ics"
-    world_db = fixture_dir / "world.db"
 
     import_mail(mbox, conn, user_addresses=owner)
     import_calendar(ics, conn, user_addresses=owner)
@@ -39,12 +40,14 @@ def _run_full_pipeline(conn: sqlite3.Connection, owner: list[str]) -> dict[str, 
     return report
 
 
-def test_t_e2e_backtest_ledger_and_metrics(tiny_synth_owner: list[str]) -> None:
+def test_t_e2e_backtest_ledger_and_metrics(
+    tiny_synth_owner: list[str], writable_world_db: Path
+) -> None:
     """T-E2E: Full replay produces verified ledger and consistent metrics."""
     conn = get_connection(":memory:")
     apply_schema(conn)
 
-    report = _run_full_pipeline(conn, tiny_synth_owner)
+    report = _run_full_pipeline(conn, tiny_synth_owner, writable_world_db)
 
     # 1. Ledger integrity verification
     is_intact, corrupt_seq = verify_ledger(conn)
@@ -93,15 +96,17 @@ def test_t_e2e_backtest_ledger_and_metrics(tiny_synth_owner: list[str]) -> None:
     conn.close()
 
 
-def test_t_e2e_cryptographic_determinism(tiny_synth_owner: list[str]) -> None:
+def test_t_e2e_cryptographic_determinism(
+    tiny_synth_owner: list[str], writable_world_db: Path
+) -> None:
     """T-E2E: Two runs with identical seeds produce byte-identical ledger head hashes."""
     conn1 = get_connection(":memory:")
     apply_schema(conn1)
-    _run_full_pipeline(conn1, tiny_synth_owner)
+    _run_full_pipeline(conn1, tiny_synth_owner, writable_world_db)
 
     conn2 = get_connection(":memory:")
     apply_schema(conn2)
-    _run_full_pipeline(conn2, tiny_synth_owner)
+    _run_full_pipeline(conn2, tiny_synth_owner, writable_world_db)
 
     cur1 = conn1.cursor()
     cur1.execute("SELECT hash, seq FROM ledger ORDER BY seq DESC LIMIT 1;")
@@ -122,7 +127,7 @@ def test_t_e2e_cryptographic_determinism(tiny_synth_owner: list[str]) -> None:
     conn2.close()
 
 
-def test_t_e2e_family_filtering(tiny_synth_owner: list[str]) -> None:
+def test_t_e2e_family_filtering(tiny_synth_owner: list[str], writable_world_db: Path) -> None:
     """T-E2E: Filtering replay by family restricts processing strictly to that family."""
     conn = get_connection(":memory:")
     apply_schema(conn)
@@ -133,7 +138,7 @@ def test_t_e2e_family_filtering(tiny_synth_owner: list[str]) -> None:
     ingest_situations(conn)
 
     clock = Clock(mode=ClockMode.REPLAY)
-    with SimWorld(fixture_dir / "world.db") as world:
+    with SimWorld(writable_world_db) as world:
         report = run_replay(conn, clock=clock, family="email_action", world=world)
 
     assert report["family"] == "email_action"
@@ -157,11 +162,11 @@ def test_t_e2e_family_filtering(tiny_synth_owner: list[str]) -> None:
     conn.close()
 
 
-def test_t_e2e_ledger_chronology(tiny_synth_owner: list[str]) -> None:
+def test_t_e2e_ledger_chronology(tiny_synth_owner: list[str], writable_world_db: Path) -> None:
     """T-E2E: Proposal ledger sequence strictly precedes outcome ledger sequence (Invariant I-7)."""
     conn = get_connection(":memory:")
     apply_schema(conn)
-    _run_full_pipeline(conn, tiny_synth_owner)
+    _run_full_pipeline(conn, tiny_synth_owner, writable_world_db)
 
     cur = conn.cursor()
     cur.execute(

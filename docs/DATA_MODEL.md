@@ -529,3 +529,24 @@ HistoryView's as-of immutable proposal/decision ledger projection; ambiguous
 legacy provenance is excluded. Legacy rows and ledger bytes are preserved. Bare
 legacy passed exams lacking meaningful snapshot/coverage proof are ineligible,
 requiring a new real exam; no fabricated migration supplies missing proof.
+# D3 implementation addendum (2026-10-24)
+
+The D3 email slice uses the reviewed storage contract in
+`docs/WP6_D3_MAIL_CONTRACT.md` and bootstrap migration in
+`backend/src/probation/db/migrations.py::migrate_lifecycle`.
+The original schema below remains the baseline for older databases. The migration
+adds immutable v2 response binding columns, action authority/binding/deadline columns,
+and `command_requests`, `command_receipts`, `execution_attempts`, `outcome_events`.
+Exact constraints and role-owned repositories are in `db/lifecycle.sql` and
+`db/lifecycle_*.py`; generic writes to the shared typed tables are denied.
+
+For CONTRACT section 8's linked Brain-owned suggestion after licence loss,
+`proposals.followup_of_action_id` is a nullable FK to actions. A partial unique index
+retains one initial proposal per situation; another permits at most one followup per
+cancelled action. Typed Brain persistence requires the same situation/family, bounded
+autonomous cancellation and a committed licence-loss request, with level/cap at most 1
+and a non-executing gate. The original proposal and its ledger entry remain unchanged.
+SQLite's old unconditional uniqueness is rebuilt atomically with child references
+preserved, foreign-key validation and rollback; no ledger row is updated or deleted.
+Permission cohorts admit at most one genuine decision per situation, preferring the
+eligible initial proposal. Legacy situation-only outcomes cannot attach to followups.

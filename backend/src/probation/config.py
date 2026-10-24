@@ -75,6 +75,8 @@ class Settings(BaseSettings):
     l3_min_n: int = 100
     l3_min_lb: float = 0.98
     cusum_threshold: float = 5.0
+    cusum_allowance: float = 0.02
+    cusum_base_err_default: float = 0.03
     psi_threshold: float = 0.25
     exam_valid_days: int = 90
     exam_max_per_day: int = 3

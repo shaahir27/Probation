@@ -35,14 +35,16 @@ def get_item_detail(proposal_id: str) -> dict[str, Any]:
             SELECT p.id, p.situation_id, p.family, p.class_key, p.action, p.probs_json,
                    p.p_max, p.novelty, p.licence_level, p.cap, p.gate, p.reasons_json,
                    p.params_json, p.explanation_json, p.web_json, p.audit_holdout, p.proposed_at,
-                   s.sender_key, s.occurred_at, s.redacted_text,
+                   s.sender_key, s.occurred_at, s.redacted_text,s.raw_item_id,
                    d.body_text AS draft_body, d.needs_user_input AS draft_needs_input,
                    d.model_id AS draft_model_id,
                    ur.response AS user_response, ur.edited_action, ur.responded_at
             FROM proposals p
             JOIN situations s ON p.situation_id = s.id
             LEFT JOIN drafts d ON p.id = d.proposal_id
-            LEFT JOIN user_responses ur ON p.id = ur.proposal_id
+            LEFT JOIN user_responses ur ON ur.id=(SELECT u.id FROM user_responses u
+                WHERE u.proposal_id=p.id AND u.response IN('accept','reject','edit')
+                ORDER BY u.responded_at COLLATE UTC_TIMESTAMP,u.id LIMIT 1)
             WHERE p.id = ?;
             """,
             (proposal_id,),
@@ -57,52 +59,43 @@ def get_item_detail(proposal_id: str) -> dict[str, Any]:
         web = json.loads(row["web_json"]) if row["web_json"] else {}
         reasons = json.loads(row["reasons_json"]) if row["reasons_json"] else []
 
-        # Query evidence statistics for this (class_key, action)
-        cursor.execute(
-            """
-            SELECT * FROM class_stats
-            WHERE class_key = ? AND action = ?
-            ORDER BY as_of COLLATE UTC_TIMESTAMP DESC LIMIT 1;
-            """,
-            (row["class_key"], row["action"]),
-        )
-        stats_row = cursor.fetchone()
-        evidence_line = None
-        if stats_row:
-            evidence_line = {
-                "n_strong": stats_row["n_strong"],
-                "k_strong": stats_row["k_strong"],
-                "n_all": stats_row["n_all"],
-                "k_all": stats_row["k_all"],
-                "n_recent": stats_row["n_recent"],
-                "lb_strong": stats_row["lb_strong"],
-                "lb_all": stats_row["lb_all"],
-                "as_of": stats_row["as_of"],
-            }
+        from probation.core.clock import get_clock
+        from probation.engine.licence import derive_licences
 
-        # Query latest licence cache entry if available
-        cursor.execute(
-            """
-            SELECT level, lower_bound, reasons_json, valid_until
-            FROM licence_cache
-            WHERE class_key = ? AND action = ?;
-            """,
-            (row["class_key"], row["action"]),
-        )
-        licence_row = cursor.fetchone()
-        licence_info = None
-        if licence_row:
-            licence_info = {
-                "level": licence_row["level"],
-                "lower_bound": licence_row["lower_bound"],
-                "reasons": json.loads(licence_row["reasons_json"])
-                if licence_row["reasons_json"]
-                else [],
-                "valid_until": licence_row["valid_until"],
-            }
+        now = get_clock().now_iso()
+        view = derive_licences(conn, now, pair=(row["class_key"], row["action"]))[
+            (row["class_key"], row["action"])
+        ]
+        evidence_line = {
+            "n_strong": view.n_strong,
+            "k_strong": view.k_strong,
+            "n_all": view.n_all,
+            "k_all": view.k_all,
+            "n_recent": view.n_recent,
+            "lb_strong": view.lb_strong,
+            "lb_all": view.lb_all,
+            "as_of": now,
+        }
+        licence_info = {
+            "level": int(view.level),
+            "lower_bound": view.lower_bound,
+            "reasons": view.reasons,
+            "valid_until": view.valid_until,
+        }
 
         return {
             "proposal_id": row["id"],
+            "review_version": "v2",
+            "review_url": f"/api/queue/{row['id']}/review",
+            "supported_actions": ["ARCHIVE", "TRASH", "LEAVE", "REPLY", "FORWARD"]
+            if row["family"] == "email_action"
+            else [],
+            "readiness": {
+                "reply_draft_available": row["draft_body"] is not None,
+                "reply_needs_user_input": bool(row["draft_needs_input"]),
+                "forward_requires_controlled_recipient": True,
+            },
+            "source_identity": {"raw_item_id": row["raw_item_id"]},
             "situation_id": row["situation_id"],
             "family": row["family"],
             "class_key": row["class_key"],

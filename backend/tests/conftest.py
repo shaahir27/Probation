@@ -4,6 +4,7 @@ Authority: docs/TEST_PLAN.md section 1.
 """
 
 import json
+import shutil
 import sqlite3
 from collections.abc import Callable, Generator
 from pathlib import Path
@@ -41,6 +42,18 @@ def tiny_synth_dir() -> Path:
 def tiny_synth_owner(tiny_synth_dir: Path) -> list[str]:
     """Owner identity of the tracked tiny synthetic fixture, read from its persona."""
     return owner_addresses(tiny_synth_dir)
+
+
+@pytest.fixture
+def writable_world_db(tiny_synth_dir: Path, tmp_path: Path) -> Path:
+    """A private copy of the tracked world database for tests that open a SimWorld.
+
+    Opening one applies its schema, so pointing a test at the tracked corpus would rewrite a
+    protected synthetic fixture (scripts/check.py hashes it before and after the suite).
+    """
+    copied = tmp_path / "world.db"
+    shutil.copyfile(tiny_synth_dir / "world.db", copied)
+    return copied
 
 
 @pytest.fixture

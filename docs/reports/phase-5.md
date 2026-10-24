@@ -1,3 +1,5 @@
+D3 email-slice continuation: see [phase-5-d3.md](phase-5-d3.md) for the separate implementation, acceptance and integration record. Whole-WP completion remains separate.
+
 # D2 pre-merge review update ? 24 October 2026
 
 The owner explicitly authorized merging Phase 5/D2 into main, pushing both branches,

@@ -47,7 +47,7 @@ ROLE_ALLOWED_WRITE_TABLES: dict[Role, frozenset[str]] = {
             "llm_attempts",
         }
     ),
-    Role.RESOLVER: frozenset({"outcomes", "ledger"}),
+    Role.RESOLVER: frozenset({"outcomes", "ledger", "outcome_events", "command_receipts"}),
     Role.EXAMINER: frozenset(
         {
             "licence_cache",
@@ -65,6 +65,7 @@ ROLE_ALLOWED_WRITE_TABLES: dict[Role, frozenset[str]] = {
             "drift_receipts",
             "llm_requests",
             "llm_attempts",
+            "command_receipts",
         }
     ),
     Role.WEBFACTS: frozenset(
@@ -80,8 +81,17 @@ ROLE_ALLOWED_WRITE_TABLES: dict[Role, frozenset[str]] = {
             "llm_attempts",
         }
     ),
-    Role.EXECUTOR: frozenset({"actions", "outcomes", "ledger"}),
-    Role.API: frozenset({"user_responses", "admin_commands"}),
+    Role.EXECUTOR: frozenset(
+        {
+            "actions",
+            "outcomes",
+            "ledger",
+            "outcome_events",
+            "command_receipts",
+            "execution_attempts",
+        }
+    ),
+    Role.API: frozenset({"user_responses", "admin_commands", "command_requests"}),
 }
 
 
@@ -112,7 +122,14 @@ class RoleAccess:
 
     def execute_write(self, table: str, query: str, params: tuple[Any, ...] = ()) -> ReadCursor:
         """Execute write query after permission verification."""
-        if table in {"llm_requests", "llm_attempts"}:
+        if table in {
+            "llm_requests",
+            "llm_attempts",
+            "outcome_events",
+            "command_receipts",
+            "execution_attempts",
+            "command_requests",
+        }:
             raise AccessError("Spend writes require the row-scoped SpendStore")
         if self.role == Role.BRAIN and table == "situations":
             raise AccessError("Brain situation writes require the typed chain repository")
@@ -133,7 +150,14 @@ class RoleAccess:
         self, table: str, query: str, seq_of_params: list[tuple[Any, ...]]
     ) -> ReadCursor:
         """Execute batch write query after permission verification."""
-        if table in {"llm_requests", "llm_attempts"}:
+        if table in {
+            "llm_requests",
+            "llm_attempts",
+            "outcome_events",
+            "command_receipts",
+            "execution_attempts",
+            "command_requests",
+        }:
             raise AccessError("Spend writes require the row-scoped SpendStore")
         if self.role == Role.BRAIN and table == "situations":
             raise AccessError("Brain situation writes require the typed chain repository")

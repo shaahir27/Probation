@@ -270,6 +270,16 @@ def derive_and_cache_licences(
     """Examiner-owned persistence of the same read-only derivation."""
     access = RoleAccess(conn, Role.EXAMINER)
     with access.transaction():
+        from probation.engine.drift_baseline import posterior_error
+        from probation.engine.evidence import aggregate_evidence
+
+        if stats is None:
+            stats = aggregate_evidence(
+                access.conn,
+                as_of,
+                persist=False,
+                evidence_window_days=settings.evidence_window_days,
+            )
         views = derive_licences(access.conn, as_of, stats=stats, exam_ok_fn=exam_ok_fn)
         for (ck, act), view in views.items():
             row = access.conn.execute(
@@ -293,6 +303,20 @@ def derive_and_cache_licences(
                 ),
             )
             if old != int(view.level):
+                baseline = posterior_error(
+                    stats,
+                    (ck, act),
+                    int(view.level),
+                    kappa=settings.pooling_kappa,
+                    default=settings.cusum_base_err_default,
+                )
+                access.execute_write(
+                    "drift_state",
+                    """INSERT INTO drift_state(class_key,action,cusum,baseline_err,last_alarm_at)
+                    VALUES (?,?,0,?,NULL) ON CONFLICT(class_key,action)
+                    DO UPDATE SET baseline_err=excluded.baseline_err""",
+                    (ck, act, baseline),
+                )
                 access.append_ledger(
                     LedgerKind.LICENCE_CHANGE,
                     f"{ck}::{act}",
@@ -303,6 +327,8 @@ def derive_and_cache_licences(
                         "new_level": int(view.level),
                         "lower_bound": view.lower_bound,
                         "reasons": view.reasons,
+                        "baseline_err": baseline,
+                        "posterior_mean": 1.0 - baseline,
                     },
                     created_at=as_of,
                 )

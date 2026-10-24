@@ -12,6 +12,7 @@ from typing import Any
 
 from probation.core.clock import timestamp_key
 from probation.core.identity import normalize_user_addresses
+from probation.packs.mail.lifecycle_io import MailReceipt, MailSnapshot
 
 
 def _exists_at(value: str, bound: str) -> bool:
@@ -158,8 +159,31 @@ class SimWorld:
 
     def _init_db(self) -> None:
         """Apply world schema."""
+        from probation.synth.mail_operations import SCHEMA as MAIL_OPERATION_SCHEMA
+
         self.conn.executescript(WORLD_SCHEMA)
+        self.conn.executescript(MAIL_OPERATION_SCHEMA)
         self.conn.commit()
+
+    def snapshot_mail(self, resource_id: str) -> "MailSnapshot":
+        """Read current target state for a compare-and-set Executor operation."""
+        from probation.synth.mail_operations import snapshot
+
+        return snapshot(self.conn, resource_id)
+
+    def apply_mail(
+        self, operation_id: str, payload_hash: str, payload: dict[str, Any], expected_revision: str
+    ) -> "MailReceipt":
+        """Atomically persist a correlated target receipt with its mail effect."""
+        from probation.synth.mail_operations import apply
+
+        return apply(self.conn, operation_id, payload_hash, payload, expected_revision)
+
+    def reconcile_mail(self, operation_id: str, payload_hash: str) -> "MailReceipt":
+        """A missing receipt is unknown, never permission to repeat a send."""
+        from probation.synth.mail_operations import reconcile
+
+        return reconcile(self.conn, operation_id, payload_hash)
 
     def _get_meta(self, key: str) -> str | None:
         """Read one world metadata value.
@@ -322,6 +346,9 @@ class SimWorld:
             labels.update(add_labels)
         if remove_labels:
             labels.difference_update(remove_labels)
+        from probation.synth.mail_operations import record_label_changes
+
+        record_label_changes(self.conn, message_id, set(msg["labels"]), labels)
         self.conn.execute(
             "UPDATE messages SET labels = ? WHERE message_id = ?",
             (json.dumps(sorted(labels)), message_id),

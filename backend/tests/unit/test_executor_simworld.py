@@ -6,7 +6,13 @@ Authority: docs/CONTRACT.md section 8, I-2, I-10, I-20, and docs/TEST_PLAN.md T-
 from pathlib import Path
 
 from probation.core.enums import ActionStatus, GateDecision
+from probation.core.lifecycle import ResponseIntent, SourceGrant, binding_hash
+from probation.core.review_binding import build_review_binding
+from probation.core.types import Action
+from probation.db.access import Role, RoleAccess
 from probation.db.connection import apply_schema, get_connection
+from probation.db.lifecycle_actions import ActionStore
+from probation.db.lifecycle_responses import ResponseStore
 from probation.synth.world import SimWorld
 from probation.workers.executor import Executor
 
@@ -80,20 +86,44 @@ def test_t_exec_mail_and_calendar_simworld(tmp_path: Path) -> None:
         my_status="NEEDS_ACTION",
     )
 
-    executor = Executor(conn, sim_world)
+    grant = SourceGrant("src-mail", "synthetic-mail", "synthetic-account", "user@probation.local")
+    executor = Executor(conn, sim_world, grant_resolver=lambda _: grant)
     # Allow level 2 licences by default in test
     executor.licence_checker = lambda class_key, action, as_of: 2
 
     # 1. Immediate Execution (EXECUTE_UNDO): ARCHIVE mail
     act_id1 = "act-mail-archive"
-    cur.execute(
-        """
-        INSERT INTO actions (id, proposal_id, pack, type, params_json, level_required, recallable, status, hold_until, created_at, updated_at)
-        VALUES (?, 'prop-1', 'mail', 'ARCHIVE', '{"message_id": "<msg-1@test.local>"}', 2, 1, 'PENDING', NULL, '2026-05-01T10:05:00Z', '2026-05-01T10:05:00Z');
-        """,
-        (act_id1,),
-    )
+    # The execution assertion retains its scope; D3 additionally requires a real
+    # server-controlled source grant and an immutable resource binding.
+    cur.execute("""INSERT INTO features(situation_id,deterministic_json,reader_json,reader_ok,
+        featurizer_version,features_hash,created_at) VALUES ('sit-1','{}',
+        '{"intent":"fyi","money_involved":false,"asks_for_personal_info":false}',1,
+        'synthetic-v1','h1','2026-05-01T10:00:00Z')""")
     conn.commit()
+    binding = build_review_binding(
+        conn,
+        "prop-1",
+        grant=grant,
+        owner_id="synthetic-owner",
+        restriction_revision="0",
+        as_of="2026-05-01T10:05:00Z",
+        response="accept",
+    )
+    ActionStore(executor.role_access).create_if_absent(
+        Action(
+            id=act_id1,
+            proposal_id="prop-1",
+            pack="mail",
+            type="ARCHIVE",
+            params=binding.params,
+            level_required=2,
+            recallable=True,
+            created_at="2026-05-01T10:05:00Z",
+            updated_at="2026-05-01T10:05:00Z",
+        ),
+        binding,
+        "autonomous",
+    )
 
     # Process queue
     results = executor.process_queue(as_of="2026-05-01T10:05:00Z")
@@ -117,6 +147,18 @@ def test_t_exec_mail_and_calendar_simworld(tmp_path: Path) -> None:
     assert len(results2) == 0
 
     # 2. Undo ARCHIVE: restores INBOX label
+    ResponseStore(RoleAccess(conn, Role.API)).submit(
+        ResponseIntent(
+            request_id="undo-mail",
+            proposal_id="prop-1",
+            response="undo",
+            owner_id=binding.owner_id,
+            responded_at="2026-05-01T10:10:00Z",
+            action_id=act_id1,
+            reviewed_payload=binding,
+            reviewed_payload_hash=binding_hash(binding),
+        )
+    )
     undo_res = executor.process_undo(action_id=act_id1, as_of="2026-05-01T10:10:00Z")
     assert undo_res.success
     msg_restored = sim_world.get_message("<msg-1@test.local>")
@@ -127,11 +169,13 @@ def test_t_exec_mail_and_calendar_simworld(tmp_path: Path) -> None:
     assert cur.fetchone()["status"] == ActionStatus.UNDONE.value
 
     # Check that strong disagreement outcome was written
-    cur.execute("SELECT * FROM outcomes WHERE source = 'undo'")
+    cur.execute("SELECT * FROM outcome_events WHERE source = 'undo' AND kind='undo'")
     outcome_row = cur.fetchone()
     assert outcome_row is not None
-    assert outcome_row["observed_action"] == "UNDO"
+    assert outcome_row["observed_action"] is None  # A correction is not a training action.
     assert outcome_row["strength"] == "STRONG"
+    assert outcome_row["action_id"] == act_id1
+    assert conn.execute("SELECT count(*) FROM outcomes WHERE source='undo'").fetchone()[0] == 0
 
     # 3. Hold Queue (HOLD_THEN_EXECUTE): RSVP ACCEPT on calendar
     act_id2 = "act-cal-accept"

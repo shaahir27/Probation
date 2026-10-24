@@ -17,9 +17,14 @@ import pytest
 from fastapi.testclient import TestClient
 
 from probation.api.app import app
+from probation.api.authority import OwnerContext, optional_owner
 from probation.config import settings
 from probation.core.clock import Clock
+from probation.core.hashing import canonical_json
+from probation.core.lifecycle import SourceGrant, binding_hash
+from probation.core.review_binding import build_review_binding
 from probation.db.connection import get_connection, init_db
+from probation.llm.draft_validation import body_hash
 
 client = TestClient(app)
 
@@ -27,6 +32,15 @@ client = TestClient(app)
 @pytest.fixture(autouse=True)
 def request_clock(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(app.state, "clock", Clock.replay(datetime(2026, 3, 1, 11, tzinfo=UTC)))
+
+
+@pytest.fixture(autouse=True)
+def authenticated_synthetic_owner():
+    app.dependency_overrides[optional_owner] = lambda: OwnerContext(
+        "owner", (SourceGrant("src-1", "connection", "account", "owner@test.invalid"),)
+    )
+    yield
+    app.dependency_overrides.pop(optional_owner, None)
 
 
 def _seed_sample_db(db_path: Path) -> None:
@@ -47,7 +61,7 @@ def _seed_sample_db(db_path: Path) -> None:
     cur.execute(
         """
         INSERT INTO raw_items (id, source_id, pack, item_kind, source_ref, occurred_at, known_at, payload_json, content_hash)
-        VALUES ('raw-1', 'src-1', 'mail', 'mail_in', 'msg-1', ?, ?, '{"subject":"Coffee?"}', 'hash1');
+        VALUES ('raw-1', 'src-1', 'mail', 'mail_in', 'msg-1', ?, ?, '{"subject":"Coffee?","body":"Coffee catchup tomorrow?","from":"alice@corp.com","message_id":"<msg-1@corp.com>"}', 'hash1');
         """,
         (now, now),
     )
@@ -122,6 +136,32 @@ def _seed_sample_db(db_path: Path) -> None:
         """,
         (now, now),
     )
+    cur.execute(
+        "UPDATE proposals SET params_json=? WHERE id='prop-1'",
+        (
+            canonical_json(
+                {
+                    "draft_proposal_id": "prop-1",
+                    "to_addr": "alice@corp.com",
+                    "draft_body_hash": body_hash("Sure, let us catch up tomorrow!"),
+                }
+            ),
+        ),
+    )
+    binding = build_review_binding(
+        conn,
+        "prop-1",
+        grant=SourceGrant("src-1", "connection", "account", "owner@test.invalid"),
+        owner_id="owner",
+        restriction_revision="0",
+        as_of=now,
+        response="edit",
+        edited_action="ARCHIVE",
+    )
+    cur.execute(
+        """UPDATE actions SET type='ARCHIVE',params_json=?,binding_json=?,binding_hash=?,authority_kind='autonomous',executed_at=?,undo_deadline='2026-03-08T10:00:00Z' WHERE id='act-1'""",
+        (canonical_json(binding.params), binding.model_dump_json(), binding_hash(binding), now),
+    )
     conn.commit()
     conn.close()
 
@@ -156,8 +196,18 @@ def test_queue_endpoints(tmp_path: Path) -> None:
         assert len(data["digests"]) == 1
 
         # 2. POST /api/queue/{id}/respond
-        res_post = client.post("/api/queue/prop-1/respond", json={"response": "accept"})
-        assert res_post.status_code == 200
+        body = {"version": "v2", "response": "accept"}
+        reviewed = client.post("/api/queue/prop-1/review", json=body)
+        assert reviewed.status_code == 200, reviewed.text
+        res_post = client.post(
+            "/api/queue/prop-1/respond",
+            json={
+                **body,
+                "request_id": "initial",
+                "reviewed_payload_hash": reviewed.json()["reviewed_payload_hash"],
+            },
+        )
+        assert res_post.status_code == 202
         post_data = res_post.json()
         assert post_data["ok"] is True
         assert post_data["response"] == "accept"
@@ -171,10 +221,18 @@ def test_queue_endpoints(tmp_path: Path) -> None:
         assert ur_row["response"] == "accept"
         conn.close()
 
-        # 4. Double respond returns 'Already answered'
-        res_post2 = client.post("/api/queue/prop-1/respond", json={"response": "reject"})
-        assert res_post2.status_code == 200
-        assert res_post2.json()["message"] == "Already answered"
+        # 4. A competing initial decision is a typed conflict.
+        rejection = {"version": "v2", "response": "reject"}
+        reviewed = client.post("/api/queue/prop-1/review", json=rejection)
+        res_post2 = client.post(
+            "/api/queue/prop-1/respond",
+            json={
+                **rejection,
+                "request_id": "different",
+                "reviewed_payload_hash": reviewed.json()["reviewed_payload_hash"],
+            },
+        )
+        assert res_post2.status_code == 409
 
 
 def test_item_detail_endpoint(tmp_path: Path) -> None:
@@ -189,7 +247,9 @@ def test_item_detail_endpoint(tmp_path: Path) -> None:
         assert data["action"] == "REPLY"
         assert data["draft"] is not None
         assert data["evidence"] is not None
-        assert data["evidence"]["k_strong"] == 14
+        assert (
+            data["evidence"]["k_strong"] == 0
+        )  # A mutable class_stats cache is not permission evidence.
 
 
 def test_actions_and_undo_endpoints(tmp_path: Path) -> None:
@@ -205,10 +265,11 @@ def test_actions_and_undo_endpoints(tmp_path: Path) -> None:
         assert data["actions"][0]["status"] == "DONE"
 
         # 2. POST /api/actions/act-1/undo writes user_responses with response='undo'
-        res_undo = client.post("/api/actions/act-1/undo")
-        assert res_undo.status_code == 200
-        assert res_undo.json()["ok"] is True
-        assert res_undo.json()["status"] == "UNDO_REQUESTED"
+        res_undo = client.post(
+            "/api/actions/act-1/undo", json={"version": "v2", "request_id": "undo-request"}
+        )
+        assert res_undo.status_code == 202, res_undo.text
+        assert res_undo.json()["status"] == "recorded"
 
         # Verify DB entry
         conn = get_connection(test_db)
@@ -216,6 +277,77 @@ def test_actions_and_undo_endpoints(tmp_path: Path) -> None:
         cur.execute("SELECT * FROM user_responses WHERE action_id = 'act-1';")
         assert cur.fetchone() is not None
         conn.close()
+
+
+def test_consumed_undo_is_pending_and_unknown_is_not_success(tmp_path: Path) -> None:
+    from probation.db.access import Role, RoleAccess
+    from probation.db.lifecycle_attempts import AttemptStore
+    from probation.db.lifecycle_receipts import ReceiptStore
+
+    path = tmp_path / "undo-status.db"
+    _seed_sample_db(path)
+    with patch.object(settings, "db_path", path):
+        response = client.post(
+            "/api/actions/act-1/undo", json={"version": "v2", "request_id": "undo-status"}
+        )
+        assert response.status_code == 202
+        with get_connection(path) as conn:
+            access = RoleAccess(conn, Role.EXECUTOR)
+            receipts = ReceiptStore(access)
+            claim = receipts.claim_response(
+                "undo-status", now="2026-03-01T11:00:00Z", owner="executor"
+            )
+            receipts.finish(
+                claim, now="2026-03-01T11:00:00Z", status="succeeded", result={"action_id": "act-1"}
+            )
+        status = client.get("/api/responses/undo-status").json()
+        assert status["decision_status"] == "not_required"
+        assert status["execution_status"] == "pending"
+        with get_connection(path) as conn:
+            access = RoleAccess(conn, Role.EXECUTOR)
+            attempts = AttemptStore(access)
+            digest = conn.execute("SELECT binding_hash FROM actions WHERE id='act-1'").fetchone()[0]
+            claim = attempts.prepare(
+                "act-1", "undo", digest, {}, "2026-03-01T11:00:00Z", "executor"
+            )
+            attempts.mark_dispatched(claim, "2026-03-01T11:00:00Z")
+            attempts.mark_unknown(claim, "2026-03-01T11:00:00Z", "result_unknown")
+        assert (
+            client.get("/api/responses/undo-status").json()["execution_status"]
+            == "needs-reconciliation"
+        )
+
+
+def test_control_commands_are_owned_and_pending_pause_blocks_review(tmp_path: Path) -> None:
+    path = tmp_path / "controls.db"
+    _seed_sample_db(path)
+    with patch.object(settings, "db_path", path):
+        body = {
+            "version": "v2",
+            "request_id": "pause",
+            "type": "pause",
+            "scope": {"connection_id": "connection", "account_id": "account"},
+        }
+        assert client.post("/api/commands", json=body).status_code == 202
+        assert client.get("/api/commands/pause").json()["status"] == "pending"
+        assert (
+            client.post(
+                "/api/queue/prop-1/review", json={"version": "v2", "response": "accept"}
+            ).status_code
+            == 409
+        )
+        assert (
+            client.post(
+                "/api/commands",
+                json={
+                    **body,
+                    "request_id": "wrong",
+                    "scope": {"connection_id": "other", "account_id": "account"},
+                },
+            ).status_code
+            == 403
+        )
+        assert client.post("/api/commands", json=body).status_code == 202
 
 
 def test_licences_endpoint(tmp_path: Path) -> None:

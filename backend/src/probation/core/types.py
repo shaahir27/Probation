@@ -77,6 +77,8 @@ class Proposal(BaseDomainModel):
     proposed_at: str
     ledger_seq: int = 0
 
+    followup_of_action_id: str | None = None
+
     @property
     def proposal_id(self) -> str:
         """Alias for backward compatibility."""

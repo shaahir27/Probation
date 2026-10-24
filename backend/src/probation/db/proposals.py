@@ -48,6 +48,7 @@ def _values(proposal: Proposal) -> dict[str, Any]:
         "features_hash": proposal.features_hash,
         "audit_holdout": int(proposal.audit_holdout),
         "proposed_at": proposal.proposed_at,
+        "followup_of_action_id": proposal.followup_of_action_id,
     }
 
 
@@ -64,6 +65,31 @@ def persist_proposal(
     proposal = Proposal.model_validate(proposal.model_dump())
     values = _values(proposal)
     with access.transaction():
+        if proposal.followup_of_action_id is not None:
+            eligible = access.conn.execute(
+                """SELECT 1 FROM actions a JOIN proposals p ON p.id=a.proposal_id
+                JOIN ledger l ON l.ref_id=a.id AND l.kind='action'
+                WHERE a.id=? AND a.status='CANCELLED' AND a.authority_kind='autonomous'
+                AND p.situation_id=? AND p.family=? AND l.created_at COLLATE UTC_TIMESTAMP <= ?
+                AND a.updated_at COLLATE UTC_TIMESTAMP <= ?
+                AND json_extract(l.payload_json,'$.status')='CANCELLED'
+                AND json_extract(l.payload_json,'$.reason')='licence_lost'
+                AND json_extract(l.payload_json,'$.licence_lost_followup_requested')=1""",
+                (
+                    proposal.followup_of_action_id,
+                    proposal.situation_id,
+                    proposal.family,
+                    proposal.proposed_at,
+                    proposal.proposed_at,
+                ),
+            ).fetchone()
+            if (
+                eligible is None
+                or proposal.licence_level > 1
+                or proposal.cap > 1
+                or proposal.gate.value not in {"SHADOW", "ASK", "SUGGEST"}
+            ):
+                raise ValueError("Invalid authority followup")
         existing = access.conn.execute(
             "SELECT * FROM proposals WHERE id = ?", (proposal.id,)
         ).fetchone()
@@ -94,6 +120,7 @@ def persist_proposal(
                 "policy_version": proposal.policy_version,
                 "features_hash": proposal.features_hash,
                 "audit_holdout": proposal.audit_holdout,
+                "followup_of_action_id": proposal.followup_of_action_id,
             },
             proposal.proposed_at,
         )

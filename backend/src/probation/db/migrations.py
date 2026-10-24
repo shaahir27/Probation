@@ -4,6 +4,8 @@ import re
 import sqlite3
 from pathlib import Path
 
+from probation.db.followup_migration import migrate_followup_proposals
+
 _INDEX_LINE = re.compile(r"^(CREATE INDEX\s+(\w+)\s+ON\s+.*?;)(?:\s*--.*)?$")
 _WP1_OBJECT = re.compile(
     r"^CREATE\s+(?:TABLE|INDEX|TRIGGER|VIEW)\s+IF\s+NOT\s+EXISTS\s+(\w+)",
@@ -29,6 +31,59 @@ DROP TABLE IF EXISTS llm_attempts;
 DROP TABLE IF EXISTS llm_requests;
 DROP TABLE IF EXISTS budget_scopes;
 """
+
+
+def migrate_lifecycle(conn: sqlite3.Connection) -> None:
+    """Bootstrap-only atomic D3 migration; original rows and ledger remain intact."""
+    if conn.in_transaction or getattr(conn, "bound_role", None) is not None:
+        raise ValueError("Lifecycle migration requires a clean bootstrap connection")
+    columns = {
+        "user_responses": {
+            "schema_version": "INTEGER NOT NULL DEFAULT 1 CHECK(schema_version IN(1,2))",
+            "request_key": "TEXT",
+            "owner_id": "TEXT",
+            "reviewed_payload_json": "TEXT CHECK(reviewed_payload_json IS NULL OR json_valid(reviewed_payload_json))",
+            "reviewed_payload_hash": "TEXT",
+            "intent_hash": "TEXT",
+        },
+        "actions": {
+            "authority_kind": "TEXT CHECK(authority_kind IS NULL OR authority_kind IN('autonomous','explicit_user'))",
+            "approval_response_id": "TEXT REFERENCES user_responses(id)",
+            "binding_json": "TEXT CHECK(binding_json IS NULL OR json_valid(binding_json))",
+            "binding_hash": "TEXT",
+            "undo_deadline": "TEXT",
+        },
+    }
+    script = Path(__file__).with_name("lifecycle.sql").read_text(encoding="utf-8")
+    expected = set(_SPEND_OBJECT.findall(script))
+    present_objects = {row[0] for row in conn.execute("SELECT name FROM sqlite_master")}
+    followup_ready = "followup_of_action_id" in {
+        r[1] for r in conn.execute("PRAGMA table_info(proposals)")
+    }
+    if expected and expected <= present_objects and followup_ready:
+        return
+    conn.execute("PRAGMA foreign_keys=OFF")
+    legacy = int(conn.execute("PRAGMA legacy_alter_table").fetchone()[0])
+    conn.execute("PRAGMA legacy_alter_table=ON")
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        for table, additions in columns.items():
+            present = {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}
+            for name, ddl in additions.items():
+                if name not in present:
+                    conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}")
+        migrate_followup_proposals(conn)
+        _run_script(conn, script)
+        if conn.execute("PRAGMA foreign_key_check").fetchone() is not None:
+            raise ValueError("Lifecycle migration would break foreign keys")
+        conn.commit()
+    except BaseException:
+        conn.rollback()
+        raise
+    finally:
+        conn.execute(f"PRAGMA legacy_alter_table={legacy}")
+        conn.execute("PRAGMA foreign_keys=ON")
+
 
 # sqlite_master is read positionally throughout: callers hand in plain sqlite3
 # connections as well as Row-factory ones, so nothing here may depend on row_factory.

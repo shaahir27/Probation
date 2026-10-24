@@ -34,6 +34,40 @@ class HistoryView:
         )
         return HistoryView(reader.frozen(self.as_of), self.as_of)
 
+    def shift_populations(
+        self, family: str, semantic_version: str | None = None
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+        from probation.core.history_shift import shift_populations
+
+        return shift_populations(self._conn, self.as_of, family, semantic_version)
+
+    def control_records(self) -> list[dict[str, Any]]:
+        from probation.core.history_controls import control_records
+
+        return control_records(self._conn, self.as_of)
+
+    def followup_records(self, limit: int = 32) -> list[dict[str, Any]]:
+        from probation.core.history_followups import followup_records
+
+        return followup_records(self._conn, self.as_of, limit)
+
+    def get_execution_features(self, proposal_id: str) -> dict[str, Any] | None:
+        """Current known source/feature inputs, never authoritative stored caps."""
+        row = self._conn.execute(
+            """SELECT s.*,f.deterministic_json,f.reader_json,f.reader_ok,
+            f.featurizer_version,f.features_hash,f.created_at AS features_created_at,
+            p.class_key,p.id AS proposal_id
+            FROM proposals p JOIN situations s ON s.id=p.situation_id
+            JOIN raw_items r ON r.id=s.raw_item_id
+            JOIN features f ON f.situation_id=s.id WHERE p.id=?
+            AND p.proposed_at COLLATE UTC_TIMESTAMP <= ?
+            AND s.occurred_at COLLATE UTC_TIMESTAMP <= ?
+            AND r.known_at COLLATE UTC_TIMESTAMP <= ?
+            AND f.created_at COLLATE UTC_TIMESTAMP <= ?""",
+            (proposal_id, self.as_of, self.as_of, self.as_of, self.as_of),
+        ).fetchone()
+        return dict(row) if row is not None else None
+
     def permission_history_digest(self) -> str:
         """Hash only knowable immutable events and observations for exam provenance."""
         from probation.core.hashing import canonical_json, det_id
@@ -228,9 +262,17 @@ class HistoryView:
         """Immutable operational outcome events, bounded by event and proposal time."""
         return list(
             self._conn.execute(
-                """SELECT l.seq,l.payload_json,l.created_at,p.class_key,p.action
+                """SELECT l.seq,l.payload_json,l.created_at,p.class_key,p.action,
+                       p.proposed_at,p.ledger_seq AS proposal_ledger_seq
             FROM ledger l JOIN proposals p
               ON p.situation_id=json_extract(l.payload_json,'$.situation_id')
+              AND (json_extract(l.payload_json,'$.proposal_id') IS NULL
+                   OR p.id=json_extract(l.payload_json,'$.proposal_id'))
+              AND (json_extract(l.payload_json,'$.proposal_id') IS NOT NULL OR p.id=(
+                  SELECT p0.id FROM proposals p0 WHERE p0.situation_id=p.situation_id
+                  AND p0.proposed_at COLLATE UTC_TIMESTAMP <
+                    COALESCE(json_extract(l.payload_json,'$.known_at'),l.created_at)
+                  ORDER BY p0.proposed_at COLLATE UTC_TIMESTAMP,p0.id LIMIT 1))
             WHERE l.kind='outcome' AND l.created_at COLLATE UTC_TIMESTAMP <= ?
               AND COALESCE(json_extract(l.payload_json,'$.known_at'),
                   json_extract(l.payload_json,'$.undone_at'),l.created_at) COLLATE UTC_TIMESTAMP <= ?

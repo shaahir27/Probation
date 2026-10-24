@@ -3,8 +3,10 @@
 Authority: docs/PACKS_SPEC.md sections 1.7, 2.6, 2.7 and docs/CONTRACT.md section 8.
 """
 
+import hashlib
 from typing import Any
 
+from probation.core.hashing import canonical_json
 from probation.core.types import Action
 from probation.packs.calendar.exam_ops import (
     CALENDAR_EXAM_OPERATORS,
@@ -21,6 +23,11 @@ from probation.packs.mail.exam_ops import (
     validate_mail_operator_result,
 )
 from probation.packs.mail.executor import execute_mail_action, undo_mail_action
+from probation.packs.mail.lifecycle_io import (
+    MailConflict,
+    MailReceipt,
+    MailSnapshot,
+)
 
 
 class MemoryExecutorIO:
@@ -28,9 +35,81 @@ class MemoryExecutorIO:
 
     def __init__(self) -> None:
         self.message_labels: dict[str, set[str]] = {}
+        self.label_versions: dict[str, dict[str, int]] = {}
+        self.operations: dict[str, tuple[str, MailReceipt]] = {}
         self.sent_messages: list[dict[str, Any]] = []
         self.rsvps: dict[str, str] = {}
         self.events: list[dict[str, Any]] = []
+
+    def snapshot_mail(self, resource_id: str) -> MailSnapshot:
+        """State digest, so a compare-and-set write sees any concurrent label edit."""
+        labels = self.message_labels.get(resource_id)
+        if labels is None:
+            raise MailConflict("mail_resource_missing")
+        versions = self.label_versions.setdefault(resource_id, {})
+        digest = hashlib.sha256(
+            canonical_json(
+                {"resource_id": resource_id, "labels": sorted(labels), "label_versions": versions}
+            ).encode()
+        ).hexdigest()
+        return MailSnapshot(
+            resource_id,
+            f"<{resource_id}@test.local>",
+            f"thread-{resource_id}",
+            tuple(sorted(labels)),
+            digest,
+            dict(versions),
+        )
+
+    def apply_mail(
+        self,
+        operation_id: str,
+        payload_hash: str,
+        payload: dict[str, Any],
+        expected_revision: str,
+    ) -> MailReceipt:
+        """One effect per operation identity, refused whole when the revision moved."""
+        if hashlib.sha256(canonical_json(payload).encode()).hexdigest() != payload_hash:
+            raise MailConflict("operation_payload_hash_mismatch")
+        prior = self.operations.get(operation_id)
+        if prior is not None:
+            if prior[0] != payload_hash:
+                raise MailConflict("operation_payload_conflict")
+            return prior[1]
+        before = self.snapshot_mail(str(payload["resource_id"]))
+        if before.revision != expected_revision:
+            receipt = MailReceipt(
+                "failed", safe_code="mail_revision_conflict", confirmed_no_effect=True
+            )
+        elif payload["type"] != "labels":
+            raise MailConflict("unsupported_mail_operation")
+        else:
+            labels = self.message_labels[before.resource_id]
+            after = (labels | set(payload["add_labels"])) - set(payload["remove_labels"])
+            versions = self.label_versions.setdefault(before.resource_id, {})
+            for label in sorted(labels ^ after):
+                versions[label] = versions.get(label, 0) + 1
+            self.message_labels[before.resource_id] = after
+            observed = self.snapshot_mail(before.resource_id)
+            receipt = MailReceipt(
+                "confirmed",
+                before.native_message_id,
+                after_state={
+                    "labels": list(observed.labels),
+                    "revision": observed.revision,
+                    "executed_at": payload.get("performed_at"),
+                },
+            )
+        self.operations[operation_id] = (payload_hash, receipt)
+        return receipt
+
+    def reconcile_mail(self, operation_id: str, payload_hash: str) -> MailReceipt:
+        prior = self.operations.get(operation_id)
+        if prior is None:
+            return MailReceipt("unknown", safe_code="receipt_not_found")
+        if prior[0] != payload_hash:
+            raise MailConflict("operation_payload_conflict")
+        return prior[1]
 
     def update_message_labels(
         self,

@@ -6,17 +6,14 @@ Note: API writes strictly to user_responses table only using Role.API.
 
 import json
 import sqlite3
-import uuid
 from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from probation.api.db import connect_api as get_connection
-from probation.api.event_time import response_time
 from probation.config import settings
 from probation.core.enums import GateDecision
-from probation.db.access import Role, get_role_access
 
 router = APIRouter(prefix="/api", tags=["queue"])
 
@@ -129,66 +126,6 @@ def get_queue() -> dict[str, Any]:
             "items": items,
             "digests": list(digests_map.values()),
             "total_count": len(items),
-        }
-    finally:
-        conn.close()
-
-
-@router.post("/queue/{proposal_id}/respond")
-def respond_queue(proposal_id: str, body: QueueRespondBody) -> dict[str, Any]:
-    """Record a user response to a pending queue proposal.
-
-    Authority: CONTRACT.md section 3 & 8. API writes strictly to user_responses.
-    """
-    conn = _get_db()
-    try:
-        cursor = conn.cursor()
-        # Verify proposal exists
-        cursor.execute("SELECT id, proposed_at FROM proposals WHERE id = ?;", (proposal_id,))
-        proposal = cursor.fetchone()
-        if not proposal:
-            raise HTTPException(status_code=404, detail=f"Proposal '{proposal_id}' not found")
-
-        # Check if already answered
-        cursor.execute(
-            "SELECT id, response FROM user_responses WHERE proposal_id = ?;", (proposal_id,)
-        )
-        existing = cursor.fetchone()
-        if existing:
-            return {
-                "ok": False,
-                "message": "Already answered",
-                "id": existing["id"],
-                "response": existing["response"],
-            }
-
-        if body.response == "edit" and not body.edited_action:
-            raise HTTPException(
-                status_code=422, detail="edited_action required when response is 'edit'"
-            )
-
-        resp_id = f"resp-{uuid.uuid4().hex[:12]}"
-        now_iso = response_time(str(proposal["proposed_at"]))
-
-        # Strictly use RoleAccess with Role.API (permits user_responses only)
-        role_access = get_role_access(conn, Role.API)
-        role_access.execute_write(
-            "user_responses",
-            """
-            INSERT INTO user_responses (id, proposal_id, action_id, response, edited_action, responded_at)
-            VALUES (?, ?, NULL, ?, ?, ?);
-            """,
-            (resp_id, proposal_id, body.response, body.edited_action, now_iso),
-        )
-        role_access.commit()
-
-        return {
-            "ok": True,
-            "id": resp_id,
-            "proposal_id": proposal_id,
-            "response": body.response,
-            "edited_action": body.edited_action,
-            "responded_at": now_iso,
         }
     finally:
         conn.close()

@@ -25,9 +25,9 @@ from probation.workers.ingestor import ingest_situations
 
 
 @pytest.fixture
-def fixture_world(tiny_synth_dir: Path) -> Any:
-    """Open the tracked world database for the checks that need no engine connection."""
-    with SimWorld(tiny_synth_dir / "world.db") as world:
+def fixture_world(writable_world_db: Path) -> Any:
+    """Open a private copy of the world database for the checks that need no engine connection."""
+    with SimWorld(writable_world_db) as world:
         yield world
 
 
@@ -50,12 +50,14 @@ def test_the_world_carries_a_dated_footprint_stream(fixture_world: SimWorld) -> 
     assert all(str(a["acted_at"]).strip() for a in actions), "footprint without a timestamp"
 
 
-def test_the_world_names_the_owner_the_truth_labels_expect(fixture_world: SimWorld) -> None:
+def test_the_world_names_the_owner_the_truth_labels_expect(
+    fixture_world: SimWorld, tiny_synth_dir: Path
+) -> None:
     """An anonymous world attributes no sent mail and no RSVP, hollowing every outcome."""
     assert fixture_world.user_addresses is not None, (
         "world.db does not self-describe its owner, so a reopened world is anonymous"
     )
-    persona = json.loads((fixture_world.db_path.parent / "persona.json").read_text("utf-8"))
+    persona = json.loads((tiny_synth_dir / "persona.json").read_text("utf-8"))
     assert fixture_world.user_addresses == normalize_user_addresses(persona["email"])
 
 

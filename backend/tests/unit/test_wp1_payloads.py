@@ -9,6 +9,7 @@ import pytest
 from probation.core.types import Outcome, Situation
 from probation.db.ledger import ledger_snapshot
 from probation.engine.drift import check_family_shift
+from probation.engine.policy import Policy
 from probation.workers.resolver import resolve_outcomes
 
 
@@ -48,6 +49,22 @@ def _seed_more_current_situations(memory_db: sqlite3.Connection, *, tier: str, c
     _seed_situations(memory_db, tier=tier, count=count, timestamp="2026-03-16T10:00:00Z", offset=30)
 
 
+def _shift_policy() -> Policy:
+    """A shift check measures populations through the features a fitted policy selected.
+
+    Without a policy it reports no alarm rather than inventing one, so these payload tests carry
+    the same authority the scheduler builds for every weekly tick (docs/ENGINE_SPEC.md 11.2).
+    """
+    policy = Policy("email_action", cold_start_min=20)
+    policy.fit(
+        [{"sender_tier": "known"}] * 20 + [{"sender_tier": "new"}] * 20,
+        ["ARCHIVE"] * 20 + ["LEAVE"] * 20,
+        ["2026-01-01T10:00:00Z"] * 20 + ["2026-03-15T10:00:00Z"] * 20,
+        "2026-04-01T00:00:00Z",
+    )
+    return policy
+
+
 def test_resolver_keeps_details_out_of_ledger(
     memory_db: sqlite3.Connection, basic_situation: Situation, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -78,7 +95,9 @@ def test_family_shift_records_distinct_canonical_alarm(
     memory_db: sqlite3.Connection, basic_situation: Situation
 ) -> None:
     _seed_shift_week(memory_db)
-    assert check_family_shift(memory_db, "email_action", "2026-04-01T00:00:00Z")
+    assert check_family_shift(
+        memory_db, "email_action", "2026-04-01T00:00:00Z", policy=_shift_policy()
+    )
     payload = json.loads(memory_db.execute("SELECT payload_json FROM ledger").fetchone()[0])
     assert payload["kind"] == "family_shift"
     assert payload["family"] == "email_action"
@@ -97,9 +116,10 @@ def test_rechecking_an_unchanged_week_does_not_duplicate_the_alarm(
     """
     _seed_shift_week(memory_db)
     as_of = "2026-04-01T00:00:00Z"
-    assert check_family_shift(memory_db, "email_action", as_of)
-    assert check_family_shift(memory_db, "email_action", as_of)
-    assert check_family_shift(memory_db, "email_action", as_of)
+    policy = _shift_policy()
+    assert check_family_shift(memory_db, "email_action", as_of, policy=policy)
+    assert check_family_shift(memory_db, "email_action", as_of, policy=policy)
+    assert check_family_shift(memory_db, "email_action", as_of, policy=policy)
 
     rows = memory_db.execute(
         "SELECT seq, ref_id FROM ledger WHERE kind='drift_alarm' ORDER BY seq"
@@ -119,13 +139,14 @@ def test_a_changed_recheck_still_reaches_the_audit_trail(
     """
     _seed_shift_week(memory_db)
     as_of = "2026-04-01T00:00:00Z"
-    assert check_family_shift(memory_db, "email_action", as_of)
+    policy = _shift_policy()
+    assert check_family_shift(memory_db, "email_action", as_of, policy=policy)
     before = memory_db.execute(
         "SELECT psi_json FROM family_shift WHERE week_start=?", (as_of,)
     ).fetchone()[0]
 
     _seed_more_current_situations(memory_db, tier="known", count=15)
-    assert check_family_shift(memory_db, "email_action", as_of)
+    assert check_family_shift(memory_db, "email_action", as_of, policy=policy)
 
     rows = memory_db.execute(
         "SELECT seq, ref_id FROM ledger WHERE kind='drift_alarm' ORDER BY seq"

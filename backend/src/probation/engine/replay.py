@@ -551,7 +551,13 @@ def _run_replay(
             sim_day_idx = (ev_dt.date() - min_dt.date()).days
             if sim_day_idx % 7 == 0:
                 for fam in distinct_families:
-                    check_family_shift(conn, family=fam, as_of=as_of_iso)
+                    check_family_shift(
+                        conn,
+                        family=fam,
+                        as_of=as_of_iso,
+                        policy=policies[fam],
+                        psi_alarm_threshold=settings.psi_threshold,
+                    )
                 mine_habits(conn, as_of=as_of_iso, clock=clock)
                 mine_chains(conn, as_of=as_of_iso, clock=clock)
 

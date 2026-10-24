@@ -16,6 +16,8 @@ from probation.packs.chains.mining import mine_chains
 from probation.workers.admin import process_admin_commands
 from probation.workers.drift import review_outcome_events
 from probation.workers.examiner import run_examiner_job
+from probation.workers.restrictions import process_restriction_commands
+from probation.workers.shift import fit_shift_policy
 
 
 def run_nightly_review(
@@ -35,6 +37,7 @@ def run_nightly_review(
     with use_clock(clk):
         review_outcome_events(conn, as_of=as_of or clk.now_iso())
         process_admin_commands(conn, clock=clk)
+        process_restriction_commands(conn, as_of=as_of or clk.now_iso())
     with use_clock(clk):
         now_iso = as_of or clk.now_iso()
 
@@ -78,11 +81,21 @@ def run_weekly_shift_checks(
     """
     clk = clock or get_clock()
     access = RoleAccess(conn, Role.EXAMINER)
-    with use_clock(clk), access.transaction():
+    with use_clock(clk):
         now_iso = as_of or clk.now_iso()
         cur = access.conn.cursor()
-        cur.execute("SELECT DISTINCT family FROM situations;")
+        cur.execute(
+            "SELECT DISTINCT family FROM situations WHERE occurred_at COLLATE UTC_TIMESTAMP <= ?",
+            (now_iso,),
+        )
         families = [str(r[0]) for r in cur.fetchall()]
 
         for fam in families:
-            check_family_shift(conn, family=fam, as_of=now_iso)
+            policy = fit_shift_policy(conn, fam, now_iso)
+            check_family_shift(
+                conn,
+                family=fam,
+                as_of=now_iso,
+                policy=policy,
+                psi_alarm_threshold=settings.psi_threshold,
+            )

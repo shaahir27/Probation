@@ -3,12 +3,13 @@
 Authority: docs/CONTRACT.md section 7, section 8 and docs/ENGINE_SPEC.md section 11.
 """
 
-import bisect
-import json
 import math
 import sqlite3
 from datetime import UTC, datetime, timedelta
-from typing import Final
+from typing import TYPE_CHECKING, Final
+
+if TYPE_CHECKING:
+    from probation.engine.policy import Policy
 
 from probation.core.enums import LedgerKind
 from probation.db.access import Role, RoleAccess
@@ -25,18 +26,6 @@ def _parse_ts(ts: str) -> datetime:
     if dt.tzinfo is None:
         return dt.replace(tzinfo=UTC)
     return dt.astimezone(UTC)
-
-
-def _quantile_bins(ref_nums: list[float], n_bins: int = 10) -> list[float]:
-    """Compute quantile cutoffs from reference distribution (ENGINE_SPEC 11.2)."""
-    sorted_vals = sorted(ref_nums)
-    if not sorted_vals:
-        return []
-    cutoffs: list[float] = []
-    for i in range(1, n_bins):
-        idx = int(len(sorted_vals) * i / n_bins)
-        cutoffs.append(sorted_vals[idx])
-    return sorted(set(cutoffs))
 
 
 class CUSUMTracker:
@@ -133,160 +122,64 @@ def check_family_shift(
     family: str,
     as_of: str,
     psi_alarm_threshold: float = PSI_ALARM_DEFAULT,
+    *,
+    policy: "Policy | None" = None,
 ) -> bool:
-    """Weekly family shift check via Population Stability Index across top features.
+    """Persist an auditable bounded check; unavailable monitoring is not a quiet result."""
+    from probation.core.clock import format_timestamp, parse_timestamp
+    from probation.core.hashing import canonical_json
+    from probation.core.history import HistoryView
+    from probation.engine.shift import assess_shift
 
-    Authority: docs/ENGINE_SPEC.md section 11.2:
-    - Reference window: 90 days before the last 30 days [as_of - 120d, as_of - 30d].
-    - Current window: last 30 days [as_of - 30d, as_of].
-    - If max PSI > 0.25: records family_shift alarm and appends ledger event.
-    """
-    as_of_dt = _parse_ts(as_of)
-    ref_start = (as_of_dt - timedelta(days=120)).strftime("%Y-%m-%dT%H:%M:%SZ")
-    ref_end = (as_of_dt - timedelta(days=30)).strftime("%Y-%m-%dT%H:%M:%SZ")
-    cur_end = as_of
-
+    as_of = format_timestamp(as_of)
+    view = HistoryView(conn, as_of)
+    versions = policy.provenance.get("semantic_versions", []) if policy else []
+    semantic_version = versions[0] if len(versions) == 1 else None
+    reference, current = view.shift_populations(family, semantic_version)
+    invalid_snapshot = policy is not None and (
+        policy.family != family
+        or not policy.as_of
+        or parse_timestamp(policy.as_of) > parse_timestamp(as_of)
+    )
+    result = assess_shift(
+        None if invalid_snapshot else policy, reference, current, threshold=psi_alarm_threshold
+    )
+    cut = parse_timestamp(as_of)
+    result["reference_start"] = format_timestamp(cut - timedelta(days=120))
+    result["current_start"] = format_timestamp(cut - timedelta(days=30))
+    result["as_of"] = as_of
+    result["semantic_version"] = semantic_version
+    if invalid_snapshot:
+        result["status"] = "invalid_policy_snapshot"
+    alarm = result["alarm"] is True
+    packed = canonical_json(result)
     access = RoleAccess(conn, Role.EXAMINER)
     with access.transaction():
-        cur = access.conn.cursor()
-
-        # Query reference features
-        cur.execute(
-            """
-            SELECT f.deterministic_json, f.reader_json
-            FROM situations s
-            JOIN features f ON s.id = f.situation_id
-            WHERE s.family = ? AND s.occurred_at COLLATE UTC_TIMESTAMP >= ? AND s.occurred_at COLLATE UTC_TIMESTAMP < ?;
-            """,
-            (family, ref_start, ref_end),
-        )
-        ref_rows = cur.fetchall()
-
-        # Query current features
-        cur.execute(
-            """
-            SELECT f.deterministic_json, f.reader_json
-            FROM situations s
-            JOIN features f ON s.id = f.situation_id
-            WHERE s.family = ? AND s.occurred_at COLLATE UTC_TIMESTAMP >= ? AND s.occurred_at COLLATE UTC_TIMESTAMP <= ?;
-            """,
-            (family, ref_end, cur_end),
-        )
-        cur_rows = cur.fetchall()
-
-        if len(ref_rows) < 20 or len(cur_rows) < 10:
-            return False
-
-        # Extract common categorical/numeric keys
-        psi_results: dict[str, float] = {}
-
-        # Sample top feature distributions
-        sample_ref = json.loads(ref_rows[0]["deterministic_json"])
-        feature_keys = list(sample_ref.keys())[:5]
-
-        for key in feature_keys:
-            sample_val = sample_ref.get(key)
-            is_numeric = isinstance(sample_val, (int, float)) and not isinstance(sample_val, bool)
-
-            if is_numeric:
-                ref_nums: list[float] = []
-                for r in ref_rows:
-                    d = json.loads(r["deterministic_json"])
-                    val = d.get(key)
-                    if isinstance(val, (int, float)) and not isinstance(val, bool):
-                        ref_nums.append(float(val))
-
-                cur_nums: list[float] = []
-                for r in cur_rows:
-                    d = json.loads(r["deterministic_json"])
-                    val = d.get(key)
-                    if isinstance(val, (int, float)) and not isinstance(val, bool):
-                        cur_nums.append(float(val))
-
-                if not ref_nums or not cur_nums:
-                    continue
-
-                cutoffs = _quantile_bins(ref_nums, n_bins=10)
-                if not cutoffs:
-                    ref_val0 = ref_nums[0]
-                    ref_dist = [float(len(ref_nums)), 0.0]
-                    act_dist = [
-                        float(sum(1 for x in cur_nums if x == ref_val0)),
-                        float(sum(1 for x in cur_nums if x != ref_val0)),
-                    ]
-                else:
-                    n_buckets = len(cutoffs) + 1
-                    ref_dist = [0.0] * n_buckets
-                    act_dist = [0.0] * n_buckets
-                    for x in ref_nums:
-                        ref_dist[bisect.bisect_right(cutoffs, x)] += 1.0
-                    for x in cur_nums:
-                        act_dist[bisect.bisect_right(cutoffs, x)] += 1.0
-
-                feat_psi = compute_psi(ref_dist, act_dist)
-                psi_results[key] = feat_psi
-            else:
-                # Build histogram of categorical values
-                ref_vals: dict[str, int] = {}
-                for r in ref_rows:
-                    d = json.loads(r["deterministic_json"])
-                    v = str(d.get(key, ""))
-                    ref_vals[v] = ref_vals.get(v, 0) + 1
-
-                cur_vals: dict[str, int] = {}
-                for r in cur_rows:
-                    d = json.loads(r["deterministic_json"])
-                    v = str(d.get(key, ""))
-                    cur_vals[v] = cur_vals.get(v, 0) + 1
-
-                all_bins = sorted(set(ref_vals.keys()) | set(cur_vals.keys()))
-                if len(all_bins) < 2:
-                    continue
-
-                ref_dist = [float(ref_vals.get(b, 0)) for b in all_bins]
-                act_dist = [float(cur_vals.get(b, 0)) for b in all_bins]
-
-                feat_psi = compute_psi(ref_dist, act_dist)
-                psi_results[key] = feat_psi
-
-        max_psi = max(psi_results.values()) if psi_results else 0.0
-        alarm = int(max_psi > psi_alarm_threshold)
-        psi_json = json.dumps(psi_results)
-
-        # A resumed replay regenerates every weekly tick from the start of the timeline, so
-        # this week may already be recorded. family_shift is read positionally because
-        # callers hand in plain sqlite3 connections as well as Row-factory ones.
-        prior = cur.execute(
-            "SELECT alarm, psi_json FROM family_shift WHERE family=? AND week_start=?",
+        previous = access.conn.execute(
+            "SELECT alarm,psi_json FROM family_shift WHERE family=? AND week_start=?",
             (family, as_of),
         ).fetchone()
-        # Only an identical recheck is skipped. A recomputation that disagrees with the
-        # recorded week is new information and must still reach the audit trail.
-        already_recorded = (
-            prior is not None and int(prior[0]) == alarm and str(prior[1]) == psi_json
+        unchanged = (
+            previous is not None and int(previous[0]) == int(alarm) and str(previous[1]) == packed
         )
-
         access.execute_write(
             "family_shift",
-            """
-            INSERT OR REPLACE INTO family_shift (family, week_start, psi_json, alarm)
-            VALUES (?, ?, ?, ?);
-            """,
-            (family, as_of, psi_json, alarm),
+            """INSERT OR REPLACE INTO family_shift
+            (family,week_start,psi_json,alarm) VALUES (?,?,?,?)""",
+            (family, as_of, packed, int(alarm)),
         )
-
-        if alarm == 1 and not already_recorded:
+        if alarm and not unchanged:
             access.append_ledger(
-                kind=LedgerKind.DRIFT_ALARM,
-                ref_id=f"shift-{family}-{as_of}",
-                payload={
+                LedgerKind.DRIFT_ALARM,
+                f"shift-{family}-{as_of}",
+                {
                     "family": family,
                     "kind": "family_shift",
-                    "max_psi": max_psi,
-                    "psi_scores": psi_results,
+                    "max_psi": result["max_psi"],
+                    "psi_scores": {key: value["psi"] for key, value in result["features"].items()},
                     "week_start": as_of,
+                    "policy_version": result.get("policy_version"),
                 },
-                created_at=as_of,
+                as_of,
             )
-
-        return bool(alarm)
+    return alarm

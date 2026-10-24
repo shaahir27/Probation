@@ -14,6 +14,7 @@ from probation.core.actions import PARAMETER_ACTIONS, InvalidAction, parse_actio
 from probation.core.clock import Clock, format_timestamp, get_clock
 from probation.core.enums import ActionStatus, GateDecision, LedgerKind
 from probation.core.hashing import canonical_json
+from probation.core.lifecycle import HOLD_MINUTES, ApprovalBinding, SourceGrant
 from probation.core.types import Action, ExecResult
 from probation.db.access import Role, RoleAccess
 from probation.db.actions import persist_action
@@ -22,7 +23,7 @@ from probation.packs.base import ExecutorIO
 from probation.packs.registry import registry
 from probation.workers.drift import has_pending_drift
 
-HOLD_MINUTES_DEFAULT: Final[int] = 10
+HOLD_MINUTES_DEFAULT: Final[int] = HOLD_MINUTES
 
 
 def _parse_ts(ts_str: str) -> datetime:
@@ -42,11 +43,20 @@ class Executor:
         world: ExecutorIO | None = None,
         licence_checker: Callable[[str, str, str], int] | None = None,
         clock: Clock | None = None,
+        *,
+        grant_resolver: Callable[[ApprovalBinding], SourceGrant | None] | None = None,
+        allowed_forward_recipients: tuple[str, ...] = (),
+        worker_id: str = "executor",
+        undo_days: int = 7,
     ) -> None:
         self.conn = conn
         self.world = world
         self.clock = clock or get_clock()
         self.role_access = RoleAccess(conn, Role.EXECUTOR)
+        self.grant_resolver = grant_resolver
+        self.allowed_forward_recipients = allowed_forward_recipients
+        self.worker_id = worker_id
+        self.undo_days = undo_days
 
         # Cached permission is never authority for the newly reachable dispatch path.
         if licence_checker is not None:
@@ -75,6 +85,9 @@ class Executor:
         recallable: bool,
         gate_decision: GateDecision | str,
         as_of: str,
+        *,
+        binding: ApprovalBinding | None = None,
+        approval_response_id: str | None = None,
     ) -> Action:
         """Create and record an action resulting from a gated proposal."""
         parsed = parse_action(action_type)
@@ -98,7 +111,23 @@ class Executor:
             status = ActionStatus.PENDING
             hold_until = None
 
-        act_id = f"act-{proposal_id}"
+        act_id = (
+            f"act-{proposal_id}"
+            if approval_response_id is None
+            else f"act-approved-{approval_response_id}"
+        )
+        if binding is not None:
+            if (
+                binding.action != action_type
+                or binding.pack != pack
+                or not 1 <= level_required <= 3
+            ):
+                raise InvalidAction("Action binding does not match executable intent")
+            if approval_response_id is not None:
+                status, hold_until = ActionStatus.PENDING, None
+            elif not recallable:
+                status = ActionStatus.HELD
+                hold_until = format_timestamp(as_of_dt + timedelta(minutes=HOLD_MINUTES_DEFAULT))
         action = Action(
             id=act_id,
             proposal_id=proposal_id,
@@ -114,7 +143,22 @@ class Executor:
             updated_at=as_of,
         )
 
+        if binding is not None:
+            from probation.db.lifecycle_actions import ActionStore
+
+            return ActionStore(self.role_access).create_if_absent(
+                action,
+                binding,
+                "explicit_user" if approval_response_id else "autonomous",
+                approval_response_id=approval_response_id,
+            )
         return persist_action(self.role_access, action)
+
+    def process_responses(self, as_of: str | None = None, limit: int = 32) -> int:
+        """Consume immutable approved requests; completed consumption is not an effect."""
+        from probation.workers.mail_responses import consume_responses
+
+        return consume_responses(self, as_of or self.clock.now_iso(), limit)
 
     def process_queue(self, as_of: str | None = None) -> list[ExecResult]:
         """Poll and execute pending and expired held actions.
@@ -139,7 +183,7 @@ class Executor:
             LEFT JOIN proposals p ON a.proposal_id = p.id
             WHERE a.status IN ('PENDING', 'HELD')
               AND (a.hold_until IS NULL OR a.hold_until COLLATE UTC_TIMESTAMP <= ?)
-            ORDER BY a.created_at COLLATE UTC_TIMESTAMP ASC;
+            ORDER BY a.created_at COLLATE UTC_TIMESTAMP ASC LIMIT 32;
             """,
             (now_iso,),
         )
@@ -151,6 +195,20 @@ class Executor:
             prop_id = str(row["proposal_id"])
             pack_name = str(row["pack"])
             act_type = str(row["type"])
+            if pack_name == "mail":
+                from probation.workers.mail_execution import MailLifecycle
+
+                if has_pending_drift(self.conn, str(row["class_key"]), act_type, now_iso):
+                    authority = row["authority_kind"]
+                    if authority != "explicit_user":
+                        results.append(
+                            ExecResult(
+                                success=False, action_id=act_id, error="Drift review pending"
+                            )
+                        )
+                        continue
+                results.append(MailLifecycle(self).execute(act_id, now_iso))
+                continue
             level_req = int(row["level_required"])
             recallable = bool(row["recallable"])
             params = json.loads(row["params_json"])
@@ -252,6 +310,9 @@ class Executor:
             self.conn.commit()
             results.append(exec_res)
 
+        from probation.workers.mail_responses import consume_undo_effects
+
+        results.extend(consume_undo_effects(self, now_iso))
         return results
 
     def process_undo(self, action_id: str, as_of: str | None = None) -> ExecResult:
@@ -279,6 +340,11 @@ class Executor:
             return ExecResult(
                 success=False, action_id=action_id, error=f"Action '{action_id}' not found."
             )
+
+        if row["pack"] == "mail":
+            from probation.workers.mail_execution import MailLifecycle
+
+            return MailLifecycle(self).undo(action_id, now_iso)
 
         if row["status"] != ActionStatus.DONE.value:
             return ExecResult(

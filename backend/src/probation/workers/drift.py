@@ -3,8 +3,9 @@
 import json
 import sqlite3
 
+from probation.config import settings
 from probation.core.actions import InvalidAction, parse_action
-from probation.core.clock import parse_timestamp
+from probation.core.clock import parse_timestamp, timestamp_key
 from probation.core.hashing import det_id
 from probation.core.history import HistoryView
 from probation.db.access import Role, RoleAccess
@@ -26,6 +27,10 @@ def review_outcome_events(conn: sqlite3.Connection, *, as_of: str) -> int:
     access = RoleAccess(conn, Role.EXAMINER)
     reviewed = 0
     with access.transaction():
+        eligible_decisions = {
+            record["decision"]["ledger_seq"]
+            for record in HistoryView(access.conn, as_of).permission_records()
+        }
         for event in HistoryView(access.conn, as_of).get_unreviewed_outcome_events():
             payload = json.loads(event["payload_json"])
             timestamp = str(payload.get("known_at", payload.get("undone_at", event["created_at"])))
@@ -40,7 +45,13 @@ def review_outcome_events(conn: sqlite3.Connection, *, as_of: str) -> int:
                 predicted_noop = parse_action(action).is_noop
             except InvalidAction:
                 predicted_noop = True
-            eligible = not predicted_noop and payload.get("source") != "execution"
+            eligible = (
+                not predicted_noop
+                and timestamp_key(timestamp) > timestamp_key(event["proposed_at"])
+                and event["seq"] > event["proposal_ledger_seq"]
+                and payload.get("actor") not in {"system", "probation", "executor", "automation"}
+                and (correction or event["seq"] in eligible_decisions)
+            )
             if eligible:
                 latest_row = access.conn.execute(
                     "SELECT MAX(known_at COLLATE UTC_TIMESTAMP) FROM drift_receipts WHERE class_key=? AND action=?",
@@ -66,7 +77,11 @@ def review_outcome_events(conn: sqlite3.Connection, *, as_of: str) -> int:
                 ).fetchall()
                 tracker = CUSUMTracker(
                     initial_s=float(row["cusum"]) if row else 0,
-                    baseline_err=float(row["baseline_err"]) if row else 0.03,
+                    baseline_err=float(row["baseline_err"])
+                    if row
+                    else settings.cusum_base_err_default,
+                    allowance=settings.cusum_allowance,
+                    threshold=settings.cusum_threshold,
                     last_alarm_at=row["last_alarm_at"] if row else None,
                     correction_times=tuple(str(item[0]) for item in previous),
                 )
@@ -97,7 +112,7 @@ def review_outcome_events(conn: sqlite3.Connection, *, as_of: str) -> int:
             access.execute_write(
                 "drift_receipts",
                 "INSERT INTO drift_receipts VALUES (?,?,?,?,?)",
-                (event["seq"], *pair, timestamp, int(correction)),
+                (event["seq"], *pair, timestamp, int(correction and eligible)),
             )
             reviewed += 1
     return reviewed

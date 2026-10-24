@@ -308,6 +308,7 @@ def _as_if_licensed(conn: sqlite3.Connection, row: dict[str, Any]) -> tuple[str,
 def test_t_nopeek_future_mutation_leaves_the_past_intact(
     tiny_synth_dir: Path,
     tiny_synth_owner: list[str],
+    writable_world_db: Path,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -335,7 +336,7 @@ def test_t_nopeek_future_mutation_leaves_the_past_intact(
 
     reader = StubReader(tiny_synth_dir / "truth.json")
     pristine = _build_pristine_input(tiny_synth_dir, tiny_synth_owner)
-    world_db = tiny_synth_dir / "world.db"
+    world_db = writable_world_db
 
     baseline = _copy_input(pristine)
     with SimWorld(world_db) as world:

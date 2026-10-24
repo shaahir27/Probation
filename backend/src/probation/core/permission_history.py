@@ -43,9 +43,12 @@ def permission_records(
             or timestamp_key(item["committed_at"]) != timestamp_key(item["proposed_at"])
         ):
             continue
-        proposals[item["situation_id"]] = item
+        proposals[item["id"]] = item
     if not proposals:
         return []
+    by_situation: dict[str, list[dict[str, Any]]] = {}
+    for proposal in proposals.values():
+        by_situation.setdefault(str(proposal["situation_id"]), []).append(proposal)
     decisions: dict[str, dict[str, Any]] = {}
     events = conn.execute(
         """SELECT seq,payload_json,created_at FROM ledger WHERE kind='outcome'
@@ -55,9 +58,18 @@ def permission_records(
     for event in events:
         value = json.loads(event["payload_json"])
         sid = value.get("situation_id")
-        if sid not in proposals or sid in decisions:
+        candidates = [
+            proposal
+            for proposal in by_situation.get(str(sid), [])
+            if (value.get("proposal_id") is None and proposal.get("followup_of_action_id") is None)
+            or value.get("proposal_id") == proposal["id"]
+        ]
+        if not candidates:
             continue
-        proposal = proposals[sid]
+        proposal = candidates[0]
+        proposal_id = str(proposal["id"])
+        if proposal_id in decisions:
+            continue
         known = value.get("known_at")
         details = value.get("details") or {}
         if not isinstance(details, dict):
@@ -70,19 +82,31 @@ def permission_records(
             or timestamp_key(event["created_at"]) < timestamp_key(known)
             or event["seq"] <= proposal["ledger_seq"]
             or value.get("source") not in {"footprint", "user_response", "window_close"}
-            or value.get("observed_action") in {None, "UNDO", "CANCEL", "OVERRIDE", "ABSTAIN"}
+            or value.get("observed_action") in {"UNDO", "CANCEL", "OVERRIDE", "ABSTAIN"}
+            or (value.get("observed_action") is None and value.get("decision") != "reject")
             or value.get("strength") not in {"STRONG", "WEAK"}
             or actor in {"executor", "system", "probation", "automation"}
             or value.get("retrospective")
             or details.get("retrospective")
         ):
             continue
-        decisions[sid] = value
-    return [
-        {**proposal, "decision": decisions[sid]}
-        for sid, proposal in proposals.items()
-        if sid in decisions
-    ]
+        decisions[proposal_id] = {**value, "ledger_seq": event["seq"]}
+    # Follow-ups concern the same source situation; asking it twice cannot
+    # manufacture two independent votes. Prefer its eligible initial decision.
+    records: dict[str, dict[str, Any]] = {}
+    for proposal_id, proposal in sorted(
+        proposals.items(),
+        key=lambda item: (
+            item[1].get("followup_of_action_id") is not None,
+            timestamp_key(item[1]["proposed_at"]),
+            item[0],
+        ),
+    ):
+        if proposal_id in decisions:
+            records.setdefault(
+                str(proposal["situation_id"]), {**proposal, "decision": decisions[proposal_id]}
+            )
+    return list(records.values())
 
 
 def alarm_times(

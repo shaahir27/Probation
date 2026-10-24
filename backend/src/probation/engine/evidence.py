@@ -56,6 +56,16 @@ def lower_bound(
     if n == 0:
         return 0.0
 
+    a, b = posterior_parameters(k, n, parent_mean, kappa)
+    return float(scipy.stats.beta.ppf(q, a, b))
+
+
+def posterior_parameters(
+    k: int, n: int, parent_mean: float | None = None, kappa: float = POOLING_KAPPA_DEFAULT
+) -> tuple[float, float]:
+    """One clipped-prior definition for both permission bounds and drift baselines."""
+    if n < 0 or k < 0 or k > n:
+        raise ValueError(f"Invalid success counts: k={k}, n={n}")
     if parent_mean is None:
         a0 = 1.0
         b0 = 1.0
@@ -66,7 +76,7 @@ def lower_bound(
 
     a = a0 + k
     b = b0 + (n - k)
-    return float(scipy.stats.beta.ppf(q, a, b))
+    return a, b
 
 
 # Alias for compatibility

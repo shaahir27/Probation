@@ -5,6 +5,8 @@ Authority: docs/PACKS_SPEC.md section 1.7 and docs/CONTRACT.md section 8.
 
 from probation.core.types import Action, ExecResult
 from probation.packs.base import ExecutorIO
+from probation.packs.mail.lifecycle_io import MailExecutionIO
+from probation.packs.mail.lifecycle_operations import prepare_effect, prepare_undo
 
 
 def execute_mail_action(action: Action, io: ExecutorIO) -> ExecResult:
@@ -19,23 +21,26 @@ def execute_mail_action(action: Action, io: ExecutorIO) -> ExecResult:
             error="Missing 'message_id' in action parameters.",
         )
 
-    if action_type == "ARCHIVE":
-        # Remove INBOX label; store original state in undo_data
-        io.update_message_labels(msg_id, remove_labels=["INBOX"])
-        return ExecResult(
-            success=True,
-            action_id=action.id,
-            undo_data={"action": "ARCHIVE", "message_id": msg_id, "restored_label": "INBOX"},
-        )
-
-    elif action_type == "TRASH":
-        # Add TRASH label
-        io.update_message_labels(msg_id, add_labels=["TRASH"])
-        return ExecResult(
-            success=True,
-            action_id=action.id,
-            undo_data={"action": "TRASH", "message_id": msg_id, "removed_label": "TRASH"},
-        )
+    if action_type in {"ARCHIVE", "TRASH"}:
+        if not isinstance(io, MailExecutionIO):
+            return ExecResult(success=False, action_id=action.id, error="mail_snapshot_unavailable")
+        try:
+            before = io.snapshot_mail(str(msg_id))
+            prepared = prepare_effect(action, before, action.created_at)
+            receipt = io.apply_mail(
+                f"{action.id}:execute",
+                prepared["payload_hash"],
+                prepared["payload"],
+                before.revision,
+            )
+            return ExecResult(
+                success=receipt.outcome == "confirmed",
+                action_id=action.id,
+                error=receipt.safe_code,
+                undo_data=prepared["undo"],
+            )
+        except (ValueError, KeyError):
+            return ExecResult(success=False, action_id=action.id, error="mail_state_conflict")
 
     elif action_type == "REPLY":
         # Send reply message to original sender
@@ -99,30 +104,18 @@ def execute_mail_action(action: Action, io: ExecutorIO) -> ExecResult:
 
 def undo_mail_action(action: Action, io: ExecutorIO) -> ExecResult:
     """Reverse an executed mail action."""
+    if not isinstance(io, MailExecutionIO):
+        return ExecResult(success=False, action_id=action.id, error="mail_snapshot_unavailable")
     undo = action.undo or {}
-    msg_id = undo.get("message_id") or action.params.get("message_id", "")
-
-    if not msg_id:
-        return ExecResult(
-            success=False,
-            action_id=action.id,
-            error="Missing 'message_id' for undo.",
+    try:
+        resource = str(undo.get("resource_id", ""))
+        before = io.snapshot_mail(resource)
+        prepared = prepare_undo(action, before)
+        receipt = io.apply_mail(
+            f"{action.id}:undo", prepared["payload_hash"], prepared["payload"], before.revision
         )
-
-    action_type = undo.get("action", action.type).upper()
-
-    if action_type == "ARCHIVE":
-        # Add INBOX back
-        io.update_message_labels(msg_id, add_labels=["INBOX"])
-        return ExecResult(success=True, action_id=action.id)
-
-    elif action_type == "TRASH":
-        # Remove TRASH label
-        io.update_message_labels(msg_id, remove_labels=["TRASH"])
-        return ExecResult(success=True, action_id=action.id)
-
-    return ExecResult(
-        success=False,
-        action_id=action.id,
-        error=f"Action '{action.type}' cannot be undone or is not recallable.",
-    )
+        return ExecResult(
+            success=receipt.outcome == "confirmed", action_id=action.id, error=receipt.safe_code
+        )
+    except (ValueError, KeyError):
+        return ExecResult(success=False, action_id=action.id, error="undo_state_conflict")
