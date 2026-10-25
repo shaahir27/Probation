@@ -32,6 +32,7 @@ from probation.core.clock import Clock
 from probation.db.gmail_store import ConnectorAccess
 from probation.packs.mail.connectors.capability import CapabilityGate
 from probation.packs.mail.connectors.gmail_read import GmailReadConnector
+from probation.packs.mail.connectors.gmail_transport import quote_native_id
 from probation.packs.mail.connectors.gmail_versions import (
     BASE_URL,
     INBOX,
@@ -254,7 +255,7 @@ class GmailMailExecutionIO:
         )
 
     def _post(self, native_id: str, add: list[str], remove: list[str]) -> HttpResult:
-        root = f"/messages/{native_id}"
+        root = f"/messages/{quote_native_id(native_id)}"
         if add == [TRASH] and not remove:
             return self._dispatch(f"{root}/trash", None)
         if remove == [TRASH] and not add:
@@ -390,7 +391,7 @@ class GmailMailExecutionIO:
                 continue
             found = decode_response(
                 self._transport.get(
-                    f"{BASE_URL}/messages/{native_id}",
+                    f"{BASE_URL}/messages/{quote_native_id(native_id)}",
                     params={"format": "metadata", "metadataHeaders": "Message-ID"},
                     access_token=self._token,
                 )

@@ -32,6 +32,7 @@ from probation.core.clock import Clock
 from probation.db.gmail_store import ConnectorAccess
 from probation.packs.mail.connectors.gmail_mime import DEFAULT_LIMITS, MimeLimits, parse_message
 from probation.packs.mail.connectors.gmail_payloads import payload_from_parsed
+from probation.packs.mail.connectors.gmail_transport import quote_native_id
 
 GMAIL_BASE_URL = "https://gmail.googleapis.com/gmail/v1/users/me"
 READ_ONLY_SCOPE = "gmail.readonly"
@@ -243,7 +244,8 @@ class GmailReadConnector:
         if writer is None:
             raise ConnectorError("payload_store_unconfigured")
         payload = self._request(
-            f"/messages/{ref.native_message_id}", {"format": "full", "includeHeaders": "true"}
+            f"/messages/{quote_native_id(ref.native_message_id)}",
+            {"format": "full", "includeHeaders": "true"},
         )
         parsed = parse_message(payload, limits=self._mime_limits)
         record = payload_from_parsed(parsed)

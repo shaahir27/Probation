@@ -35,6 +35,7 @@ from probation.connectors.types import (
 from probation.core.hashing import canonical_json
 from probation.db.gmail_store import ConnectorAccess
 from probation.packs.mail.connectors.gmail_read import GmailReadConnector
+from probation.packs.mail.connectors.gmail_transport import quote_native_id
 from probation.packs.mail.lifecycle_io import MailConflict
 
 BASE_URL: Final = "https://gmail.googleapis.com/gmail/v1/users/me"
@@ -260,7 +261,7 @@ class GmailVersioning:
 
     def _resource(self, native_id: str) -> dict[str, Any]:
         result = self._transport.get(
-            f"{BASE_URL}/messages/{native_id}",
+            f"{BASE_URL}/messages/{quote_native_id(native_id)}",
             params={"format": "metadata"},
             access_token=self._token,
         )
