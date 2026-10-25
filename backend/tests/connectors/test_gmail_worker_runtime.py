@@ -21,13 +21,19 @@ from probation.connectors.credentials_state import (
     SecretMaterial,
 )
 from probation.connectors.readiness import READINESS_VERSION
-from probation.connectors.types import ConnectorError, HttpResult
+from probation.connectors.types import (
+    ConnectorError,
+    HttpResult,
+    ProviderUnavailable,
+    TransportFailure,
+)
 from probation.core.clock import Clock, ClockMode, timestamp_key
 from probation.core.lifecycle import CommandIntent, CommandScope
 from probation.db.access import Role, RoleAccess
 from probation.db.gmail_store import ConnectorAccess, StoreAccessError, migrate_store, open_store
 from probation.db.lifecycle_commands import CommandStore
 from probation.workers.gmail_observation import (
+    AuthorizationFailed,
     GmailObservationWorker,
     ObservationTickResult,
     RetryingReadTransport,
@@ -588,3 +594,64 @@ def test_run_polls_on_the_injected_clock_and_stop_ends_it(handles: _Handles) -> 
     assert 29_000_000 <= elapsed <= 31_000_000  # the 30s default poll is clock-driven
     stop.set()
     assert worker.run(stop, max_ticks=3) == 0  # a set stop event ends the loop with zero dispatch
+
+
+def test_retry_transport_retries_transport_failure_bounded() -> None:
+    clock = _clock()
+    stop = Event()
+    calls = 0
+
+    class MockInner:
+        def get(
+            self, url: str, *, params: dict[str, object] | None = None, access_token: str
+        ) -> HttpResult:
+            nonlocal calls
+            calls += 1
+            if calls <= 2:
+                raise TransportFailure("transport_timeout")
+            return HttpResult(
+                status=200, body=b"{}", retry_after_seconds=None, request_id_hash=None
+            )
+
+    transport = RetryingReadTransport(MockInner(), clock=clock, stop=stop, max_attempts=3)  # type: ignore[arg-type]
+    result = transport.get("https://example.test", access_token="tok")
+    assert result.status == 200
+    assert calls == 3
+
+
+def test_retry_transport_exhausts_transport_failures() -> None:
+    clock = _clock()
+    stop = Event()
+
+    class MockInner:
+        def get(
+            self, url: str, *, params: dict[str, object] | None = None, access_token: str
+        ) -> HttpResult:
+            raise TransportFailure("transport_connect_failed")
+
+    transport = RetryingReadTransport(MockInner(), clock=clock, stop=stop, max_attempts=3)  # type: ignore[arg-type]
+    with pytest.raises(ProviderUnavailable) as exc_info:
+        transport.get("https://example.test", access_token="tok")
+    assert exc_info.value.safe_code == "read_retries_exhausted_transport"
+
+
+def test_retry_transport_never_retries_auth() -> None:
+    clock = _clock()
+    stop = Event()
+    calls = 0
+
+    class MockInner:
+        def get(
+            self, url: str, *, params: dict[str, object] | None = None, access_token: str
+        ) -> HttpResult:
+            nonlocal calls
+            calls += 1
+            return HttpResult(
+                status=401, body=b"{}", retry_after_seconds=None, request_id_hash=None
+            )
+
+    transport = RetryingReadTransport(MockInner(), clock=clock, stop=stop, max_attempts=3)  # type: ignore[arg-type]
+    with pytest.raises(AuthorizationFailed) as exc_info:
+        transport.get("https://example.test", access_token="tok")
+    assert "provider_status_401" in str(exc_info.value)
+    assert calls == 1

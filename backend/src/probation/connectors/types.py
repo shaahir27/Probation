@@ -69,6 +69,10 @@ class ProviderUnavailable(ConnectorError):
     """The provider cannot serve the request; dependent work halts."""
 
 
+class TransportFailure(ProviderUnavailable):
+    """No HTTP status was received (connect/timeout/protocol): an effect is ambiguous."""
+
+
 class SelectionViolation(ConnectorError):
     """A requested resource is not inside the owner-approved cohort."""
 

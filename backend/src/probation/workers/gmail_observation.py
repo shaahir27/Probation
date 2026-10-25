@@ -39,6 +39,7 @@ from probation.connectors.types import (
     HttpTransport,
     ProviderUnavailable,
     SourceSelection,
+    TransportFailure,
 )
 from probation.core.clock import Clock, timestamp_key, use_clock
 from probation.core.enums import ClockMode
@@ -138,7 +139,22 @@ class RetryingReadTransport:
     ) -> HttpResult:
         attempts = 0
         while True:
-            result = self._inner.get(url, params=params, access_token=access_token)
+            try:
+                result = self._inner.get(url, params=params, access_token=access_token)
+            except TransportFailure as exc:
+                # A safe GET that never reached the provider is retryable; an effectful POST
+                # can never come through this seam.
+                attempts += 1
+                if attempts >= self._max_attempts:
+                    raise ProviderUnavailable("read_retries_exhausted_transport") from exc
+                if self._stop.is_set():
+                    raise ProviderUnavailable("read_aborted_before_retry") from exc
+                clock_wait(
+                    self._clock,
+                    min(self._base * (2 ** (attempts - 1)), _MAX_BACKOFF_SECONDS),
+                    self._stop,
+                )
+                continue
             if result.status in _AUTH_STATUSES:
                 raise AuthorizationFailed(f"provider_status_{result.status}")
             if result.ok or result.status not in _RETRYABLE_STATUSES:
