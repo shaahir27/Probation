@@ -10,6 +10,7 @@ from probation.api.routes import (
     actions,
     boards,
     controls,
+    gmail_connector,
     insights,
     items,
     licences,
@@ -70,6 +71,7 @@ app.include_router(insights.router)
 app.include_router(boards.router)
 app.include_router(webfacts.router)
 app.include_router(replay.router)
+app.include_router(gmail_connector.router)
 
 
 @app.get("/health")

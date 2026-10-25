@@ -131,3 +131,7 @@ statuses and what remains are tracked per requirement in
 | feature_eval_metrics_and_baselines | Original phase retained | [Updated log](phase_10_evaluation/feature_eval_metrics_and_baselines.md) | Updated | 2026-10-23 |
 | feature_synthetic_world_generator | Original phase retained | [Updated log](phase_02_synth_world_importers/feature_synthetic_world_generator.md) | Updated | 2026-10-23 |
 | feature_executor_worker_and_simworld | Original phase retained | [Updated log](phase_05_evidence_licences_gate_drift/feature_executor_worker_and_simworld.md) | Updated | 2026-10-23 |
+| Connector contracts and private connector store | Phase 12 (WP12) / D4 | [feature_connector_contracts_and_store.md](phase_12_d4_gmail_connector/feature_connector_contracts_and_store.md) | Built | 2026-10-25 |
+| Gmail authorization and role-bound credentials | Phase 12 (WP12) / D4 | [feature_gmail_auth_and_credentials.md](phase_12_d4_gmail_connector/feature_gmail_auth_and_credentials.md) | Built | 2026-10-25 |
+| Gmail read connector, bounded MIME, sync and temporal projection | Phase 12 (WP12) / D4 | [feature_gmail_read_sync_projection.md](phase_12_d4_gmail_connector/feature_gmail_read_sync_projection.md) | Built | 2026-10-25 |
+| Gmail write adapter, capability gate, observation runtime and owner API | Phase 12 (WP12) / D4 | [feature_gmail_write_capability_runtime_api.md](phase_12_d4_gmail_connector/feature_gmail_write_capability_runtime_api.md) | Built | 2026-10-25 |
