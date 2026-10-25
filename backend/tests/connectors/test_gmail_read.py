@@ -407,6 +407,6 @@ def test_live_gmail_profile_and_bounded_read() -> None:
                 label_ids=(label,),
             )
         )
-        assert cohort is not None
+        assert cohort, "approved synthetic test cohort is empty"
     finally:
         api_transport.close()

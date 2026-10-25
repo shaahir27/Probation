@@ -304,7 +304,7 @@ class FakeGmailTransport(HttpTransport):
 
     def _list_messages(self, query: dict[str, Any]) -> HttpResult:
         self.list_calls += 1
-        label_id = query.get("labelId")
+        label_id = query.get("labelIds")
         include_trash = str(query.get("includeSpamTrash", "")).lower() == "true"
         ids = [
             native_id

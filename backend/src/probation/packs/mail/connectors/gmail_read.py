@@ -195,7 +195,7 @@ class GmailReadConnector:
         collected: list[NativeRef] = []
         page_token: str | None = None
         while True:
-            params: dict[str, Any] = {"labelId": label_id, "maxResults": self._max_results}
+            params: dict[str, Any] = {"labelIds": label_id, "maxResults": self._max_results}
             if page_token is not None:
                 params["pageToken"] = page_token
             payload = self._request("/messages", params)

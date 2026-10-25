@@ -10,9 +10,12 @@ from probation.connectors.credentials_state import SecretMaterial
 from probation.connectors.types import (
     ConnectorError,
     ProviderUnavailable,
+    SourceSelection,
     TransportFailure,
 )
+from probation.core.clock import Clock, parse_timestamp
 from probation.packs.mail.connectors import gmail_transport, gmail_write
+from probation.packs.mail.connectors.gmail_read import GmailReadConnector
 from probation.packs.mail.connectors.gmail_transport import (
     GMAIL_BASE_URL,
     GmailHttpTransport,
@@ -25,6 +28,39 @@ def _transport(handler: Any, **kwargs: Any) -> GmailHttpTransport:
     return GmailHttpTransport(
         client_factory=lambda: httpx.Client(transport=httpx.MockTransport(handler)), **kwargs
     )
+
+
+def test_cohort_label_filter_survives_http_encoding_and_pagination() -> None:
+    pages: list[str | None] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/gmail/v1/users/me/messages"
+        assert request.url.params.get_list("labelIds") == ["Label_cohort"]
+        assert "labelId" not in request.url.params
+        page = request.url.params.get("pageToken")
+        pages.append(page)
+        payload: dict[str, Any] = {"messages": [{"id": "first" if page is None else "second"}]}
+        if page is None:
+            payload["nextPageToken"] = "next-page"
+        return httpx.Response(200, json=payload)
+
+    transport = _transport(handler)
+    try:
+        connector = GmailReadConnector(
+            transport,
+            connection_id="conn",
+            account_id="synthetic@example.test",
+            access_token="read-token",
+            owner_label="Label_cohort",
+            clock=Clock.replay(parse_timestamp("2026-10-25T09:00:00Z")),
+        )
+        refs = connector.enumerate_cohort(
+            SourceSelection("conn", "synthetic@example.test", 1, label_ids=("Label_cohort",))
+        )
+        assert [ref.native_message_id for ref in refs] == ["first", "second"]
+        assert pages == [None, "next-page"]
+    finally:
+        transport.close()
 
 
 def test_bearer_only_in_authorization_header() -> None:
