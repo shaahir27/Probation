@@ -17,7 +17,7 @@ on, are computed by ``gmail_versions``, which refuses to guess either (see its f
 """
 
 from base64 import urlsafe_b64encode
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from typing import Any, Final, Literal, cast
 
 from probation.connectors.types import (
@@ -107,7 +107,11 @@ class GmailMailExecutionIO:
         retained_from_history_id: int = 0,
         max_history_pages: int = 10,
         sent_evidence_limit: int = 25,
+        token_provider: Callable[[], str] | None = None,
     ) -> None:
+        if not write_token and token_provider is None:
+            raise ConnectorError("write_token_unconfigured")
+        self._token_provider = token_provider
         self.gate = gate
         self._transport = transport
         self._read = read
@@ -127,9 +131,13 @@ class GmailMailExecutionIO:
             anchors=self._anchors,
             retained_from_history_id=retained_from_history_id,
             max_history_pages=max_history_pages,
+            token_provider=token_provider,
         )
         self._sent_limit = sent_evidence_limit
         self._intents: dict[str, dict[str, Any]] = {}
+
+    def _auth(self) -> str:
+        return self._token if self._token_provider is None else self._token_provider()
 
     # -- snapshots --------------------------------------------------------------------------
     def snapshot_mail(self, resource_id: str) -> MailSnapshot:
@@ -265,7 +273,7 @@ class GmailMailExecutionIO:
     def _dispatch(self, path: str, body: Mapping[str, object] | None) -> HttpResult:
         if not path.endswith(_ALLOWED_WRITE_SUFFIXES):
             raise MailConflict("forbidden_provider_endpoint")
-        return self._transport.post(f"{BASE_URL}{path}", json_body=body, access_token=self._token)
+        return self._transport.post(f"{BASE_URL}{path}", json_body=body, access_token=self._auth())
 
     def _apply_send(
         self,
@@ -381,7 +389,7 @@ class GmailMailExecutionIO:
             self._transport.get(
                 f"{BASE_URL}/messages",
                 params={"labelId": SENT, "maxResults": self._sent_limit},
-                access_token=self._token,
+                access_token=self._auth(),
             )
         )
         rfc_id = str(values.get("message_id", ""))
@@ -393,7 +401,7 @@ class GmailMailExecutionIO:
                 self._transport.get(
                     f"{BASE_URL}/messages/{quote_native_id(native_id)}",
                     params={"format": "metadata", "metadataHeaders": "Message-ID"},
-                    access_token=self._token,
+                    access_token=self._auth(),
                 )
             )
             if header_value(found, "Message-ID") == rfc_id:

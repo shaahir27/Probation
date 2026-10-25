@@ -134,6 +134,7 @@ def _exchange(
     vault = _vault()
     exchange = OAuthTokenExchange(
         client_id=CLIENT_ID,
+        client_secret="fake-secret",
         vault=vault,
         transport=FakeTokenTransport(responses),
         userinfo=FakeUserInfo(email),
@@ -294,7 +295,11 @@ def test_token_exchange_posts_form_and_never_puts_secrets_in_urls() -> None:
     transport = FakeTokenTransport([_token_payload()])
     vault = _vault()
     exchange = OAuthTokenExchange(
-        client_id=CLIENT_ID, vault=vault, transport=transport, userinfo=FakeUserInfo()
+        client_id=CLIENT_ID,
+        client_secret="fake-secret",
+        vault=vault,
+        transport=transport,
+        userinfo=FakeUserInfo(),
     )
     state = _issue(vault)
     bundle = exchange.complete(
@@ -456,21 +461,71 @@ def test_non_loopback_redirect_and_bad_client_id_are_refused() -> None:
     with pytest.raises(AuthorizationFlowError):
         OAuthTokenExchange(
             client_id="'; DROP TABLE gmail_connections; --",
+            client_secret="fake-secret",
             vault=vault,
             transport=FakeTokenTransport([]),
             userinfo=FakeUserInfo(),
         )
+    with pytest.raises(AuthorizationFlowError) as exc_secret:
+        OAuthTokenExchange(
+            client_id=CLIENT_ID,
+            client_secret="",
+            vault=vault,
+            transport=FakeTokenTransport([]),
+            userinfo=FakeUserInfo(),
+        )
+    assert exc_secret.value.safe_code == "client_secret_invalid"
+
+
+def test_repr_never_leaks_secret() -> None:
+    exchange = OAuthTokenExchange(
+        client_id=CLIENT_ID,
+        client_secret="fake-secret",
+        vault=_vault(),
+        transport=FakeTokenTransport([]),
+        userinfo=FakeUserInfo(),
+    )
+    assert "fake-secret" not in repr(exchange)
 
 
 @pytest.mark.live
-def test_live_gmail_handshake_requires_explicit_scoped_authorization() -> None:
-    """Cannot execute offline: CONTRACT section 8 blocks live destinations until named.
+def test_live_gmail_token_refresh_and_identity() -> None:
+    """Phase 7 live test. Requires real credentials in environment; deselected by default.
 
-    Running with -m live without the explicit environment opt-in fails closed; it can
-    never pass silently and never contacts a real endpoint from this code.
+    Opt-in: PROBATION_GMAIL_LIVE_CONSENT=scoped-authorization-granted
+    Required env: PROBATION_GMAIL_CLIENT_ID, PROBATION_GMAIL_CLIENT_SECRET,
+    PROBATION_GMAIL_REFRESH_TOKEN, PROBATION_GMAIL_ACCOUNT.
     """
     import os
 
     if os.environ.get("PROBATION_GMAIL_LIVE_CONSENT") != "scoped-authorization-granted":
-        raise AssertionError("live Gmail authorization requires named owner authorization")
-    raise AssertionError("no live transport is wired in D4 offline scope")  # fail closed
+        pytest.skip("PROBATION_GMAIL_LIVE_CONSENT not granted")
+    client_id = os.environ.get("PROBATION_GMAIL_CLIENT_ID", "")
+    client_secret = os.environ.get("PROBATION_GMAIL_CLIENT_SECRET", "")
+    refresh_token = os.environ.get("PROBATION_GMAIL_REFRESH_TOKEN", "")
+    account = os.environ.get("PROBATION_GMAIL_ACCOUNT", "").strip().lower()
+    if not (client_id and client_secret and refresh_token and account):
+        pytest.skip("live credentials missing")
+
+    from probation.connectors.credentials_state import SecretMaterial
+    from probation.packs.mail.connectors.gmail_transport import (
+        GmailHttpTransport,
+        GmailProfileGateway,
+        GoogleTokenTransport,
+    )
+
+    api_transport = GmailHttpTransport()
+    token_transport = GoogleTokenTransport()
+    try:
+        exchange = OAuthTokenExchange(
+            client_id=client_id,
+            client_secret=client_secret,
+            vault=StateVault(),
+            transport=token_transport,
+            userinfo=GmailProfileGateway(api_transport),
+        )
+        bundle = exchange.refresh("cred-ref-live", SecretMaterial(refresh_token, "refresh"))
+        assert bundle.account_id == account
+        assert len(bundle.access.reveal()) > 20
+    finally:
+        api_transport.close()

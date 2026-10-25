@@ -6,7 +6,7 @@ PYTHON := python
 PIP := pip
 NPM := npm
 
-.PHONY: help setup check test synth backtest serve web eval ledger-verify budget clean
+.PHONY: help setup check test synth backtest serve web eval ledger-verify budget clean gmail-live
 
 help:
 	@echo "Probation - Development Commands"
@@ -20,6 +20,7 @@ help:
 	@echo "  make eval SUITE=main      Run evaluation suite"
 	@echo "  make ledger-verify        Verify ledger hash chain"
 	@echo "  make budget               Show LLM budget and spend"
+	@echo "  make gmail-live           Run live-gated Gmail connector tests"
 
 setup:
 	$(PIP) install -e ./backend
@@ -52,6 +53,9 @@ ledger-verify:
 
 budget:
 	$(PYTHON) -m probation.cli budget show
+
+gmail-live:
+	$(PYTHON) -m pytest -m live backend/tests/connectors
 
 clean:
 	rm -rf .pytest_cache .mypy_cache .ruff_cache backend/.pytest_cache

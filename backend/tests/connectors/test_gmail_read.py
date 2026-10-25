@@ -342,7 +342,64 @@ def test_history_404_flags_resync_and_evidence_not_continuous(ingestor: Connecto
 
 # -- live gate stays offline ----------------------------------------------------------------
 @pytest.mark.live
-def test_real_transport_requires_authorization_offline_blocked() -> None:
-    # Constructed so it cannot run offline: it would dial gmail.googleapis.com, which this
-    # package is forbidden to contact. Kept marked live so `make check` never executes it.
-    raise AssertionError("live transport is out of scope for the offline D4 gate")
+def test_live_gmail_profile_and_bounded_read() -> None:
+    """Phase 7 live test. Exercises real Gmail profile read and bounded list over real transport.
+
+    Opt-in: PROBATION_GMAIL_LIVE_CONSENT=scoped-authorization-granted.
+    Required env: PROBATION_GMAIL_CLIENT_ID, PROBATION_GMAIL_CLIENT_SECRET,
+    PROBATION_GMAIL_REFRESH_TOKEN, PROBATION_GMAIL_ACCOUNT.
+    """
+    import os
+
+    if os.environ.get("PROBATION_GMAIL_LIVE_CONSENT") != "scoped-authorization-granted":
+        pytest.skip("PROBATION_GMAIL_LIVE_CONSENT not granted")
+    client_id = os.environ.get("PROBATION_GMAIL_CLIENT_ID", "")
+    client_secret = os.environ.get("PROBATION_GMAIL_CLIENT_SECRET", "")
+    refresh_token = os.environ.get("PROBATION_GMAIL_REFRESH_TOKEN", "")
+    account = os.environ.get("PROBATION_GMAIL_ACCOUNT", "").strip().lower()
+    label = os.environ.get("PROBATION_GMAIL_LABEL", "PROBATION")
+    if not (client_id and client_secret and refresh_token and account):
+        pytest.skip("live credentials missing")
+
+    from probation.connectors.credentials_state import SecretMaterial
+    from probation.packs.mail.connectors.gmail_auth import OAuthTokenExchange, StateVault
+    from probation.packs.mail.connectors.gmail_transport import (
+        GmailHttpTransport,
+        GmailProfileGateway,
+        GoogleTokenTransport,
+    )
+
+    api_transport = GmailHttpTransport()
+    token_transport = GoogleTokenTransport()
+    try:
+        gateway = GmailProfileGateway(api_transport)
+        exchange = OAuthTokenExchange(
+            client_id=client_id,
+            client_secret=client_secret,
+            vault=StateVault(),
+            transport=token_transport,
+            userinfo=gateway,
+        )
+        bundle = exchange.refresh("cred-ref-live", SecretMaterial(refresh_token, "refresh"))
+        assert bundle.account_id == account
+
+        read = GmailReadConnector(
+            api_transport,
+            connection_id="live-conn",
+            account_id=account,
+            access_token=bundle.access.reveal(),
+            owner_label=label,
+        )
+        profile = gateway.read_profile(bundle.access.reveal())
+        assert profile.email_address.strip().lower() == account
+        cohort = read.enumerate_cohort(
+            SourceSelection(
+                connection_id="live-conn",
+                account_id=account,
+                selection_revision=1,
+                label_ids=(label,),
+            )
+        )
+        assert cohort is not None
+    finally:
+        api_transport.close()

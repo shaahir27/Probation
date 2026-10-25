@@ -19,6 +19,7 @@ Test hooks are explicit and named; nothing here is reachable by connector code.
 
 from base64 import urlsafe_b64decode, urlsafe_b64encode
 from typing import Any
+from urllib.parse import unquote
 
 from fake_gmail_read import FakeGmailTransport, _json, _Message
 
@@ -107,18 +108,18 @@ class FakeGmailWriteTransport(FakeGmailTransport):
         if path.endswith("/trash"):
             self.trash_calls += 1
             return self._label_write(
-                path.split("/")[2], add=(TRASH,), remove=(INBOX,), endpoint="trash"
+                unquote(path.split("/")[2]), add=(TRASH,), remove=(INBOX,), endpoint="trash"
             )
         if path.endswith("/untrash"):
             self.untrash_calls += 1
             return self._label_write(
-                path.split("/")[2], add=(), remove=(TRASH,), endpoint="untrash"
+                unquote(path.split("/")[2]), add=(), remove=(TRASH,), endpoint="untrash"
             )
         if path.endswith("/modify"):
             self.modify_calls += 1
             add = tuple(str(item) for item in body.get("addLabelIds", []))
             remove = tuple(str(item) for item in body.get("removeLabelIds", []))
-            return self._label_write(path.split("/")[2], add=add, remove=remove)
+            return self._label_write(unquote(path.split("/")[2]), add=add, remove=remove)
         return HttpResult(status=400)
 
     def _label_write(

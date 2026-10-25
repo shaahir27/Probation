@@ -11,16 +11,27 @@ It is never represented by a zero count, because zero must mean "ran and process
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Final, Literal
+from typing import Any, Final, Literal, cast
 
 from probation.connectors.acl import apply_owner_only, verify_owner_only
-from probation.connectors.credentials import RoleCredentialProvider
+from probation.connectors.credentials import (
+    MODIFY_SCOPE,
+    SEND_SCOPE,
+    RoleCredentialProvider,
+)
 from probation.connectors.credentials_state import ProvisionedGrant
-from probation.connectors.types import ConnectorError
+from probation.connectors.grants import source_grant_for
+from probation.connectors.types import (
+    ConnectorError,
+    HttpTransport,
+    PayloadReader,
+    SourceSelection,
+)
 from probation.core.clock import Clock
 from probation.core.lifecycle import LifecycleError
 from probation.db.access import Role, RoleAccess
@@ -31,7 +42,16 @@ from probation.db.gmail_store import (
     store_is_current,
 )
 from probation.db.lifecycle_commands import CommandStore
+from probation.packs.mail.connectors.capability import (
+    CapabilityGate,
+    build_write_manifest,
+    persist_write_capabilities,
+)
+from probation.packs.mail.connectors.gmail_read import GmailReadConnector
+from probation.packs.mail.connectors.gmail_versions import InMemoryAnchorStore
+from probation.packs.mail.connectors.gmail_write import GmailMailExecutionIO
 from probation.workers.drift import review_outcome_events
+from probation.workers.executor import Executor
 from probation.workers.gmail_commands import GmailCommandConsumer
 from probation.workers.gmail_observation import (
     GmailObservationWorker,
@@ -202,10 +222,113 @@ def observation_worker(
     return worker, StepProvisioning("observation", "provisioned")
 
 
+@dataclass(frozen=True, slots=True)
+class LiveExecutorDeps:
+    transport: HttpTransport
+    provider: RoleCredentialProvider
+    payloads: PayloadReader
+    forward_allowlist: tuple[str, ...] = ()
+
+
+def _live_effects(
+    connection: sqlite3.Connection,
+    connectors: tuple[ConnectorAccess, ...],
+    clock: Clock,
+    live: LiveExecutorDeps,
+) -> Step:
+    administration = next((item for item in connectors if item.authority == "administration"), None)
+    executor_access = next((item for item in connectors if item.authority == "executor"), None)
+    if administration is None or executor_access is None:
+        raise ConnectorError("effects_need_executor_and_administration")
+    rows = administration.query(
+        "SELECT owner_id,connection_id,account_id,selection_revision,label_ids"
+        " FROM gmail_connections"
+    )
+    if len(rows) != 1:
+        raise ConnectorError("live_executor_requires_one_connection")
+    row = rows[0]
+    owner = str(row["owner_id"])
+    connection_id = str(row["connection_id"])
+    account_id = str(row["account_id"])
+    label_ids = json.loads(str(row["label_ids"]))
+    if (
+        not isinstance(label_ids, list)
+        or len(label_ids) != 1
+        or not isinstance(label_ids[0], str)
+        or not label_ids[0]
+    ):
+        raise ConnectorError("live_executor_requires_one_label")
+    owner_label = label_ids[0]
+    grant = source_grant_for(administration, owner, connection_id, account_id)
+    if grant is None:
+        raise ConnectorError("source_grant_unavailable")
+
+    def token() -> str:
+        return live.provider.resolve_access(
+            "conditional_write", (MODIFY_SCOPE, SEND_SCOPE)
+        ).reveal()
+
+    read = GmailReadConnector(
+        live.transport,
+        connection_id=connection_id,
+        account_id=account_id,
+        access_token="",
+        clock=clock,
+        owner_label=owner_label,
+        token_provider=token,
+    )
+    selection = SourceSelection(
+        connection_id=connection_id,
+        account_id=account_id,
+        selection_revision=int(row["selection_revision"]),
+        label_ids=(owner_label,),
+    )
+    read.enumerate_cohort(selection)
+    manifest = build_write_manifest(read, granted_scopes=live.provider.granted_scopes())
+    persist_write_capabilities(
+        executor_access,
+        connection_id=connection_id,
+        account_id=account_id,
+        manifest=manifest,
+    )
+    io = GmailMailExecutionIO(
+        live.transport,
+        read=read,
+        connection_id=connection_id,
+        account_id=account_id,
+        write_token="",
+        clock=clock,
+        gate=CapabilityGate(manifest, allow_degraded_cas=True),
+        store=executor_access,
+        anchors=InMemoryAnchorStore(),
+        payload_reader=live.payloads,
+        token_provider=token,
+    )
+    executor = Executor(
+        connection,
+        world=cast(Any, io),
+        clock=clock,
+        grant_resolver=lambda binding: source_grant_for(
+            administration, binding.owner_id, binding.connection_id, binding.account_id
+        ),
+        allowed_forward_recipients=live.forward_allowlist,
+        worker_id="executor",
+    )
+
+    def effects(conn: sqlite3.Connection, as_of: str, limit: int) -> int:
+        del conn
+        consumed = executor.process_responses(as_of, limit)
+        return consumed + len(executor.process_queue(as_of))
+
+    return effects
+
+
 def executor_steps(
     connection: sqlite3.Connection,
     connectors: tuple[ConnectorAccess, ...],
     clock: Clock,
+    *,
+    live: LiveExecutorDeps | None = None,
 ) -> WorkerSteps:
     """The real D3 steps plus the real command consumer; absent stages fail typed, not silently."""
     administration = next((item for item in connectors if item.authority == "administration"), None)
@@ -230,7 +353,9 @@ def executor_steps(
         resolver=lambda conn, as_of, limit: resolve_responses(conn, as_of=as_of, limit=limit),
         examiner=examine,
         consume=consume,
-        effects=_not_provisioned_step(),
+        effects=_live_effects(connection, connectors, clock, live)
+        if live is not None
+        else _not_provisioned_step(),
         followups=_not_provisioned_step(),
     )
 
@@ -242,6 +367,15 @@ EXECUTOR_PROVISIONS: Final[tuple[StepProvisioning, ...]] = (
     StepProvisioning("examiner", "provisioned"),
     StepProvisioning("consume", "provisioned"),
     StepProvisioning("effects", "not_provisioned", "gmail_write_path_not_provisioned"),
+    StepProvisioning("examiner_after", "provisioned"),
+    StepProvisioning("followups", "not_provisioned", "brain_followup_snapshots_absent"),
+)
+
+EXECUTOR_LIVE_PROVISIONS: Final[tuple[StepProvisioning, ...]] = (
+    StepProvisioning("resolver", "provisioned"),
+    StepProvisioning("examiner", "provisioned"),
+    StepProvisioning("consume", "provisioned"),
+    StepProvisioning("effects", "provisioned"),
     StepProvisioning("examiner_after", "provisioned"),
     StepProvisioning("followups", "not_provisioned", "brain_followup_snapshots_absent"),
 )

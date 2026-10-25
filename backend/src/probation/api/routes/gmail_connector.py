@@ -19,7 +19,9 @@ module enforces by construction:
   owner with administration authority — never in memory inside this process.
 """
 
+import os
 import sqlite3
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated, Any, Literal
@@ -29,8 +31,11 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from probation.api.authority import OwnerContext
 from probation.api.gmail_auth import (
+    CONNECTOR_API_BIND_HOSTS,
+    ConnectorApiMisconfigured,
     OwnerApiCredential,
     OwnerAuthError,
+    hash_owner_token,
     resolve_owner_context,
     verify_loopback_binding,
     verify_owner_request,
@@ -77,6 +82,30 @@ def configure_gmail_api(config: GmailApiConfig | None) -> None:
     """Install (or clear) the injected owner credential and store location."""
     global _config
     _config = config
+
+
+def configure_gmail_api_from_env(environ: Mapping[str, str] | None = None) -> bool:
+    """Configure the private Gmail connector API from environment variables if present."""
+    env = os.environ if environ is None else environ
+    key = env.get("PROBATION_GMAIL_OWNER_API_KEY", "").strip()
+    owner_id = env.get("PROBATION_GMAIL_OWNER_ID", "").strip()
+    store = env.get("PROBATION_GMAIL_STORE", "").strip()
+    if not (key and owner_id and store):
+        configure_gmail_api(None)
+        return False
+    bind_host = env.get("PROBATION_GMAIL_BIND_HOST", "127.0.0.1").strip()
+    try:
+        cred = OwnerApiCredential(owner_id=owner_id, token_sha256=hash_owner_token(key))
+        config = GmailApiConfig(
+            owner_credential=cred,
+            store_path=Path(store),
+            bind_host=bind_host if bind_host in CONNECTOR_API_BIND_HOSTS else "127.0.0.1",
+        )
+        configure_gmail_api(config)
+        return True
+    except (ConnectorApiMisconfigured, ValueError):
+        configure_gmail_api(None)
+        return False
 
 
 def current_config() -> GmailApiConfig:

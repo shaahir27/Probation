@@ -135,3 +135,5 @@ statuses and what remains are tracked per requirement in
 | Gmail authorization and role-bound credentials | Phase 12 (WP12) / D4 | [feature_gmail_auth_and_credentials.md](phase_12_d4_gmail_connector/feature_gmail_auth_and_credentials.md) | Built | 2026-10-25 |
 | Gmail read connector, bounded MIME, sync and temporal projection | Phase 12 (WP12) / D4 | [feature_gmail_read_sync_projection.md](phase_12_d4_gmail_connector/feature_gmail_read_sync_projection.md) | Built | 2026-10-25 |
 | Gmail write adapter, capability gate, observation runtime and owner API | Phase 12 (WP12) / D4 | [feature_gmail_write_capability_runtime_api.md](phase_12_d4_gmail_connector/feature_gmail_write_capability_runtime_api.md) | Built | 2026-10-25 |
+| Concrete Gmail HTTP transport, live credential wiring, and gated acceptance | Phase 12 (WP12) / D4 | [feature_live_transport_wiring_and_acceptance.md](phase_12_d4_gmail_connector/feature_live_transport_wiring_and_acceptance.md) | Built | 2026-10-25 |
+

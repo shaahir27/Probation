@@ -34,15 +34,21 @@ This repository copy contains placeholders only.
 Per-process environment injection, built from an explicit allowlist so a child can never
 inherit both grants:
 
-- Reader: `PROBATION_GMAIL_READ_CLIENT_ID`, `PROBATION_GMAIL_READ_CLIENT_SECRET`,
-  `PROBATION_GMAIL_READ_REFRESH_TOKEN`, `PROBATION_GMAIL_READ_REDIRECT_PORT`
-- Executor: `PROBATION_GMAIL_WRITE_CLIENT_ID`, `PROBATION_GMAIL_WRITE_CLIENT_SECRET`,
-  `PROBATION_GMAIL_WRITE_REFRESH_TOKEN`, `PROBATION_GMAIL_WRITE_REDIRECT_PORT`
-- Owner API credential: `PROBATION_OWNER_API_KEY` (separate from every Google credential)
+- Runtime connection identifier: `PROBATION_RUNTIME_GRANT="<connection_id>|<account_id>|<credential_ref>"`
+- Role-scoped grants: `PROBATION_GMAIL_GRANT_<ROLE>_<REF>_<DIGEST>=json({"client_id": "...", "client_secret": "...", "refresh_token": "..."})`
+  where `<ROLE>` is `READ` or `WRITE`, `<REF>` is the sanitized credential reference, and `<DIGEST>` is the 16-character SHA-256 digest of `<account_id>|<credential_ref>`.
+- Operator consent token: `PROBATION_GMAIL_LIVE_CONSENT="scoped-authorization-granted"` (required for `--live` startup or running live tests).
+- Explicit forward allowlist: `PROBATION_FORWARD_ALLOWLIST="recipient@domain.tld"`
+- Owner API credential: `PROBATION_OWNER_API_KEY` (separate from every Google credential).
+- Legacy/fallback individual env vars: `PROBATION_GMAIL_READ_CLIENT_ID`, `PROBATION_GMAIL_READ_CLIENT_SECRET`,
+  `PROBATION_GMAIL_READ_REFRESH_TOKEN`, `PROBATION_GMAIL_READ_REDIRECT_PORT` (and executor equivalents).
 
 Durable refresh state is written only under `data/private/` after `apply_owner_only` +
 `verify_owner_only` succeed; access tokens stay in process memory. No token is stored in
 the connector metadata DB, in command payloads, URLs, logs or prompts.
+
+The helper script `python scripts/gmail_live_env.py` formats these environment variables
+from private token files (`--format ps1`, `--format sh`, or `--format cmd`).
 
 ## 4. Estimated provider requests
 
@@ -99,3 +105,51 @@ per-user quota for a single controlled run.
 Account access, grant exchange, any send, any quota spend and any recording of real
 mailbox content each require their own approval. This manifest exists so that approval can
 be specific; it is not approval.
+
+## 9. Operator runbook for Phase 7 (gated acceptance)
+
+This runbook defines the exact sequence for live acceptance when owner consent is explicitly granted:
+
+1. **Prerequisites**:
+   - Google Cloud Console Desktop App OAuth client ID and client secret configured with scopes:
+     `https://www.googleapis.com/auth/gmail.readonly`,
+     `https://www.googleapis.com/auth/gmail.send`,
+     `https://www.googleapis.com/auth/gmail.modify`.
+   - Dedicated test Gmail account added to the OAuth Consent Screen test users list.
+   - Operator consent explicitly declared:
+     `export PROBATION_GMAIL_LIVE_CONSENT=scoped-authorization-granted` (Unix) or
+     `$env:PROBATION_GMAIL_LIVE_CONSENT="scoped-authorization-granted"` (PowerShell).
+
+2. **Step A: Initial OAuth authorization flow**:
+   - Start the Probation API with `PROBATION_OWNER_API_KEY` and loopback authorization endpoint enabled.
+   - Execute OAuth flow via `POST /api/connectors/gmail/auth/start` with PKCE and state binding.
+   - Complete authorization in browser on loopback callback (`http://127.0.0.1:<PORT>/oauth/callback`).
+   - Confirm returned account matches test account and granted scopes match requested scopes.
+   - Durable tokens are saved under `data/private/` with verified owner-only ACL (`apply_owner_only`).
+
+3. **Step B: Runtime environment configuration**:
+   - Export runtime environment block using the helper:
+     `python scripts/gmail_live_env.py --env-file data/private/d4/live_tokens.json --format ps1 | Invoke-Expression`
+   - Verify environment variables:
+     - `PROBATION_RUNTIME_GRANT`
+     - `PROBATION_GMAIL_GRANT_READ_*`
+     - `PROBATION_GMAIL_GRANT_WRITE_*`
+     - `PROBATION_FORWARD_ALLOWLIST` (one authorized recipient only)
+
+4. **Step C: Run live connector pytest suite**:
+   - Execute gated live tests:
+     `pytest -m live backend/tests/connectors/test_gmail_auth.py backend/tests/connectors/test_gmail_read.py`
+   - Confirm token refresh, profile gateway lookup, and bounded message retrieval succeed.
+
+5. **Step D: Live observation and controlled executor walkthrough**:
+   - Launch runtime under `--live`:
+     `python -m probation.workers.gmail_runtime --live`
+   - Observe synthetic cohort message arrival; verify observation timestamps and payload storage under owner-only ACL.
+   - Walk through the 8 manifest operations (Archive -> Undo, Trash -> Untrash, Reply, Forward to allowlisted recipient).
+   - Verify reconciliation on simulated ambiguity.
+
+6. **Step E: Teardown and credential cleanup**:
+   - Pause and revoke connection via `POST /api/connectors/gmail/{connection_id}/revoke`.
+   - Remove tokens from `data/private/` and unset environment variables.
+   - Revoke application access in Google Account permissions.
+

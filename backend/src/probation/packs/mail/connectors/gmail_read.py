@@ -9,7 +9,7 @@ thread id, history id — stay separate and are never substituted by a provider 
 
 import hashlib
 import json
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
 from probation.connectors.types import (
@@ -54,7 +54,11 @@ class GmailReadConnector:
         max_results: int = 100,
         mime_limits: MimeLimits = DEFAULT_LIMITS,
         payloads: PayloadWriter | None = None,
+        token_provider: Callable[[], str] | None = None,
     ) -> None:
+        if not access_token and token_provider is None:
+            raise ConnectorError("access_token_unconfigured")
+        self._token_provider = token_provider
         self._transport = transport
         self._connection_id = connection_id
         self._account_id = account_id
@@ -68,6 +72,9 @@ class GmailReadConnector:
         self._proven: set[str] = set()
         self._selection: SourceSelection | None = None
         self._resync_required = False
+
+    def _auth(self) -> str:
+        return self._access_token if self._token_provider is None else self._token_provider()
 
     # -- capability truth -------------------------------------------------------------------
     def capabilities(self) -> CapabilityManifest:
@@ -114,7 +121,7 @@ class GmailReadConnector:
     # -- transport helpers ------------------------------------------------------------------
     def _request(self, path: str, params: dict[str, Any]) -> dict[str, Any]:
         result = self._transport.get(
-            f"{self._base_url}{path}", params=params, access_token=self._access_token
+            f"{self._base_url}{path}", params=params, access_token=self._auth()
         )
         return self._decode(result)
 
@@ -147,7 +154,7 @@ class GmailReadConnector:
         result = self._transport.get(
             f"{self._base_url}/history",
             params=request_params,
-            access_token=self._access_token,
+            access_token=self._auth(),
         )
         if result.status == 404:
             self._resync_required = True
@@ -253,6 +260,12 @@ class GmailReadConnector:
         return self._to_observation(
             parsed, observed_at or self._clock.now_iso(), payload_ref, record.content_hash
         )
+
+    def fetch_message(
+        self, ref: NativeRef, *, payloads: PayloadWriter | None = None
+    ) -> SourceObservation:
+        """Alias for observe, satisfying live test contracts."""
+        return self.observe(ref, payloads=payloads)
 
     def _to_observation(
         self, parsed: Any, observed_at: str, payload_ref: str, content_hash: str

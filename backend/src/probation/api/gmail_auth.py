@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from typing import Final
 
 from probation.api.authority import OwnerContext
-from probation.core.lifecycle import SourceGrant
+from probation.connectors.grants import source_grants_for_owner
 from probation.db.gmail_store import ConnectorAccess
 
 # The private connector API binds to loopback only. Deployment code must verify its configured
@@ -112,21 +112,7 @@ def resolve_owner_context(owner_id: str, access: ConnectorAccess) -> OwnerContex
     are the sole source of grants. Nothing from the request body, query or headers is consulted,
     so a client cannot name an account or connection that this owner does not have registered.
     """
-    rows = access.query(
-        "SELECT connection_id, account_id FROM gmail_connections "
-        "WHERE owner_id = ? ORDER BY connection_id",
-        (owner_id,),
-    )
-    grants = tuple(
-        SourceGrant(
-            source_id=f"gmail:{row['connection_id']}",
-            connection_id=str(row["connection_id"]),
-            account_id=str(row["account_id"]),
-            from_addr=str(row["account_id"]),
-        )
-        for row in rows
-    )
-    return OwnerContext(owner_id=owner_id, grants=grants)
+    return OwnerContext(owner_id=owner_id, grants=source_grants_for_owner(access, owner_id))
 
 
 __all__ = [

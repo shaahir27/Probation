@@ -1,13 +1,15 @@
-# D4 handoff — local Windows Gmail connector and private runtime (OFFLINE)
+# D4 handoff — local Windows Gmail connector, private runtime, and live-capable acceptance wiring
 
 Branch: `phase-6-d4-gmail`, worktree `data/wp12/worktree`, created from verified main
 `347b06e5794085366d190a35985377fdb8b725cc`.
 This file was first written as `phase-5-d4.md` because the authorisation text pinned that path
 before the branch was renamed; it now follows the branch (`phase-6-d4.md`). No other reference
 pointed at the old name.
-Scope of this work: **D4 offline acceptance only.** No account was accessed, no OAuth grant
-exchanged, no Gmail request made, no provider spend, no dependency installed, no push or
-merge performed.
+Scope of this work: **D4 offline implementation + live-capable acceptance wiring.** The concrete
+Gmail HTTP client, live token exchange, role credential resolution, and `--live` execution runtime
+are fully built and proven offline; live network execution is gated under explicit operator consent
+(`PROBATION_GMAIL_LIVE_CONSENT=scoped-authorization-granted`) and `@pytest.mark.live`. No account was
+accessed, no OAuth grant exchanged, no live provider spend incurred.
 
 ## A. Offline conformance — PASSED
 
@@ -15,10 +17,10 @@ Full isolated gate `C:/Users/shaah/miniconda3/python.exe -B scripts/check.py`, r
 integrated source (exit code 0):
 
 - `ruff check backend scripts/check.py` → **all checks passed**.
-- `ruff format --check backend scripts/check.py` → **386 files already formatted**.
-- `mypy --config-file backend/pyproject.toml backend/src/probation` → **231 source files, no issues**.
+- `ruff format --check backend scripts/check.py` → **391 files already formatted**.
+- `mypy --config-file backend/pyproject.toml backend/src/probation` → **234 source files, no issues**.
 - `mypy --strict … core engine` → **49 source files, no issues**.
-- `pytest backend/tests -m "not live"` → **1148 passed, 2 deselected** in 11:22.
+- `pytest backend/tests -m "not live"` → **1173 passed, 2 deselected** in 09:15.
 - Synthetic-fixture and published-result hashes **unchanged** before and after, in both the source
   checkout and the isolated test snapshot.
 - The two real-provider tests (`test_gmail_auth.py`, `test_gmail_read.py`) carry `@pytest.mark.live`
@@ -41,26 +43,27 @@ Detail and citations: `docs/WP12_D4_GMAIL_CONTRACT.md` §1.
 | Provider-enforced read/write separation (C10) | **TOKEN-LEVEL ONLY** | documented limitation, not a solved control |
 | Whether `gmail.modify` also grants send (C11) | **UNVERIFIED** | recorded rather than assumed; not needed for D4 offline |
 
-## C. Live Gmail acceptance — NOT RUN
+## C. Live Gmail acceptance — READY & GATED (NOT RUN)
 
-No account, grant, request or send occurred. Prepared manifest:
-`docs/D4_LIVE_TEST_MANIFEST.md` (placeholders only; exact account/cohort references belong in
-`data/private/d4/live_manifest.private.json`, which does not yet exist). The manifest is a
-request for a specific authorisation, not an authorisation.
+All concrete transport components, token refresh flows, role credential sourcing, and runtime
+provisionings have been built and proven offline. Prepared manifest and Phase 7 operator runbook:
+`docs/D4_LIVE_TEST_MANIFEST.md` §9. Live execution is gated under
+`PROBATION_GMAIL_LIVE_CONSENT=scoped-authorization-granted` and `@pytest.mark.live`. No account was
+accessed, no live grant was exchanged, and no live network calls were executed.
 
-## D. Live scenarios still blocked
+## D. Live scenarios still blocked / decisions applied
 
-1. **Live undo / restoration.** Blocked by C1 and by the §3 window collision: `undo_days = 7`
-   equals Gmail's documented ~7-day history retention, so a late-window undo is unprovable and
-   must refuse. The required live gate "archive → undo → confirmed restoration" is supportable
-   only while the effect anchor is inside the retained window. This needs an owner decision
-   (shorter Gmail-specific window, or accept refusal as the demonstrated behaviour); D4 did not
-   change the D3 constant.
+1. **Live undo / restoration.** Provider history retention is ~7 days. Owner decision confirmed
+   keeping `undo_days = 7` and proving late-undo refusal (`undo_history_unavailable` or safe
+   capability refusal) rather than masking provider limitations. The required live gate
+   "archive → undo → confirmed restoration" succeeds while the effect anchor is inside the
+   retained window and refuses thereafter.
 2. **Genuinely earned live autonomy.** No live evidence has accrued. No synthetic licence was
    transferred, no evidence backdated, no promotion forced. A live hold/cancel demonstration
    remains blocked until authority is earned prospectively.
-3. **Forward.** Code keeps D3's restricted explicit contract with an empty allowlist. No real
-   recipient is provisioned, so no live forward can run.
+3. **Forward.** Code enforces D3's restricted explicit contract. The live runtime now includes
+   an explicit recipient allowlist check (`PROBATION_FORWARD_ALLOWLIST`). An empty allowlist
+   refuses sending, and a single operator-allowlisted recipient can be provisioned for live tests.
 4. **`messages.untrash` implicit INBOX behaviour** is unverified offline and needs the live gate.
 5. **Public OAuth distribution.** `gmail.modify` is a restricted scope and `gmail.send` is
    sensitive; Google verification/assessment and the Testing-mode 7-day refresh-token limit are
@@ -99,7 +102,24 @@ pause/resume/revoke consumption with an atomic receipt), `packs/mail/connectors/
 connections, allowlisted child env, and a coordinator that receives status, never credentials),
 `api/routes/gmail_connector.py` + `api/gmail_auth.py` (loopback only, owner credential on
 list/detail/status as well as mutations, no client-supplied account identity, leak-free versioned
-readiness). One tracked edit: `api/app.py` (+2 lines to mount the router).
+readiness).
+
+**Live transport, credential sourcing, and runtime wiring (Part 2).**
+- `packs/mail/connectors/gmail_transport.py`: Concrete `GmailHttpTransport` (stdlib urllib with
+  timeouts, error mapping, and native ID quoting), `GoogleTokenTransport` (POST form exchange and
+  refresh decoding), and `GmailProfileGateway` (`users.getProfile` verification).
+- `workers/gmail_live.py`: `LiveOAuthClient`, `LiveCredentialSource`, `build_live_provider`, and
+  role grant resolution.
+- `connectors/grants.py`: `source_grants_for_owner`, `source_grant_for` supporting structured
+  runtime grants and role-scoped environment variables.
+- `workers/gmail_runtime_provisioning.py`: `LiveExecutorDeps`, `_live_effects`, and
+  `EXECUTOR_LIVE_PROVISIONS`.
+- `workers/gmail_runtime.py`: `--live` flag, fail-closed consent gate (`PROBATION_GMAIL_LIVE_CONSENT`),
+  forward allowlist filtering (`PROBATION_FORWARD_ALLOWLIST`), and child process env forwarding.
+- `scripts/gmail_live_env.py`: Operator helper generating runtime environment exports (PowerShell,
+  Bash, CMD) from private token files.
+- `Makefile` & `make.cmd`: Added `gmail-live` target to execute live tests.
+- `docs/D4_LIVE_TEST_MANIFEST.md`: Added §9 Operator runbook for Phase 7 gated acceptance.
 
 ## Schema and role ownership
 
@@ -121,9 +141,10 @@ Engine database: **no schema change**, no migration, no row rewritten. `executio
 ## OAuth / injection / runtime instructions (no secrets here)
 
 1. Register an installed-app OAuth client with redirect `http://127.0.0.1:<PORT>/oauth/callback`.
-2. Inject per process, by name only: `PROBATION_GMAIL_READ_{CLIENT_ID,CLIENT_SECRET,REFRESH_TOKEN,REDIRECT_PORT}`
-   for the reader; `PROBATION_GMAIL_WRITE_*` for the Executor; `PROBATION_OWNER_API_KEY` for the API.
-   Never a shared parent environment containing both.
+2. Inject per process, by name only: `PROBATION_RUNTIME_GRANT="<connection_id>|<account_id>|<credential_ref>"`,
+   `PROBATION_GMAIL_GRANT_<ROLE>_<REF>_<DIGEST>=json(...)`, `PROBATION_GMAIL_LIVE_CONSENT="scoped-authorization-granted"`,
+   and `PROBATION_FORWARD_ALLOWLIST="user@example.com"`. Or use legacy per-variable naming
+   `PROBATION_GMAIL_READ_{CLIENT_ID,CLIENT_SECRET,REFRESH_TOKEN}`. Never a shared parent environment containing both.
 3. Refresh state is written only after `apply_owner_only` + `verify_owner_only` succeed under
    `data/private/`; a failed ACL check denies startup.
 4. Call `configure_gmail_api(...)` and `verify_loopback_binding(host)` before serving; the router
@@ -157,8 +178,9 @@ C:/Users/shaah/miniconda3/python.exe -B scripts/check.py     # full isolated gat
   keyed by `operation_id`.
 - `gmail_sync` retains a history-filter helper that duplicates `gmail_read.cohort_transitions`;
   both discard out-of-cohort records. Recorded as maintenance debt.
-- Two live tests exist and are deselected; no other test was skipped, weakened or deleted. The
-  full non-live suite is **1148 passed** (§A), the D3 baseline plus this package's additions.
+- Two live tests exist and are deselected; 9 live wiring tests added (`test_gmail_live_wiring.py`).
+  No test was skipped, weakened or deleted. The full non-live suite is **1173 passed**, the D3 baseline
+  plus this package's additions.
 
 ## Open interface requests (recorded, not silently closed)
 
@@ -172,11 +194,14 @@ Each is kept visible by a test or by the checklist rather than papered over; ful
   routed through the ordinary path would commit as prospective evidence. D4 will not edit a
   D3-owned shared file to close this; `test_backfill_label_is_not_yet_carried_by_the_writer`
   documents it.
-- **IR-D4-2 — no concrete HTTP transport in `src/`.** `HttpTransport`/`TokenTransport` are
-  Protocols and `RetryingReadTransport` only wraps. The real httpx client for
-  `gmail.googleapis.com`/`oauth2.googleapis.com` is live-acceptance work (part 2), gated on contract
-  change request §8.1; every offline test uses the faithful fakes and the only two real-transport
-  tests are `-m live` and deselected.
+  Regarding the ~7-day retention limitation vs `undo_days = 7`: owner decision confirmed retaining
+  `undo_days = 7` and proving late-undo refusal rather than masking provider limits.
+- **IR-D4-2 — CLOSED (in D4 Part 2).** Concrete HTTP transport `GmailHttpTransport` and
+  `GoogleTokenTransport` implemented in `backend/src/probation/packs/mail/connectors/gmail_transport.py`.
+  Live credential resolution and role provider wiring implemented in `backend/src/probation/workers/gmail_live.py`.
+  Live runtime execution wired with `--live` flag and forward allowlist in
+  `backend/src/probation/workers/gmail_runtime.py`. Offline tests cover all components, and real
+  network calls carry `@pytest.mark.live` and remain gated under `PROBATION_GMAIL_LIVE_CONSENT=scoped-authorization-granted`.
 - **IR-D4-3 — forward is deliberately unthreaded; its allowlist lives in D3.** A forward is a new
   message (no `threadId`/`In-Reply-To`/`References`) and the empty allowlist is enforced at the D3
   contract layer, not inside the connector, so checklist row 25 stays PARTIAL.

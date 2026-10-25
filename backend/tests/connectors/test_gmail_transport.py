@@ -155,3 +155,20 @@ def test_profile_gateway_identity() -> None:
     with pytest.raises(ProviderUnavailable) as exc_info:
         gateway_empty.account_email(SecretMaterial("tok", "access"))
     assert exc_info.value.safe_code == "profile_identity_unavailable"
+
+
+def test_repr_never_leaks_secret() -> None:
+    from probation.packs.mail.connectors.gmail_auth import OAuthTokenExchange, StateVault
+    from probation.workers.gmail_live import LiveOAuthClient
+
+    client = LiveOAuthClient("client-1", "fake-secret", "ref-tok")
+    assert "fake-secret" not in repr(client)
+
+    exchange = OAuthTokenExchange(
+        client_id="client-1.apps.googleusercontent.com",
+        client_secret="fake-secret",
+        vault=StateVault(),
+        transport=GoogleTokenTransport(),
+        userinfo=GmailProfileGateway(GmailHttpTransport()),
+    )
+    assert "fake-secret" not in repr(exchange)

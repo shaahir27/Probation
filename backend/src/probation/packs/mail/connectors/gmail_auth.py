@@ -292,6 +292,7 @@ class OAuthTokenExchange:
         self,
         *,
         client_id: str,
+        client_secret: str,
         vault: StateVault,
         transport: TokenTransport,
         userinfo: UserInfoGateway,
@@ -299,11 +300,24 @@ class OAuthTokenExchange:
     ) -> None:
         if not _CLIENT_ID_RE.match(client_id):
             raise AuthorizationFlowError("client_id_invalid")
+        if (
+            not client_secret
+            or len(client_secret) > 256
+            or any(ord(char) < 32 for char in client_secret)
+        ):
+            raise AuthorizationFlowError("client_secret_invalid")
         self._client_id = client_id
+        self._client_secret = client_secret
         self._vault = vault
         self._transport = transport
         self._userinfo = userinfo
         self._clock = clock or get_clock()
+
+    def __repr__(self) -> str:
+        cid = getattr(self, "_client_id", None)
+        trans = getattr(self, "_transport", None)
+        trans_name = type(trans).__name__ if trans is not None else "None"
+        return f"OAuthTokenExchange(client_id={cid!r}, transport={trans_name})"
 
     def complete(
         self,
@@ -326,6 +340,7 @@ class OAuthTokenExchange:
             {
                 "code": code.reveal(),
                 "client_id": self._client_id,
+                "client_secret": self._client_secret,
                 "redirect_uri": issued.redirect_uri,
                 "grant_type": "authorization_code",
                 "code_verifier": issued.verifier.reveal(),
@@ -344,6 +359,7 @@ class OAuthTokenExchange:
             {
                 "refresh_token": refresh_material.reveal(),
                 "client_id": self._client_id,
+                "client_secret": self._client_secret,
                 "grant_type": "refresh_token",
             },
             (),

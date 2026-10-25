@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
 import pytest
 from fake_gmail_read import _Message
@@ -141,9 +142,9 @@ class RacingTransport:
         self.armed = False
 
     def _is_state_read(self, url: str, params: Any) -> bool:
-        return url.endswith(f"/messages/{self.native_id}") and dict(params or {}).get("format") == (
-            "metadata"
-        )
+        quoted = quote(self.native_id, safe="")
+        match = url.endswith(f"/messages/{self.native_id}") or url.endswith(f"/messages/{quoted}")
+        return match and dict(params or {}).get("format") == "metadata"
 
     def get(self, url: str, *, params: Any = None, access_token: str) -> HttpResult:
         state_read = self._is_state_read(url, params)

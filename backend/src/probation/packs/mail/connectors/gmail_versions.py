@@ -21,11 +21,12 @@ set a write must land, which capability row an effect needs, and how to read bac
 import hashlib
 import json
 import re
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Final, Protocol
 
 from probation.connectors.types import (
+    ConnectorError,
     HttpResult,
     HttpTransport,
     MessagePayload,
@@ -234,7 +235,11 @@ class GmailVersioning:
         anchors: AnchorStore,
         retained_from_history_id: int = 0,
         max_history_pages: int = 10,
+        token_provider: Callable[[], str] | None = None,
     ) -> None:
+        if not access_token and token_provider is None:
+            raise ConnectorError("write_token_unconfigured")
+        self._token_provider = token_provider
         self._transport = transport
         self._read = read
         self._connection_id = connection_id
@@ -244,6 +249,9 @@ class GmailVersioning:
         self._retained_from = retained_from_history_id
         self._max_history_pages = max_history_pages
         self._history_seen: dict[str, int] = {}
+
+    def _auth(self) -> str:
+        return self._token if self._token_provider is None else self._token_provider()
 
     def state(self, native_id: str) -> MessageState:
         payload = self._resource(native_id)
@@ -263,7 +271,7 @@ class GmailVersioning:
         result = self._transport.get(
             f"{BASE_URL}/messages/{quote_native_id(native_id)}",
             params={"format": "metadata"},
-            access_token=self._token,
+            access_token=self._auth(),
         )
         if result.status == 404:
             raise MailConflict("mail_resource_missing")

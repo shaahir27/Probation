@@ -15,6 +15,7 @@ import json
 from base64 import urlsafe_b64encode
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import unquote
 
 from probation.connectors.types import HttpResult, HttpTransport
 
@@ -263,7 +264,7 @@ class FakeGmailTransport(HttpTransport):
                 }
             )
         if path.startswith("/messages/"):
-            native_id = path.rsplit("/", 1)[-1]
+            native_id = unquote(path.rsplit("/", 1)[-1])
             self.body_calls += 1
             self.fetched_body_ids.append(native_id)
             message = self.messages.get(native_id)
@@ -290,7 +291,7 @@ class FakeGmailTransport(HttpTransport):
         del data
         path = url[len(_GMAIL_BASE) :] if url.startswith(_GMAIL_BASE) else url
         if path.endswith("/modify"):
-            native_id = path.split("/")[2]
+            native_id = unquote(path.split("/")[2])
             self.modify_calls += 1
             body = json_body or {}
             self.modify_labels(

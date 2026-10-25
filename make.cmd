@@ -34,6 +34,7 @@ if "%TARGET%"=="help" (
     echo   make.cmd eval [SUITE]         Run eval suite
     echo   make.cmd ledger-verify        Verify ledger hash chain
     echo   make.cmd budget               Show LLM budget and spend
+    echo   make.cmd gmail-live           Run live-gated Gmail connector tests
     exit /b 0
 )
 
@@ -72,6 +73,11 @@ if "%TARGET%"=="ledger-verify" (
 
 if "%TARGET%"=="budget" (
     %PYTHON% -m probation.cli budget show
+    exit /b %ERRORLEVEL%
+)
+
+if "%TARGET%"=="gmail-live" (
+    %PYTHON% -m pytest -m live backend/tests/connectors
     exit /b %ERRORLEVEL%
 )
 

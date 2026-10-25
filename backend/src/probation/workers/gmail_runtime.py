@@ -40,13 +40,17 @@ from probation.db.connection import get_connection, get_role_connection, has_sch
 from probation.db.gmail_store import ConnectorAccess, ConnectorAuthority, open_store
 from probation.packs.mail.connectors.gmail_ingest import GmailIngestBridge
 from probation.packs.mail.connectors.gmail_payloads import GmailPayloadStore
+from probation.packs.mail.connectors.gmail_transport import GmailHttpTransport
+from probation.workers.gmail_live import build_live_provider
 from probation.workers.gmail_observation import (
     GmailObservationWorker,
     ObservationTickResult,
     ReadTransport,
 )
 from probation.workers.gmail_runtime_provisioning import (
+    EXECUTOR_LIVE_PROVISIONS,
     EXECUTOR_PROVISIONS,
+    LiveExecutorDeps,
     ObservationDeps,
     RoleProvisioning,
     executor_steps,
@@ -67,6 +71,7 @@ RoleState = Literal["stopped", "degraded", "failed"]
 #: Non-secret identity of the single grant a child may hold, as "connection|account|reference".
 #: The secret itself stays in the grant variable named by ``ProvisionedGrant.env_name``.
 _GRANT_IDENTITY_ENV: Final = "PROBATION_RUNTIME_GRANT"
+_LIVE_ENV: Final = "PROBATION_RUNTIME_LIVE"
 _LOOPBACK_HOSTS: Final = frozenset({"127.0.0.1", "::1", "localhost"})
 #: Process exit statuses: 2 refuses an unprovisioned role, 3 records an allowed degraded start.
 _EXIT_REFUSED: Final = 2
@@ -131,8 +136,11 @@ class RoleContext:
     provisioning: RoleProvisioning
     coordinator: LifecycleCoordinator | None = None
     worker: GmailObservationWorker | None = None
+    transport: GmailHttpTransport | None = None
 
     def close(self) -> None:
+        if self.transport is not None:
+            self.transport.close()
         for connector in self.connectors:
             connector.conn.close()
         if self.coordinator is not None:
@@ -200,6 +208,11 @@ def _ingest_on_tick(ingest: GmailIngestBridge) -> Callable[[ObservationTickResul
     return on_tick
 
 
+def _forward_allowlist(env: Mapping[str, str]) -> tuple[str, ...]:
+    raw = env.get("PROBATION_GMAIL_FORWARD_ALLOWLIST", "")
+    return tuple(dict.fromkeys(item.strip().lower() for item in raw.split(",") if item.strip()))
+
+
 def build_role_context(
     role: RuntimeRole,
     *,
@@ -212,18 +225,31 @@ def build_role_context(
     observation: ObservationDeps | None = None,
     read_transport: ReadTransport | None = None,
     on_status: Callable[[TickResult], None] | None = None,
+    live: bool = False,
 ) -> RoleContext:
     """Open this role's own bound connection and expose the one entrypoint it may run."""
     if not isinstance(role, RuntimeRole):
         raise ConnectorError("unknown_runtime_role")
     grant = _grant_for(role, grants, env)  # validated before any connection is opened
-    provider = (
-        None
-        if grant is None
-        else RoleCredentialProvider(
-            grant=grant, source=EnvCredentialSource(dict(env), grant), clock=clock
+    live_transport: GmailHttpTransport | None = None
+    provider: RoleCredentialProvider | None = None
+    if live and grant is not None:
+        live_transport = GmailHttpTransport()
+        try:
+            provider = build_live_provider(
+                grant=grant, env=env, clock=clock, api_transport=live_transport
+            )
+        except Exception:
+            live_transport.close()
+            raise
+    else:
+        provider = (
+            None
+            if grant is None
+            else RoleCredentialProvider(
+                grant=grant, source=EnvCredentialSource(dict(env), grant), clock=clock
+            )
         )
-    )
     authorities = _CONNECTOR_AUTHORITIES.get(role, ())
     if authorities:
         verify_and_migrate_store(Path(private_store_path))
@@ -248,12 +274,13 @@ def build_role_context(
                 ),
             )
         )
+        transport = live_transport if live_transport is not None else read_transport
         worker, provision = observation_worker(
             observation,
             grant=grant,
             connectors=connectors,
             provider=provider,
-            transport=read_transport,
+            transport=transport,
             connection=connection,
             clock=clock,
             on_tick=None if ingest is None else _ingest_on_tick(ingest),
@@ -262,7 +289,25 @@ def build_role_context(
         entrypoint = _wait if worker is None else worker.run
     elif role is RuntimeRole.EXECUTOR:
         if steps is None:
-            steps, provisions = executor_steps(connection, connectors, clock), EXECUTOR_PROVISIONS
+            if live_transport is not None and grant is not None and provider is not None:
+                allowlist = _forward_allowlist(env)
+                payloads_path = Path(private_store_path).parent / "payloads"
+                payloads = GmailPayloadStore(payloads_path, grant.connection_id)
+                live_deps = LiveExecutorDeps(
+                    transport=live_transport,
+                    provider=provider,
+                    payloads=payloads,
+                    forward_allowlist=allowlist,
+                )
+                steps, provisions = (
+                    executor_steps(connection, connectors, clock, live=live_deps),
+                    EXECUTOR_LIVE_PROVISIONS,
+                )
+            else:
+                steps, provisions = (
+                    executor_steps(connection, connectors, clock),
+                    EXECUTOR_PROVISIONS,
+                )
         else:
             provisions = injected_provisions(steps)
         coordinator, _ = build_coordinator(
@@ -282,6 +327,7 @@ def build_role_context(
         provisioning=provisioning,
         coordinator=coordinator,
         worker=worker,
+        transport=live_transport,
     )
 
 
@@ -347,6 +393,8 @@ class GmailRuntime:
 
     def command_for(self, role: RuntimeRole) -> list[str]:
         head = [sys.executable, "-m", "probation.workers.gmail_runtime", "--role", role.value]
+        if self.env.get(_LIVE_ENV) == "1":
+            head.append("--live")
         return [*head, "--db", str(self.db_path), "--private-store", str(self.private_store_path)]
 
     def _default_spawn(self, role: RuntimeRole, env: Mapping[str, str]) -> RoleProcess:
@@ -358,9 +406,17 @@ class GmailRuntime:
         return _grant_for(role, self._grants, self.env)
 
     def _child_env(self, role: RuntimeRole, grant: ProvisionedGrant | None) -> dict[str, str]:
+        extra = (
+            (_GRANT_IDENTITY_ENV, _LIVE_ENV)
+            if self.env.get(_LIVE_ENV) == "1"
+            else (_GRANT_IDENTITY_ENV,)
+        )
         if grant is not None:
-            return build_child_env(self.env, grant, extra_allow=(_GRANT_IDENTITY_ENV,))
-        return {key: value for key, value in self.env.items() if key.upper() in BASE_CHILD_ENV}
+            return build_child_env(self.env, grant, extra_allow=extra)
+        child = {key: value for key, value in self.env.items() if key.upper() in BASE_CHILD_ENV}
+        if self.env.get(_LIVE_ENV) == "1":
+            child[_LIVE_ENV] = "1"
+        return child
 
     def plan(self) -> dict[RuntimeRole, tuple[dict[str, str], Capability, bool]]:
         plans: dict[RuntimeRole, tuple[dict[str, str], Capability, bool]] = {}
@@ -421,6 +477,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--db", required=True)
     parser.add_argument("--private-store", required=True)
     parser.add_argument(
+        "--live",
+        action="store_true",
+        help="run against the live Gmail API; requires PROBATION_RUNTIME_LIVE=1 in environment",
+    )
+    parser.add_argument(
         "--allow-degraded",
         action="store_true",
         help="start a role whose required worker steps are not provisioned (reported, never hidden)",
@@ -429,6 +490,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     role = RuntimeRole(args.role)
     private = Path(args.private_store).resolve()
     try:
+        if args.live and os.environ.get(_LIVE_ENV) != "1":
+            raise ConnectorError("live_runtime_unauthorized")
         if "private" not in {parent.name.lower() for parent in private.parents}:
             raise ConnectorError("private_store_path_required")
         if os.environ.get("PROBATION_RUNTIME_HOST", "127.0.0.1") not in _LOOPBACK_HOSTS:
@@ -447,6 +510,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             private_store_path=private,
             env=dict(os.environ),
             clock=get_clock(),
+            live=args.live,
         )
     except (ConnectorError, ValueError) as exc:
         print(f"runtime_refused: {getattr(exc, 'safe_code', exc)}", file=sys.stderr)

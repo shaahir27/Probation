@@ -293,12 +293,16 @@ Decisions taken during the build, so the next agent does not re-litigate them.
   through the ordinary path is committed as ordinary prospective evidence. D4 does not change a
   shared (D3-owned) file to close it; `test_backfill_label_is_not_yet_carried_by_the_writer`
   keeps the gap visible instead of reporting it closed.
-- **IR-D4-2 — no concrete HTTP transport ships in `src/`.** `HttpTransport` (types) and
-  `TokenTransport` (auth) are Protocols and `RetryingReadTransport` only wraps and delegates. There
-  is no concrete httpx client for `gmail.googleapis.com`/`oauth2.googleapis.com` in source; every
-  transport test uses the faithful fakes, and the two real-transport tests carry `-m live` and are
-  the only ones deselected. The concrete client belongs to live acceptance (part 2), which also
-  requires contract change request §8.1 to be resolved first.
+  Regarding the ~7-day retention limitation vs `undo_days = 7`: owner decision confirmed retaining
+  `undo_days = 7` and proving late-undo refusal (`undo_history_unavailable` or safe capability refusal)
+  rather than masking provider retention limits.
+- **IR-D4-2 — CLOSED (in D4 Part 2).** Concrete HTTP transport `GmailHttpTransport` and
+  `GoogleTokenTransport` implemented in `backend/src/probation/packs/mail/connectors/gmail_transport.py`.
+  Live credential resolution and role provider wiring implemented in
+  `backend/src/probation/workers/gmail_live.py`. Live runtime execution wired with `--live` flag,
+  fail-closed consent gate (`PROBATION_GMAIL_LIVE_CONSENT`), and forward allowlist in
+  `backend/src/probation/workers/gmail_runtime.py`. All tests pass offline; real network calls carry
+  `@pytest.mark.live` and remain gated under `PROBATION_GMAIL_LIVE_CONSENT=scoped-authorization-granted`.
 - **IR-D4-3 — forward is deliberately unthreaded and its allowlist lives in D3.** A forward is a
   new message: `_reply_address` returns no `threadId`/`In-Reply-To`/`References` for it, and the
   empty allowlist is enforced at the D3 contract layer, not inside the connector. Row 25 stays
@@ -345,6 +349,9 @@ ticked when a named test or an inspected file proves it.
 | 32 | Migration: populated prior-schema upgrade, rollback, rerun, unchanged ledger bytes/protected hashes | **DONE** | Engine schema untouched by design (no prior connector schema to upgrade); rerun + rollback + ledger-byte/protected-hash evidence in `test_gmail_migration_evidence.py` |
 | 33 | Live-proof kit: dry-run manifest, no account access, vault follow-up package | **DONE** | `docs/D4_LIVE_TEST_MANIFEST.md`, `docs/WP12_D4_CREDENTIAL_VAULT_FOLLOWUP.md` |
 | 34 | Full repository gate on the final integrated source | **DONE** | `scripts/check.py` passes on the integrated tree (ruff, format, mypy x2, non-live pytest, protected-hash check) |
+| 35 | Concrete HTTP transport ships in `src/` (`GmailHttpTransport`, `GoogleTokenTransport`) | **DONE** | `gmail_transport.py`; `test_gmail_transport.py` |
+| 36 | Live runtime role wiring and `--live` runtime guard | **DONE** | `gmail_live.py`, `gmail_runtime.py`, `test_gmail_live_wiring.py` |
+| 37 | Gated live runbook and test target | **DONE** | `docs/D4_LIVE_TEST_MANIFEST.md` §9, `Makefile` (`gmail-live`), `make.cmd` |
 
 **Explicitly out of offline scope** (unchanged by this checklist): live account access, OAuth
 exchange, any Gmail request, provider spend, deployment, push, merge, D5, frontend, other
