@@ -107,7 +107,11 @@ def test_real_gateway_reader_redaction_cache_and_semantic_identity(
         api_key="synthetic-key",
         transport=httpx.MockTransport(handler),
         budget_guard=BudgetGuard(
-            limit_usd="10", price_table={settings.model_reader: (Decimal("1"), Decimal("1"))}
+            limit_usd="10",
+            price_table={
+                settings.model_reader: (Decimal("1"), Decimal("1")),
+                settings.model_writer: (Decimal("1"), Decimal("1")),
+            },
         ),
         clock=Clock.replay(),
     )
@@ -399,7 +403,7 @@ def test_pack_catalog_version_and_profile_alignment() -> None:
     from probation.packs.mail import mail_pack
     from probation.packs.radar import radar_pack
 
-    assert mail_pack.reader_spec().prompt_version == "v3"
+    assert mail_pack.reader_spec().prompt_version == "v4"
     assert calendar_pack.reader_spec().prompt_version == "v2"
     assert radar_pack.reader_spec().redaction_profile == "mail"
 

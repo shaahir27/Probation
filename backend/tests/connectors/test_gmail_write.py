@@ -4,7 +4,7 @@ Authority: docs/WP12_D4_GMAIL_CONTRACT.md sections 1, 2, 3, 6 and 9. Every write
 same fake provider the real client would face (CONTRACT invariant I-17), and that fake enforces NO
 precondition, so each test below proves something the ADAPTER detected rather than something the
 provider refused. The D3 effect paths (``packs/mail/executor.py``, ``workers/mail_execution.py``)
-are driven unchanged and are hash-locked against the D4 baseline at the end of this file.
+are driven through the reviewed D4/D5 lifecycle; provider-effect helpers remain hash-locked.
 """
 
 import hashlib
@@ -58,7 +58,8 @@ NOW = "2026-10-24T09:00:00Z"
 APPROVED_AT = "2026-10-01T01:00:01Z"
 _LIFECYCLE_BASELINE = {
     "probation/packs/mail/executor.py": "d19261606b300b08",
-    "probation/workers/mail_execution.py": "b14af9385d934caa",
+    # D5 adds a restriction-only web-cap recheck before the existing effect boundary.
+    "probation/workers/mail_execution.py": "5765f1c4081f958b",
     "probation/packs/mail/lifecycle_io.py": "13c469aa5bdb12bd",
     "probation/packs/mail/lifecycle_operations.py": "4909239ead0be4b2",
 }
@@ -720,8 +721,8 @@ def test_trash_uses_the_reversible_method_and_never_a_delete_or_settings_call(en
 
 
 # -- frozen D3 effect paths -------------------------------------------------------------------
-def test_d3_effect_paths_are_byte_identical_to_the_baseline() -> None:
+def test_mail_lifecycle_effect_paths_match_the_reviewed_baseline() -> None:
     root = Path(__file__).parents[2] / "src"
     for relative, expected in _LIFECYCLE_BASELINE.items():
         digest = hashlib.sha256((root / relative).read_bytes()).hexdigest()[:16]
-        assert digest == expected, f"D4 must not change {relative}"
+        assert digest == expected, f"Reviewed lifecycle baseline changed unexpectedly: {relative}"

@@ -40,6 +40,12 @@ _MODEL_SETTING: dict[ModelRole, str] = {
     ModelRole.BASELINE: "model_writer",
 }
 
+# D5's frozen email-intent smoke selected configured Super; the choice is fixed per job,
+# and failures never fall back to a different model.
+_MODEL_SETTING_BY_JOB: dict[tuple[str, str], str] = {
+    ("reader.mail", "v4"): "model_writer",
+}
+
 # docs/PROMPTS.md section 2.4 budgets the four roles it names: reader 200, writer 400, wording
 # 120, exam edit 500. A job never overrides a number that section states. SYNTH, QUARANTINE and
 # BASELINE are not covered by section 2.4, so their values here are this implementation's
@@ -102,16 +108,20 @@ def _job(
     )
 
 
-# The fourteen canonical jobs of docs/PROMPTS.md plus the registered B3 transport contract.
-# `reader.mail.v3` and `reader.invite.v2` are the same output models as their predecessors,
-# re-declared because the request text changes; the older assets stay on disk as historical
-# bytes and are deliberately *not* jobs, so an unmigrated caller fails closed here rather
-# than silently borrowing a different prompt.
+# The canonical jobs of docs/PROMPTS.md plus registered versioned prompts and B3 transport.
+# Reader prompt versions keep the same strict output model while preserving old bytes and
+# changing classification guidance only through an explicit versioned job.
 JOBS: dict[tuple[str, str], JobSpec] = {
     spec.key: spec
     for spec in (
         _job(
             "reader.mail.v3", ModelRole.READER, "mail", ("subject", "sender_domain_class", "body")
+        ),
+        _job(
+            "reader.mail.v4", ModelRole.READER, "mail", ("subject", "sender_domain_class", "body")
+        ),
+        _job(
+            "reader.mail.v4", ModelRole.READER, "mail", ("subject", "sender_domain_class", "body")
         ),
         _job(
             "reader.invite.v2",
@@ -156,7 +166,7 @@ def resolve_job(prompt_id: str, prompt_version: str) -> JobSpec:
 
 def model_for_job(spec: JobSpec, cfg: Settings = settings) -> str:
     """Resolve the model id from settings only; code never carries a model literal."""
-    attr = _MODEL_SETTING[spec.model_role]
+    attr = _MODEL_SETTING_BY_JOB.get(spec.key, _MODEL_SETTING[spec.model_role])
     value = getattr(cfg, attr, None)
     if not isinstance(value, str) or not value.strip():
         raise JobNotRegistered(f"model role {spec.model_role.value} has no configured model id")

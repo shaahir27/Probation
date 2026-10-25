@@ -244,3 +244,13 @@ attempts and the original live manifests. Revalidate genuine caches with transpo
 disabled instead of spending again. No authority, credential, dependency, endpoint,
 prompt limit or evaluated historical asset changed. Source checks remain heuristics,
 not a guarantee of external truth. Final costs/evidence: reports/phase-6b-d5.md.
+
+### D5 reader intent decision - 25 October 2026
+
+The frozen six-case cohort scored 2/6 with Nano and remained 2/6 after adding the
+v4 semantic distinctions. The same v4 cohort scored 6/6 when run with configured
+Super, separating a Nano capability limit from a prompt-version issue for this
+smoke. Map only `reader.mail.v4` to `MODEL_WRITER`; keep other readers and
+quarantined extraction on `MODEL_READER`. The mapping is fixed with no fallback.
+Retain the same schema, safety checks, token limit, and generation profile. The
+six-case score is smoke evidence only and makes no general accuracy claim.

@@ -149,7 +149,7 @@ def test_mail_job_semantics_and_schema_share_one_model() -> None:
 
 
 def test_every_registered_job_schema_compiles() -> None:
-    """Fourteen canonical jobs, B3 transport and two explicit D5 prompt versions.
+    """Fourteen canonical jobs, B3 transport and three explicit D5 prompt versions.
 
     The guard is that the catalog and the output-model registry are the same set of jobs, so a
     job can never reach the transport without a schema to validate it against.
@@ -159,8 +159,12 @@ def test_every_registered_job_schema_compiles() -> None:
     from probation.llm.schema import compile_schema
 
     assert JOB_MODELS.keys() == JOBS.keys()
-    assert len(JOBS) == 17
-    assert {("writer.reply", "v2"), ("reader.opportunity", "v2")} <= JOBS.keys()
+    assert len(JOBS) == 18
+    assert {
+        ("writer.reply", "v2"),
+        ("reader.opportunity", "v2"),
+        ("reader.mail", "v4"),
+    } <= JOBS.keys()
     for model in JOB_MODELS.values():
         assert model.model_json_schema()["additionalProperties"] is False
         compile_schema(model.model_json_schema())

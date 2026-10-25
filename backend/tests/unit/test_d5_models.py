@@ -145,3 +145,29 @@ def test_d5_corrected_jobs_are_explicit_and_do_not_replace_old_assets(memory_db)
             )
 
         assert envelope(old).cache_key() != envelope(new).cache_key()
+
+
+def test_mail_reader_v4_is_selected_and_separates_requests_questions_and_newsletters():
+    from probation.config import settings
+    from probation.llm.catalog import model_for_job, resolve_job
+    from probation.llm.prompt_loader import load_prompt
+    from probation.packs.mail import MailPack
+
+    spec = MailPack().reader_spec()
+    assert spec is not None
+    assert spec.prompt_version == "v4"
+    asset = load_prompt(resolve_job("reader.mail", "v4"))
+    old_asset = load_prompt(resolve_job("reader.mail", "v3"))
+    assert old_asset.template_hash != asset.template_hash
+    assert old_asset.schema_fingerprint == asset.schema_fingerprint
+    assert old_asset.spec.max_tokens == asset.spec.max_tokens
+    assert model_for_job(resolve_job("reader.mail", "v3")) == settings.model_reader
+    assert model_for_job(resolve_job("reader.mail", "v4")) == settings.model_writer
+    assert model_for_job(resolve_job("reader.opportunity", "v2")) == settings.model_reader
+    semantics = " ".join(asset.semantic.casefold().split())
+    assert "concrete action" in semantics
+    assert "seeks information" in semantics
+    assert "recurring or bulk informational digest" in semantics
+    assert "choose newsletter over fyi" in semantics
+    assert "risk fields independently" in semantics
+    assert "request stays a request when it is unsafe" in semantics

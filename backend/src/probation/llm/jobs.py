@@ -179,6 +179,7 @@ class BaselineEstimate(JobOutput):
 
 JOB_MODELS: dict[tuple[str, str], type[JobOutput]] = {
     ("reader.mail", "v3"): MailReader,
+    ("reader.mail", "v4"): MailReader,
     ("reader.invite", "v2"): InviteReader,
     ("reader.file", "v1"): FileReader,
     ("writer.reply", "v1"): ReplyWriter,

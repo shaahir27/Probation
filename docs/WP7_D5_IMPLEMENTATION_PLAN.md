@@ -228,9 +228,10 @@ before editing. Shared migration/composition/API paths have one integration owne
 bounded subagent work, if used after interface freeze, cannot overlap them.
 
 Never edit `api/app.py`, Gmail auth/connectors/stores/runtime/provisioning, D4's
-documents or any other worktree. Combined Gmail acceptance waits for an accepted
-committed D4 tip and disposable integration checkout. Browser/card rendering remains
-D6. No push, merge, deployment, public paid endpoint or mail sending is authorized.
+documents or any other worktree. D4 commit `c423160` is now accepted on `main`; the
+integrated D5 worktree is rebased on it. Browser/card rendering remains D6. The owner
+subsequently authorized pushing this D5 branch to GitHub before locally merging it.
+No deployment, public paid endpoint or mail sending is authorized.
 
 ## Bounded live correction
 
@@ -241,6 +242,18 @@ as organiser. Add writer.reply.v2 and reader.opportunity.v2 with explicit field/
 commitment rules; keep all original prompt files byte-identical, token limits and
 validators unchanged. D5 explicitly selects the new versions. Existing callers
 can still request v1; no fallback to another prompt is implicit.
+
+Final cohort review traced four of six intent mismatches to ambiguous reader
+definitions: three concrete imperative requests became `question`, and a periodic
+newsletter became `fyi`. Preserve v3 and add reader.mail.v4 with explicit
+action-vs-answer and recurring-digest distinctions. Select v4 in the mail pack and
+the live runner; retain the same schema, validators, redaction and output limit.
+Re-run the frozen cohort under the existing durable allowance before claiming an
+accuracy improvement. V4 still scored 2/6 on configured Nano; the same v4 cohort
+scored 6/6 on configured Super. Route only `reader.mail.v4` to configured
+`MODEL_WRITER`; other reader/quarantine jobs remain on Nano. This is a fixed mapping,
+not an automatic fallback. Revalidate the product mapping and retain the six-case
+score as smoke evidence only.
 
 
 Live source-title correction: Search returned the reviewed official NVIDIA page

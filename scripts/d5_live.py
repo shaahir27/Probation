@@ -184,7 +184,7 @@ def main() -> int:
     try:
         for label, subject, body, expected in COHORT:
             context = build_request_context(
-                resolve_job("reader.mail", "v3"),
+                resolve_job("reader.mail", "v4"),
                 {
                     "subject": subject,
                     "body": body,
@@ -324,8 +324,13 @@ def main() -> int:
     finally:
         manifest["finished_at"] = clock.now_iso()
         card_status = manifest.get("extract_card", {}).get("availability")
+        intent_matches = sum(
+            case.get("intent_matches") is True for case in manifest["cases"]
+        )
         manifest["acceptance"] = {
             "nemotron_readers": len(manifest["cases"]) == len(COHORT),
+            "intent_smoke": len(manifest["cases"]) == len(COHORT)
+            and intent_matches == len(COHORT),
             "nemotron_writer": bool(manifest.get("writer", {}).get("persistable")),
             "tavily_search": manifest.get("search", {}).get("status") == "ok",
             "extract": card_status in {"validated", "partial"},
@@ -380,6 +385,8 @@ def main() -> int:
             json.dumps(
                 {
                     "manifest": str(destination),
+                    "intent_matches": intent_matches,
+                    "intent_cases": len(manifest["cases"]),
                     "nebius": manifest["nebius"],
                     "tavily": manifest["tavily"],
                     "errors": len(manifest["errors"]),

@@ -100,6 +100,19 @@ Body:
 
 **Semantic definitions (include in the prompt file):** `intent=request` means the sender wants the reader to do something; `question` wants an answer; `fyi` is information only; `newsletter` is bulk content; `receipt` is a payment or order confirmation; `invite_mention` talks about a meeting; `social` is casual chat; `sales` is a pitch; `opportunity` is a hackathon, internship, job, scholarship, competition, conference or similar chance the reader could apply to or join. (v2 added `opportunity`; v1 was never used in an evaluation run.)
 
+### D5 mail reader v4
+
+`reader.mail.v4` keeps the v3 schema, redaction profile and 200-token output limit.
+It separates concrete action requests from information questions, and periodic/bulk
+newsletters from one-off FYI messages. Action intent and safety flags are independent:
+unsafe requests remain classified as requests while their risk fields stay visible.
+The active mail pack and D5 live cohort select v4; v3 remains registered for historical
+cache/provenance compatibility. The v4 mail classifier is explicitly mapped to configured
+`MODEL_WRITER` (Nemotron Super) after the frozen cohort scored 2/6 on Nano and 6/6 on Super.
+Other reader and quarantine jobs remain on `MODEL_READER` (Nano). The selected model is fixed
+per job; failures do not trigger a model fallback. See
+`backend/src/probation/llm/prompts/reader.mail.v4.md`.
+
 **Post-validation:** schema match; `deadline_text` is null when `has_deadline` is false; otherwise fail validation (one repair retry, then `LLMValidationError`).
 
 ---

@@ -17,7 +17,7 @@ from probation.llm.results import FailureCode, Provenance, ReaderOutcome, Reader
 
 ReaderCallable = Callable[[Situation], tuple[dict[str, Any] | None, bool]]
 READER_JOBS = {
-    "mail": ("reader.mail", "v3"),
+    "mail": ("reader.mail", "v4"),
     "calendar": ("reader.invite", "v2"),
     "files": ("reader.file", "v1"),
     "radar": ("reader.opportunity", "v1"),

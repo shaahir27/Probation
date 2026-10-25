@@ -147,7 +147,7 @@ class MailPack(PackAdapter):
         """Prompt descriptor for mail reader."""
         return ReaderSpec(
             prompt_id="reader.mail",
-            prompt_version="v3",
+            prompt_version="v4",
             json_schema=MAIL_READER_SCHEMA,
             redaction_profile="mail",
         )

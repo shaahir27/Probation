@@ -70,6 +70,13 @@
       "schema_fingerprint": "4bd534b5a5c2cfa9",
       "sha256": "66e510f5ae8b425175792af611d3af69b6f6cca2a9235a1181238b413ab6b8a2"
     },
+    "reader.mail.v4": {
+      "asset": "reader.mail.v4.md",
+      "max_tokens": 200,
+      "model_role": "reader",
+      "schema_fingerprint": "4bd534b5a5c2cfa9",
+      "sha256": "5ca593f38532f97e76977f211a88ecd4911fed999192c94e09c96a4fda71d32f"
+    },
     "reader.opportunity.v1": {
       "asset": "reader.opportunity.v1.md",
       "max_tokens": 200,

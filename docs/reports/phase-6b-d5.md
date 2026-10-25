@@ -1,7 +1,8 @@
 # Phase 6b D5 handoff — guarded Nemotron and Tavily verification
 
-Branch: `phase-6b-d5-nemotron-tavily`. Base:
+Branch: `phase-6b-d5-nemotron-tavily`. Initial base:
 `347b06e5794085366d190a35985377fdb8b725cc`, verified accepted main at creation.
+Rebased onto accepted D4 commit `c423160` before final integrated verification.
 Implementation is in `data/d5/worktree`. Owner approved both D5 plans on
 25 October 2026. Selected D5 core plus Extract implementation and acceptance are complete; ready for
 local review. This is not completion of all Phase 6b/WP7/WP13.
@@ -46,18 +47,23 @@ versioned typed cards and whole-population usage without provider calls.
   settings; versioned generation/cache/feature provenance and fitted-policy identity
   guard; current price evidence metadata; opt-in `scripts/d5_live.py`.
 - Focused `test_d5_*` suites, stronger existing query/source/clock/batch fixtures,
-  accepted implementation plan, web specification ordering and decision record.
+  mail-reader version/model routing tests, updated registered-job count, and the
+  D4 lifecycle baseline pin updated for D5's intentional restriction-only recheck.
+  D5 Executor regressions remain enabled. Also updated the accepted implementation
+  plan, web specification ordering and decision record.
   Exact paths/ownership: `docs/WP7_D5_IMPLEMENTATION_PLAN.md`.
 
 ## Tests
 
-Final full gate: PASS, exit 0. **974 tests passed**, two existing Typer/Click
-deprecation warnings, 403.52 seconds. Ruff, application typing (213 files) and
-strict core/engine typing (49 files) passed. Protected hashes were unchanged.
+Final integrated gate after rebasing onto D4 commit `c423160`: PASS, exit 0.
+**1315 tests passed, 2 deselected**, with two existing Typer/Click deprecation
+warnings in 323.09 seconds. Ruff, formatting, application typing (241 files) and
+strict core/engine typing (49 files) passed. Protected fixture/result hashes were
+unchanged.
 Portable command: `C:/Users/shaah/miniconda3/python.exe -B scripts/check.py` from D5.
 It runs Ruff, application typing, strict core/engine typing and the whole offline
 suite in a secret-free snapshot with protected source/snapshot fixture/result hashes.
-Final output is local `data/d5/worktree/data/d5-claim-support-final-check.log`.
+Final integrated output is local `data/d5/worktree/data/d5-final-integrated-check.log`.
 Earlier complete gates passed 964, then 965 tests before the generation correction.
 The profile-focused run passed 38 tests in 5.91 seconds. The subsequent
 versioned-prompt/writer/pipeline regression run passed 50 tests in 4.74 seconds.
@@ -186,11 +192,11 @@ limitations are recorded in `config/prices.json`; computed token costs are not a
 
 | Gate | Current status |
 | --- | --- |
-| Offline conformance | PASS: 974 tests, lint, both typing gates |
-| Live Nemotron reader/writer | PASS: genuine Nano reads; Super v2 deadline draft; reader cache proofs. Cohort intent accuracy only 2/6 |
-| Live Tavily Search | PASS: six physical Search/Extract attempts total, independently discovered reviewed-domain page |
+| Offline conformance | PASS on integrated D4/D5: 1315 passed, 2 deselected; lint, formatting and both typing gates |
+| Live Nemotron reader/writer | PASS: mail reader v4 matched 6/6 on configured Super; Nano v4 comparison matched 2/6. Super v2 produced a separate deadline draft. Six-case smoke only |
+| Live Tavily Search | PASS: nine cumulative physical attempts, eight confirmed credits and one retained held credit; independently discovered reviewed-domain page |
 | Live Extract/quarantined Nano | PASS: genuine Extract + Nano; partial cited card, then stricter cache-only revalidation with zero dispatch |
-| Combined Gmail/browser | Pending accepted D4/D6 committed interfaces and actual acceptance |
+| Combined Gmail/browser | D4 commit `c423160` is merged into `main`; browser/card acceptance remains pending D6 |
 
 Live runner: from root, set PYTHONPATH to D5 backend/src and invoke
 `python -B data/d5/worktree/scripts/d5_live.py --allow-live`. It loads existing
@@ -206,19 +212,24 @@ Genuine provider run: original-checkout
 `data/d5/live/manifest-2026-10-25T131801450847Z.json`, runner exit 0.
 The ordinary-request writer remains a closed failed request (duplicate guard denies
 redispatch); the separate frozen deadline mail produced a locally valid Super v2
-draft. Both outcomes remain recorded. No mail was sent. All six original Nano
-forms are genuine and their repeats dispatched zero calls. Declared intent matches
-remain **2/6**; risk flags include false positives. This smoke test does not establish
+draft. Both outcomes remain recorded. No mail was sent. The earlier Nano v4 run
+matched only 2/6 intents. A same-prompt comparison on configured Super returned
+**6/6** on genuine provider responses in
+`data/d5/live/manifest-2026-10-25T161915486384Z.json`. The fixed D5 mapping now
+selects Super only for `reader.mail.v4`; other reader and quarantine jobs remain on
+Nano, with no fallback. The normal-settings runner in
+`data/d5/live/manifest-2026-10-25T162836843596Z.json` revalidated all six matches
+from those exact Super cache entries. This small smoke cohort does not establish
 general quality, calibrated policy performance, an exam pass or autonomous readiness.
 Ultra is account-listed, not inferred; no escalation implementation is claimed.
 
-Cumulative Nebius: **23 physical attempts, USD 0.00302352 recorded**, including
-**one conservative estimated charge of USD 0.00135780**; USD 0.00166572 derives from
+Cumulative Nebius: **37 physical attempts, USD 0.00500496 recorded**, including
+**one conservative estimated charge of USD 0.00135780**; USD 0.00364716 derives from
 reported token usage at frozen published rates. No Nebius hold remains. These are
-budget records, not a provider invoice. Tavily: **six physical attempts, five
+budget records, not a provider invoice. Tavily: **nine physical attempts, eight
 confirmed credits plus one held credit**, one uncertain Extract batching attempt.
 The hold remains durable; nothing was released/reset to make acceptance pass.
-Total credited-plus-held exposure is six, within the owner's20-credit allowance;
+Total credited-plus-held exposure is nine, within the owner's20-credit allowance;
 Nebius remains within USD1 including all earlier failed attempts.
 
 Final claim review exposed a country selector copied as organiser and an application
@@ -229,23 +240,26 @@ No model output or original live manifest was overwritten. Unsupported values be
 unknown. The date/title/eligibility checks are conservative heuristics, not proof of
 real-world truth; citations and partial/unknown status remain visible.
 
-`data/d5/live/acceptance-final.json` binds the genuine live manifest hash to stricter
-cache-only revalidation. Provider transport was disabled; attempts remained exactly
-23 Nebius / six Tavily. The card retains deadline `2026-10-30` and quoted eligibility;
-organiser, start, title, application domain, mode and fees remain unknown. Repeat
-Search/Extract/card checks add no provider dispatch. Source receipt/expiry and all
-actual job/model/template/schema/generation/price/feature identities are frozen in
-these artifacts and root `data/d5/preflight/final-source-hashes.json`.
+The earlier `data/d5/live/acceptance-final.json` remains a historical cache-only
+revalidation bound to the 23-attempt manifest; it was not overwritten. The final
+normal-settings run is `data/d5/live/manifest-2026-10-25T162836843596Z.json` and
+confirms the v4 Super mapping, zero additional Nebius attempts, and all six cached
+intent matches. Exact cumulative budget state and the one unresolved Tavily hold are
+in that manifest and the durable accounting database. The final source/artifact
+hash inventory is in root `data/d5/preflight/final-source-hashes.json`.
 
 ## D4/D6 integration obligations
 
-D4 calls `predict_verified_email` with its Brain connection, shared live clock and
+D4 commit `c423160` is accepted and integrated on `main`. D4 calls
+`predict_verified_email` with its Brain connection, shared live clock and
 actual fitted snapshot; `email_verifier` receives a separate Webfacts connection
 and registered consumer. All participating paid workers share the same accounting
 authority. `persist_verified_email` re-derives permission before the Brain-owned
 atomic commit. No Gmail connector/auth/store/runtime file was modified or copied.
-D4 advanced independently during D5 development. Its later tip is not treated
-as an accepted integration dependency without its own review/acceptance.
+The integrated offline suite exercises the D4/D5 restriction and Executor seam.
+Owner-reported D4 live Gmail auth/read tests passed before its credential-loading
+cleanup; the corrected live tests were not rerun here. Combined Gmail/browser
+acceptance remains pending D6 UI/card verification.
 
 D6 reads `/api/items/{proposal_id}`: `verification_version`, `verification_card`,
 `verification_as_of` describe proposal-time knowledge; `current_sender_verification`
@@ -257,6 +271,7 @@ accessibility remain D6; no visible workflow is inferred from backend tests.
 
 ## Suggested next step
 
-Review the selected D5 backend/Extract delivery locally. Keep the live accounting
-database and unresolved Tavily hold. Combined Gmail/browser acceptance awaits
-accepted D4/D6 interfaces and its own test; no push, merge or deployment was performed.
+The D5 branch is ready for push to its feature branch and then local merge after its
+integrated check and live smoke. Keep the durable accounting database and unresolved
+Tavily hold. Combined Gmail/browser acceptance still awaits D6 UI/card verification.
+No deployment is included.
