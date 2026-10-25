@@ -497,13 +497,32 @@ def test_live_gmail_token_refresh_and_identity() -> None:
     PROBATION_GMAIL_REFRESH_TOKEN, PROBATION_GMAIL_ACCOUNT.
     """
     import os
+    from pathlib import Path
+
+    for env_path in (Path(".env"), Path(__file__).resolve().parents[3] / ".env"):
+        if env_path.is_file():
+            for line in env_path.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    k, v = line.split("=", 1)
+                    os.environ.setdefault(k.strip(), v.strip().strip("'\""))
 
     if os.environ.get("PROBATION_GMAIL_LIVE_CONSENT") != "scoped-authorization-granted":
         pytest.skip("PROBATION_GMAIL_LIVE_CONSENT not granted")
-    client_id = os.environ.get("PROBATION_GMAIL_CLIENT_ID", "")
-    client_secret = os.environ.get("PROBATION_GMAIL_CLIENT_SECRET", "")
-    refresh_token = os.environ.get("PROBATION_GMAIL_REFRESH_TOKEN", "")
-    account = os.environ.get("PROBATION_GMAIL_ACCOUNT", "").strip().lower()
+    client_id = os.environ.get("PROBATION_GMAIL_CLIENT_ID") or os.environ.get(
+        "PROBATION_GMAIL_READ_CLIENT_ID", ""
+    )
+    client_secret = os.environ.get("PROBATION_GMAIL_CLIENT_SECRET") or os.environ.get(
+        "PROBATION_GMAIL_READ_CLIENT_SECRET", ""
+    )
+    refresh_token = os.environ.get("PROBATION_GMAIL_REFRESH_TOKEN") or os.environ.get(
+        "PROBATION_GMAIL_READ_REFRESH_TOKEN", ""
+    )
+    account = (
+        (os.environ.get("PROBATION_GMAIL_ACCOUNT") or os.environ.get("USER_ADDRESSES", ""))
+        .strip()
+        .lower()
+    )
     if not (client_id and client_secret and refresh_token and account):
         pytest.skip("live credentials missing")
 
