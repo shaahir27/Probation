@@ -130,6 +130,10 @@ JOBS: dict[tuple[str, str], JobSpec] = {
         _job("synth.mail_body.v1", ModelRole.SYNTH, "synth", ("spec",)),
         _job("synth.invite.v1", ModelRole.SYNTH, "synth", ("spec",)),
         _job("reader.opportunity.v1", ModelRole.READER, "mail", ("subject", "body")),
+        _job("reader.opportunity.v2", ModelRole.READER, "mail", ("subject", "body")),
+        _job(
+            "writer.reply.v2", ModelRole.WRITER, "writer", ("style_facts", "examples", "incoming")
+        ),
         _job("extract.opportunity.v1", ModelRole.QUARANTINE, "page", ("page",)),
         _job("extract.link.v1", ModelRole.QUARANTINE, "page", ("page",)),
         _job("radar.digest.v1", ModelRole.WRITER, "digest", ("entries",)),

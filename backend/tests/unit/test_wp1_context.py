@@ -133,16 +133,43 @@ def test_tavily_budget_and_audit_use_same_clock(
     memory_db: sqlite3.Connection, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from probation.config import settings
+    from probation.core.enums import ClockMode
     from probation.web.client import TavilyClient
 
+    class OperationalClock(Clock):
+        value = "2026-10-25T00:00:00Z"
+
+        def now_iso(self) -> str:
+            return self.value
+
+    operational = OperationalClock(mode=ClockMode.LIVE)
     clock = Clock.replay(datetime(2026, 6, 1, tzinfo=UTC))
-    client = TavilyClient(api_key="synthetic", conn=memory_db, clock=clock)
+    calls = []
+
+    def response(request):
+        calls.append(request)
+        return httpx.Response(200, json={"results": [], "usage": {"credits": 1}})
+
+    client = TavilyClient(
+        api_key="synthetic",
+        conn=memory_db,
+        clock=clock,
+        accounting_clock=operational,
+        transport=httpx.MockTransport(response),
+    )
     client.search("<PERSON_1>")  # rejected locally; no outbound request
-    assert memory_db.execute("SELECT created_at FROM tavily_calls").fetchone()[0] == clock.now_iso()
+    assert (
+        memory_db.execute("SELECT created_at FROM tavily_calls").fetchone()[0]
+        == operational.now_iso()
+    )
     monkeypatch.setattr(settings, "tavily_max_calls_per_day", 1)
-    assert client._check_budget()[0] is False
+    assert client.search("example.org official website")["status"] == "ok"
+    assert client.search("example.org official website")["status"] == "not_checked"
     clock.advance_seconds(86400)
-    assert client._check_budget()[0] is True
+    assert client.search("example.org official website")["status"] == "not_checked"
+    operational.value = "2026-10-26T00:00:00Z"
+    assert client.search("example.org official website")["status"] == "ok"
+    assert len(calls) == 2
 
 
 def test_api_replay_state_uses_the_application_clock(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -8,6 +8,7 @@ import sqlite3
 from pathlib import Path
 
 from probation.core.enums import GateDecision
+from probation.db.tavily_migration import migrate_tavily_accounting
 from probation.engine.caps import ACTION_CATALOG
 from probation.engine.gate import decide_gate
 from probation.web.client import TavilyClient
@@ -118,7 +119,8 @@ def test_t_webq_user_name_tokens_blocked() -> None:
 def test_t_webq_rejected_query_logs_audit_and_makes_no_network(
     memory_db: sqlite3.Connection,
 ) -> None:
-    """T-WEBQ: Rejected query logs to tavily_calls with ok=0 and returns status not_checked."""
+    """T-WEBQ: Rejections are audited without persisting the private query."""
+    migrate_tavily_accounting(memory_db)
     client = TavilyClient(api_key="tvly-mock", conn=memory_db)
     bad_q = "query with <PERSON_1> tag"
 
@@ -127,11 +129,16 @@ def test_t_webq_rejected_query_logs_audit_and_makes_no_network(
     assert res["credits"] == 0.0
 
     cur = memory_db.cursor()
-    cur.execute("SELECT query_text, ok, credits FROM tavily_calls WHERE query_text = ?;", (bad_q,))
-    row = cur.fetchone()
-    assert row is not None
-    assert row["ok"] == 0
-    assert row["credits"] == 0.0
+    assert (
+        cur.execute("SELECT COUNT(*) FROM tavily_calls WHERE query_text = ?", (bad_q,)).fetchone()[
+            0
+        ]
+        == 0
+    )
+    row = cur.execute("SELECT * FROM tavily_calls WHERE state='rejected'").fetchone()
+    assert row is not None and row["query_text"] == "" and row["params_json"] == "{}"
+    assert row["ok"] == 0 and row["credits"] == 0.0
+    assert row["error_code"] == "query_rejected"
 
 
 # ==============================================================================
@@ -183,15 +190,14 @@ def test_t_webiso_restriction_only_type_has_no_prob_or_evidence_fields() -> None
 def test_t_webiso_exhaustive_gate_autonomy_rank_never_increases() -> None:
     """T-WEBISO: For all inputs, web_cap = 1 autonomy rank is <= web_cap = 3 autonomy rank."""
     # Autonomy ranking per ENGINE_SPEC 15.2:
-    # SHADOW (0) < SUGGEST (1) < ASK (2) < HOLD_THEN_EXECUTE (3) < EXECUTE_UNDO (4) < EXECUTE_SILENT (5)
-    # Note: ASK and SUGGEST are non-autonomous. Autonomous executions are >= 3.
+    # ASK/SUGGEST share rank1; HOLD/EXECUTE_UNDO share rank2. All cases remain exhaustive.
     rank_map = {
         GateDecision.SHADOW: 0,
         GateDecision.SUGGEST: 1,
-        GateDecision.ASK: 2,
-        GateDecision.HOLD_THEN_EXECUTE: 3,
-        GateDecision.EXECUTE_UNDO: 4,
-        GateDecision.EXECUTE_SILENT: 5,
+        GateDecision.ASK: 1,
+        GateDecision.HOLD_THEN_EXECUTE: 2,
+        GateDecision.EXECUTE_UNDO: 2,
+        GateDecision.EXECUTE_SILENT: 3,
     }
 
     test_actions = list(ACTION_CATALOG.keys())
@@ -290,9 +296,20 @@ def test_t_vet_homoglyph_and_hyphen_lookalike() -> None:
     assert is_lookalike("google", "google", "google.com", "google.com") is False
 
 
+def _reviewed_google_fixture() -> dict[str, object]:
+    return {
+        "google": {
+            "active": True,
+            "official_domains": ["google.com", "google.co.in", "google.co.uk"],
+            "source_url": "https://www.google.com/supported_domains",
+            "verified_at": "2026-10-25T00:00:00Z",
+        }
+    }
+
+
 def test_t_vet_local_brand_list_pre_check() -> None:
     """T-VET: Local brand list produces immediate status without network calls."""
-    brands = {"google": "google.com", "paypal": "paypal.com"}
+    brands = _reviewed_google_fixture()
 
     # Official match
     res_official = check_local_brand_list("google", "google.com", brands=brands)
@@ -334,11 +351,15 @@ def test_t_vet_derivation_status_precedence_on_fixtures() -> None:
     facts_la = derive_entity_facts(
         domain="g00gle.com",
         search_results=search_mock_lookalike,
-        brand_token="g00gle",
+        brand_token="google",
         report_results=report_mock,
-        brands={"google": "google.com"},
+        brands=_reviewed_google_fixture(),
     )
     assert facts_la["status"] == "lookalike"
+    unrelated = derive_entity_facts(
+        "g00gle.com", search_mock_lookalike, brand_token="g00gle", brands=_reviewed_google_fixture()
+    )
+    assert unrelated["status"] != "lookalike"
 
     # 2. Reports found (>= 2 hits)
     search_mock_scam = {
@@ -361,7 +382,7 @@ def test_t_vet_derivation_status_precedence_on_fixtures() -> None:
             },
             {
                 "title": "fake-jobs.example fake",
-                "url": "https://rep.org/2",
+                "url": "https://independent-report.org/2",
                 "content": "fake-jobs.example fraud complaint",
             },
         ],
@@ -375,7 +396,7 @@ def test_t_vet_derivation_status_precedence_on_fixtures() -> None:
     assert facts_rep["status"] == "reports_found"
     assert facts_rep["facts"]["report_hits"] >= 2
 
-    # 3. Confirmed official (sender domain in top 3 and candidate)
+    # 3. Rank/title alone cannot establish reviewed official provenance.
     search_mock_official = {
         "status": "ok",
         "results": [
@@ -392,7 +413,8 @@ def test_t_vet_derivation_status_precedence_on_fixtures() -> None:
         brand_token="iitm",
         brands={},
     )
-    assert facts_off["status"] == "confirmed_official"
+    assert facts_off["status"] == "unverified"
+    assert facts_off["facts"]["official_candidates"] == []
 
     # 4. No web presence (empty results)
     facts_none = derive_entity_facts(

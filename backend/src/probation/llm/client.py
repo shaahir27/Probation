@@ -57,6 +57,7 @@ from probation.llm.errors import (
     classify_response,
     is_transient,
 )
+from probation.llm.generation import direct_content_hash, generation_options
 from probation.llm.results import FailureCode
 from probation.llm.schema import UnsupportedSchema, compile_schema
 from probation.llm.schema import validate_json_schema as validate_json_schema
@@ -237,6 +238,26 @@ class LLMClient:
             timeout=self.timeout_s,
             transport=self.transport,
         )
+
+    def available_models(self) -> list[dict[str, Any]]:
+        """Read account model capability through the approved transport boundary."""
+        if not self.api_key:
+            raise LLMValidationError("Model catalog credentials unavailable")
+        try:
+            with self._http_client() as client:
+                response = client.get("/models")
+            if response.status_code != 200:
+                raise LLMValidationError("Model catalog request failed")
+            data = response.json().get("data")
+            if not isinstance(data, list):
+                raise ValueError("invalid catalog")
+            return [
+                {key: item[key] for key in ("id", "pricing") if key in item}
+                for item in data
+                if isinstance(item, dict) and isinstance(item.get("id"), str)
+            ]
+        except (httpx.HTTPError, ValueError, AttributeError) as exc:
+            raise LLMValidationError("Model catalog unavailable") from exc
 
     def _open_spend_request(
         self,
@@ -563,6 +584,7 @@ class LLMClient:
             "messages": messages,
             "temperature": 0.0,
             "max_tokens": max_tokens,
+            **generation_options(model),
         }
         if response_format is not None:
             payload["response_format"] = response_format
@@ -632,6 +654,8 @@ class LLMClient:
         except UnsupportedSchema as exc:
             raise LLMValidationError("Unsupported output schema") from exc
         content_hash, prompt_id, prompt_version = _identity(cache_parts, user)
+        if check_cache:
+            content_hash = direct_content_hash(model, content_hash)
         cache_key = compute_cache_key(content_hash, prompt_id, prompt_version, model)
         if conn is not None and check_cache:
             cached = get_cached_response(conn, cache_key)
@@ -745,6 +769,8 @@ class LLMClient:
     ) -> TextDispatch:
         """One text request: prose has no format to fall back to and no schema to repair."""
         content_hash, prompt_id, prompt_version = _identity(cache_parts, user)
+        if check_cache:
+            content_hash = direct_content_hash(model, content_hash)
         cache_key = compute_cache_key(content_hash, prompt_id, prompt_version, model)
         if conn is not None and check_cache:
             cached = get_cached_response(conn, cache_key)
@@ -770,6 +796,7 @@ class LLMClient:
             "messages": self._messages(system, user),
             "temperature": 0.0,
             "max_tokens": max_tokens,
+            **generation_options(model),
         }
         settled = False
         try:

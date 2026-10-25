@@ -104,6 +104,37 @@ class HistoryView:
 
         return permission_records(self._conn, self.as_of, family)
 
+    def known_entity_senders(self) -> set[str]:
+        """Only eligible strong user decisions establish web-domain familiarity."""
+        senders: set[str] = set()
+        for record in self.permission_records():
+            decision = record["decision"]
+            details = decision.get("details") or {}
+            actor = decision.get("actor") or (
+                details.get("actor") if isinstance(details, dict) else None
+            )
+            action = str(decision.get("observed_action", "")).split(":", 1)[0]
+            if (
+                decision.get("strength") == "STRONG"
+                and actor == "user"
+                and action in {"REPLY", "ACCEPT", "MOVE_TO_FOLDER", "FILE_TO_COLLECTION"}
+                and record.get("sender_key")
+            ):
+                senders.add(str(record["sender_key"]))
+        return senders
+
+    def known_features(self, situation_id: str) -> dict[str, Any] | None:
+        """Stored features are usable only after both observation and feature knowledge."""
+        row = self._conn.execute(
+            """SELECT f.* FROM features f JOIN situations s ON s.id=f.situation_id
+            JOIN raw_items r ON r.id=s.raw_item_id WHERE f.situation_id=?
+            AND s.occurred_at COLLATE UTC_TIMESTAMP<=?
+            AND r.known_at COLLATE UTC_TIMESTAMP<=?
+            AND f.created_at COLLATE UTC_TIMESTAMP<=?""",
+            (situation_id, self.as_of, self.as_of, self.as_of),
+        ).fetchone()
+        return dict(row) if row else None
+
     def permission_alarms(self, class_key: str, action: str, family: str) -> list[str]:
         from probation.core.permission_history import alarm_times
 

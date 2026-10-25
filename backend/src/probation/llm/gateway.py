@@ -26,6 +26,7 @@ from probation.llm.catalog import JobNotRegistered, JobSpec, model_for_job, reso
 from probation.llm.client import LLMClient
 from probation.llm.context import check_headers, request_limit_for
 from probation.llm.errors import LLMValidationError
+from probation.llm.generation import context_version
 from probation.llm.jobs import validate_job_output
 from probation.llm.prompt_loader import (
     CONTEXT_VERSION,
@@ -124,7 +125,7 @@ def build_envelope(
         temperature=temperature,
         template_hash=asset.template_hash,
         schema_fingerprint=asset.schema_fingerprint,
-        context_version=CONTEXT_VERSION,
+        context_version=context_version(model_id, CONTEXT_VERSION),
         validator_version=VALIDATOR_VERSION,
     )
 
@@ -311,7 +312,7 @@ class JobGateway:
             model_id=model,
             template_hash=asset.template_hash,
             schema_fingerprint=asset.schema_fingerprint,
-            context_version=CONTEXT_VERSION,
+            context_version=context_version(model, CONTEXT_VERSION),
             encoder_version=ENCODER_VERSION,
             redaction_profile=spec.redaction_profile,
             redaction_counts=dict(counts),

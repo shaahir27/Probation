@@ -13,9 +13,10 @@ import ipaddress
 import math
 import re
 from collections import Counter
-from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
+from urllib.parse import parse_qs, unquote, urlencode, urlparse, urlunparse
 
 MAX_URL_LENGTH = 2048
+REDIRECTOR_DOMAINS = frozenset({"bit.ly", "t.co", "tinyurl.com", "goo.gl", "ow.ly", "buff.ly"})
 
 TRACKING_QUERY_PARAMS = frozenset(
     {
@@ -88,6 +89,8 @@ def is_url_hands_off(url: str) -> str | None:
 
     if len(url) > MAX_URL_LENGTH:
         return f"URL length {len(url)} exceeds limit {MAX_URL_LENGTH}"
+    if any(ord(char) < 33 or ord(char) == 127 for char in url) or "\\" in url:
+        return "Control characters, spaces or backslashes prohibited"
 
     try:
         parsed = urlparse(url)
@@ -99,12 +102,27 @@ def is_url_hands_off(url: str) -> str | None:
         return f"Disallowed scheme: {parsed.scheme}"
 
     # 2. No userinfo allowed (user:pass@host)
-    if parsed.username or parsed.password:
-        return "Userinfo embedded in URL is forbidden"
-
-    hostname = (parsed.hostname or "").lower()
+    try:
+        if parsed.username or parsed.password:
+            return "Userinfo embedded in URL is forbidden"
+        hostname = (parsed.hostname or "").lower().rstrip(".")
+        if parsed.port not in (None, 80 if parsed.scheme.lower() == "http" else 443):
+            return "Nonstandard port prohibited"
+    except ValueError:
+        return "Invalid host or port"
     if not hostname:
         return "Missing hostname"
+    if "." not in hostname or not re.fullmatch(r"[a-z0-9.-]+", hostname):
+        return "Invalid public hostname"
+    if any(
+        not label or len(label) > 63 or label.startswith("-") or label.endswith("-")
+        for label in hostname.split(".")
+    ):
+        return "Invalid public hostname"
+    if re.fullmatch(r"(?:0x[0-9a-f]+|[0-9.]+)", hostname):
+        return "Numeric host prohibited"
+    if any(hostname == domain or hostname.endswith("." + domain) for domain in REDIRECTOR_DOMAINS):
+        return "Redirector destination prohibited"
 
     # Reject localhost and internal domains
     if hostname in ("localhost", "127.0.0.1", "::1"):
@@ -123,7 +141,10 @@ def is_url_hands_off(url: str) -> str | None:
         pass  # Named domain, valid
 
     # 3. Hands-off (sensitive_page): login, signin, checkout, payment, etc.
-    path_lower = parsed.path.lower()
+    path_lower = unquote(unquote(parsed.path)).lower()
+    for segment in path_lower.split("/"):
+        if len(segment) >= 40 or (len(segment) >= 24 and compute_shannon_entropy(segment) >= 4.0):
+            return "High-risk path token prohibited"
     for kw in SENSITIVE_PATH_KEYWORDS:
         # Check boundary/segment containment
         if re.search(rf"\b{re.escape(kw)}\b", path_lower) or f"/{kw}" in path_lower:
@@ -132,7 +153,7 @@ def is_url_hands_off(url: str) -> str | None:
     # 4. Hands-off (private_token): query parameters
     query_params = parse_qs(parsed.query, keep_blank_values=True)
     for param_name, values in query_params.items():
-        name_lower = param_name.lower()
+        name_lower = unquote(unquote(param_name)).lower()
         if name_lower in SENSITIVE_PARAM_NAMES:
             return f"Private token query parameter prohibited: {param_name}"
 

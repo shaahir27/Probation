@@ -95,6 +95,9 @@ def apply_schema(conn: sqlite3.Connection) -> None:
     migrate_features_provenance(conn)
     migrate_spend_accounting(conn)
     migrate_lifecycle(conn)
+    from probation.db.tavily_migration import migrate_tavily_accounting
+
+    migrate_tavily_accounting(conn)
 
 
 def has_schema(conn: sqlite3.Connection) -> bool:
@@ -130,6 +133,9 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
     migrate_features_provenance(conn)
     migrate_spend_accounting(conn)
     migrate_lifecycle(conn)
+    from probation.db.tavily_migration import migrate_tavily_accounting
+
+    migrate_tavily_accounting(conn)
 
 
 def init_db(db_path: Path | str | None = None) -> None:

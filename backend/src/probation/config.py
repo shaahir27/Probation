@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     llm_max_concurrency: int = 8
     llm_timeout_s: int = 60
     llm_max_retries: int = 3
+    llm_instruction_only: bool = True
     budget_hard_limit_usd: float = 20.0
     price_table_path: Path = Path("config/prices.json")
 
@@ -47,6 +48,9 @@ class Settings(BaseSettings):
     tavily_max_calls_per_day: int = 100
     tavily_monthly_credit_budget: int = 800
     user_name_tokens: str = ""
+    web_facts_ttl_positive_days: int = 30
+    web_facts_ttl_negative_days: int = 7
+    extract_max_chars: int = 20000
 
     # --- Files Pack ---
     files_watch_dirs: str = "data/synth/1/fs/Downloads,data/synth/1/fs/Desktop"

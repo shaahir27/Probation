@@ -36,9 +36,13 @@ class RegisteredConsumer:
         *,
         examples: Sequence[tuple[str, str]] = (),
         display_names: Sequence[str] = (),
+        prompt_version: str = "v1",
     ) -> RequestContext:
         return build_request_context(
-            resolve_job(prompt_id, "v1"), fields, examples=examples, display_names=display_names
+            resolve_job(prompt_id, prompt_version),
+            fields,
+            examples=examples,
+            display_names=display_names,
         )
 
     def run(
@@ -55,5 +59,9 @@ class RegisteredConsumer:
             situation_id=situation_id,
         )
 
-    def call(self, prompt_id: str, fields: Mapping[str, str], *, purpose: str) -> JobOutcome:
-        return self.run(self.context(prompt_id, fields), purpose=purpose)
+    def call(
+        self, prompt_id: str, fields: Mapping[str, str], *, purpose: str, prompt_version: str = "v1"
+    ) -> JobOutcome:
+        return self.run(
+            self.context(prompt_id, fields, prompt_version=prompt_version), purpose=purpose
+        )

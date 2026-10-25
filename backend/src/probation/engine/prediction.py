@@ -88,6 +88,11 @@ def evaluate_prediction(
         action, p, probs, reasons = "ABSTAIN", 0.0, {}, ["prediction_failed"]
         det_ok = False
     reasons = list(reasons)
+    provenance = getattr(snapshot.policy, "provenance", {})
+    versions = provenance.get("semantic_versions") if isinstance(provenance, dict) else None
+    if isinstance(versions, list) and versions != [features.featurizer_version]:
+        det_ok = False
+        reasons.append("feature_identity_mismatch")
     reader_failure_reason = features.deterministic.get("__reader_failure_reason")
     if reader_failure_reason and (not det_ok or not reader_ok):
         reasons.append(str(reader_failure_reason))

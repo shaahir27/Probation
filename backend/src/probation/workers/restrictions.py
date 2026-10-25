@@ -102,6 +102,28 @@ def current_restrictions(
     )
 
 
+def current_web_cap(conn: sqlite3.Connection, proposal_id: str, as_of: str) -> int:
+    """Re-read current entity restrictions before autonomous effect; no provider calls."""
+    from probation.web.derive import extract_email_domains
+    from probation.web.view import WebFactsView
+
+    history = HistoryView(conn, as_of)
+    record = history.get_execution_features(proposal_id)
+    if record is None:
+        return 3
+    raw = history.get_raw_item(str(record["raw_item_id"]))
+    if raw is None:
+        return 3
+    try:
+        payload = json.loads(raw["payload_json"])
+        sender, links = extract_email_domains(record.get("sender_key"), payload)
+        domains = [sender, *links]
+        facts = [WebFactsView(conn).get_entity_facts(value, as_of) for value in domains]
+        return min((fact.web_cap for fact in facts if fact is not None), default=3)
+    except (sqlite3.Error, ValueError, TypeError):
+        return 3
+
+
 def process_restriction_commands(conn: sqlite3.Connection, *, as_of: str, limit: int = 100) -> int:
     if conn.in_transaction:
         raise ValueError("Control consumption requires committed intents")

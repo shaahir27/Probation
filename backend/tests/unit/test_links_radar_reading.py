@@ -102,7 +102,7 @@ def test_t_link_sanitisation_sensitive_pages_and_tokens() -> None:
 def test_t_quar_opportunity_schema_and_date_presence() -> None:
     """T-QUAR: Opportunity reader extraction requires literal date presence and regex fee detection."""
     # Source page content containing official apply domain stanford.edu literally
-    source_html = "Stanford AI Fellowship 2026 (stanford.edu). Application deadline is 2026-06-15. Application fee is $50. Eligible: undergraduates."
+    source_html = "Stanford AI Fellowship 2026 (https://stanford.edu). Application deadline is 2026-06-15. Application fee is $50. Eligible: undergraduates."
 
     # 1. Valid opportunity extraction matching source text
     valid_data = {
@@ -192,7 +192,7 @@ def test_t_extract_user_saved_truncation_and_cache() -> None:
             # Mock Tavily client extract response
             client.extract = lambda *args, **kwargs: {  # type: ignore
                 "status": "ok",
-                "results": [{"raw_content": "Word " * 2000}],  # 10,000 chars
+                "results": [{"url": test_url, "raw_content": "Word " * 2000}],  # 10,000 chars
             }
 
             res = extract_url_content(

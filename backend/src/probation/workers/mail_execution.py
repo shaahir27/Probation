@@ -19,7 +19,7 @@ from probation.packs.mail import MailPack
 from probation.packs.mail.lifecycle_io import MailExecutionIO, MailReceipt
 from probation.packs.mail.lifecycle_operations import prepare_effect, prepare_undo
 from probation.workers.drift import has_pending_drift
-from probation.workers.restrictions import current_restrictions
+from probation.workers.restrictions import current_restrictions, current_web_cap
 
 if TYPE_CHECKING:
     from probation.workers.executor import Executor
@@ -89,7 +89,11 @@ class MailLifecycle:
             features_hash=record["features_hash"],
             created_at=record["features_created_at"],
         )
-        cap = min(int(row["cap"]), pack.level_cap(action.type, situation, current))
+        cap = min(
+            int(row["cap"]),
+            pack.level_cap(action.type, situation, current),
+            current_web_cap(self.worker.conn, action.proposal_id, now),
+        )
         level = self.worker.licence_checker(str(row["class_key"]), action.type, now)
         if level < action.level_required or cap < action.level_required:
             return "licence_lost"

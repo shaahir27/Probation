@@ -17,9 +17,6 @@ from urllib.parse import urlparse
 import publicsuffix2
 
 from probation.core.clock import Clock, get_clock
-from probation.db.access import Role, RoleAccess
-from probation.links.extract import extract_url_content
-from probation.links.extractor_jobs import extract_stored_page
 from probation.llm.consumers import RegisteredConsumer
 from probation.web.client import TavilyClient
 from probation.web.query_guard import validate_tavily_query
@@ -55,6 +52,33 @@ def verify_opportunity_out_of_band(
     clock: Clock | None = None,
 ) -> dict[str, Any]:
     """Execute out-of-band Tavily Search and Extract verification flow."""
+    if consumer is not None:
+        from probation.web.verification import verify_email_opportunity
+
+        card = verify_email_opportunity(
+            conn,
+            client,
+            consumer,
+            organiser_name=organiser_name,
+            opportunity_name=opportunity_name,
+            clock=clock or get_clock(),
+            mail_deadline=mail_deadline,
+            mail_link_domains=mail_link_domains,
+            situation_id=situation_id,
+        )
+        source = card.citations[0] if card.citations else None
+        return {
+            "verified": card.availability in {"validated", "partial"},
+            "extraction_status": card.availability,
+            "status": "confirmed_official" if card.availability == "validated" else "unverified",
+            "official_url": source.url if source else None,
+            "official_domain": _get_registrable_domain(source.url) if source else None,
+            "link_mismatch": card.fields.get("link_mismatch", False),
+            "discrepancy": card.fields.get("deadline_discrepancy"),
+            "fields": card.fields,
+            "sources": [source.model_dump() for source in card.citations],
+            "verification_card": card.model_dump(),
+        }
     clean_org = (organiser_name or "").strip()
     clean_opp = (opportunity_name or "").strip()
 
@@ -131,55 +155,15 @@ def verify_opportunity_out_of_band(
         if official_domain not in clean_mail_domains:
             link_mismatch = True
 
-    # 3. Invariant I-24: Extract on the official URL discovered by search ONLY
-    extracted_text = ""
-    extraction_id = None
-    if official_url and consumer is not None:
-        extract_res = extract_url_content(
-            url=official_url,
-            conn=conn,
-            client=client,
-            purpose="extract_item",
-            is_user_saved=False,
-            is_official_search=True,
-        )
-        if extract_res.get("ok"):
-            extracted_text = extract_res.get("content_text") or ""
-            extraction_id = extract_res.get("extraction_id")
-
-    # 4. Quarantined extraction + code validation
-    validated_fields: dict[str, Any] = {}
-    extraction_status = "unavailable"
-    if extracted_text and extraction_id and consumer is not None:
-        output = extract_stored_page(
-            RoleAccess(conn, Role.WEBFACTS),
-            consumer,
-            extraction_id=extraction_id,
-            kind="opportunity",
-            clock=clock or get_clock(),
-        )
-        if output["ok"]:
-            validated_fields = output["fields"]
-            extraction_status = "validated"
-
-    # 5. Check discrepancy between mail deadline and page deadline
-    discrepancy = None
-    page_deadline = validated_fields.get("deadline_date")
-    if mail_deadline and page_deadline and mail_deadline != page_deadline:
-        discrepancy = {
-            "mail_deadline": mail_deadline,
-            "page_deadline": page_deadline,
-            "note": f"Mail states {mail_deadline}, but official page states {page_deadline}",
-        }
-
+    # Legacy candidate inspection has no extraction authority or generated fields.
     return {
         "verified": official_url is not None,
-        "extraction_status": extraction_status,
+        "extraction_status": "unavailable",
         "status": "confirmed_official" if official_url else "unverified",
         "official_url": official_url,
         "official_domain": official_domain,
         "link_mismatch": link_mismatch,
-        "discrepancy": discrepancy,
-        "fields": validated_fields,
+        "discrepancy": None,
+        "fields": {},
         "sources": sources,
     }

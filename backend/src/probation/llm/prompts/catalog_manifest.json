@@ -77,6 +77,13 @@
       "schema_fingerprint": "105180baf3e4a2c9",
       "sha256": "ace464ef19e4b7b87b6108a0d37d999eea9ffb513ba8b22e7037bdf61a826436"
     },
+    "reader.opportunity.v2": {
+      "asset": "reader.opportunity.v2.md",
+      "max_tokens": 200,
+      "model_role": "reader",
+      "schema_fingerprint": "105180baf3e4a2c9",
+      "sha256": "a9f1bb2f57bd1673d139656ab790f3d6d5df321c439a3879b05272f1054e871a"
+    },
     "synth.invite.v1": {
       "asset": "synth.invite.v1.md",
       "max_tokens": 800,
@@ -104,6 +111,13 @@
       "model_role": "writer",
       "schema_fingerprint": "54a7a43a3b14569f",
       "sha256": "f1d12a925cd0c095411e1209d1e17ca8e6ea03e8849c8238b3bbdf89dc7cc7bb"
+    },
+    "writer.reply.v2": {
+      "asset": "writer.reply.v2.md",
+      "max_tokens": 400,
+      "model_role": "writer",
+      "schema_fingerprint": "54a7a43a3b14569f",
+      "sha256": "e3aee7d05d8bd2e95dd16c137418daf35429f4fa3b980207f58bc38e17fd5fc0"
     }
   },
   "version": "wp3-1"

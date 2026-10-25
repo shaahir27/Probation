@@ -12,6 +12,7 @@ def semantic_feature_version(*, stub: bool = False) -> str:
     from probation.config import settings
     from probation.llm.catalog import JobNotRegistered, ModelRole, model_for_job, registered_jobs
     from probation.llm.gateway import ENCODER_VERSION
+    from probation.llm.generation import profile_version
     from probation.llm.prompt_loader import CONTEXT_VERSION, PromptAssetError, load_prompt
 
     jobs = []
@@ -28,6 +29,7 @@ def semantic_feature_version(*, stub: bool = False) -> str:
                     model,
                     asset.template_hash,
                     asset.schema_fingerprint,
+                    profile_version(model),
                 ]
             )
     encoded = canonical_json(

@@ -1,5 +1,11 @@
 {
   "_note": "USD per 1M tokens. Replace keys with the exact model names from the Token Factory console.",
+  "_d5_verification": {
+    "date": "2026-10-25",
+    "source": "https://nebius.com/services/token-factory/models/nvidia-nemotron-models-inference",
+    "catalog": "Authenticated GET /v1/models lists the configured Nano, Super and Ultra IDs; listing alone does not prove inference capability.",
+    "billing": "Published token rates; costs computed from reported usage are not an invoice. The indexed official page explicitly quotes Nano 0.06/0.24 and Super 0.30/0.90 per million tokens. The current landing page also highlights successor models; no model substitution is authorized."
+  },
   "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B": {"in": 0.06, "out": 0.24},
   "nvidia/nemotron-3-super-120b-a12b": {"in": 0.30, "out": 0.90},
   "nvidia/Nemotron-3-Ultra-550b-a55b": {"in": 1.00, "out": 3.00},

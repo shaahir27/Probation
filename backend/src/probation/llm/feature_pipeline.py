@@ -85,7 +85,7 @@ def compute_features(
     }
 
     full_prov = result.provenance.as_dict()
-    full_prov["cutoff"] = situation.occurred_at
+    full_prov["cutoff"] = history.as_of
     full_prov_json = canonical_json(full_prov)
 
     provenance_hash_dict = result.provenance.as_dict()

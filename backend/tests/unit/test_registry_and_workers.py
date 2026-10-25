@@ -201,7 +201,7 @@ def test_replay_does_not_spend_on_the_llm_without_opt_in(
 
 
 def test_vet_situations_batch(tmp_path: Any, tiny_synth_owner: list[str]) -> None:
-    """vet_situations_batch vets sender domains for situations into web_facts table."""
+    """Vetting follows stored validated reader output and uses the same safe adapter."""
     db_path = tmp_path / "test_vet_batch.db"
     init_db(db_path)
     conn = get_connection(db_path)
@@ -210,8 +210,38 @@ def test_vet_situations_batch(tmp_path: Any, tiny_synth_owner: list[str]) -> Non
         mbox_path = fixture_dir / "mailbox.mbox"
         import_mail(mbox_path, conn, user_addresses=tiny_synth_owner)
         ingest_situations(conn)
+        conn.commit()
+        assert vet_situations_batch(conn) == 0
+        extract_features_for_situations(
+            conn,
+            reader_callable=lambda _: (
+                {
+                    "intent": "fyi",
+                    "asks_me_to_do_something": False,
+                    "has_deadline": False,
+                    "deadline_text": None,
+                    "money_involved": False,
+                    "urgency": 0,
+                    "formality": "neutral",
+                    "asks_for_personal_info": False,
+                    "looks_automated": False,
+                },
+                True,
+            ),
+        )
+        conn.commit()
+        import httpx
 
-        vetted = vet_situations_batch(conn)
+        from probation.web.client import TavilyClient
+
+        client = TavilyClient(
+            api_key="synthetic",
+            conn=conn,
+            transport=httpx.MockTransport(
+                lambda _: httpx.Response(200, json={"results": [], "usage": {"credits": 1}})
+            ),
+        )
+        vetted = vet_situations_batch(conn, tavily_client=client)
         assert vetted > 0
 
         cur = conn.cursor()

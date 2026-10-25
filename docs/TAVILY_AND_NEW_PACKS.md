@@ -65,11 +65,18 @@ Context: Nebius announced an agreement to acquire Tavily on 10 Feb 2026, and Neb
 ### 5.1 Where it sits
 
 ```
-ingest -> normalise -> E1 entities (code) -> E2 vet (Tavily, conditional) -> redact -> reader (Nano)
-       -> clues -> policy -> E3 veto (code) -> gate -> draft (Super) -> proposal
+ingest -> normalise -> redact -> validated reader (Nano) -> E1 entities (code)
+       -> E2 vet (Tavily, conditional) -> bounded clues/policy -> E3 veto (code)
+       -> gate -> draft (Super) -> proposal
 ```
 
-E2 runs **before** the reader, as requested, but its output never enters the reader's prompt. It is a separate worker (`webfacts`) that writes `web_facts`; the `brain` only reads them.
+E2 runs **after a validated reader**, following the owner's D5 selection on
+25 October 2026 and OCT29_DEMO_BUILD_PLAN section 11. Web output never enters the
+reader prompt. Webfacts owns its facts, quarantine and accounting; Brain receives
+restriction data and a supported cited card. Live decision cutoffs include actual
+receipt times; recompute bounded features and derive permissions at that cutoff.
+Never backdate a response to email occurrence time. D5 creates no Radar situation
+or TRACK action and does not close Reading, calendar or whole WP7/WP13 acceptance.
 
 ### 5.2 E1: entities (code, no network)
 From headers and links only: `sender_domain` (registrable), `brand_token` (alphanumeric words from the display name, at most 4), and up to 3 distinct registrable `link_domains` found in the body (domain only; path and query are discarded), excluding a small allow-list of infrastructure domains (common CDNs, tracking and shortener services are listed separately as "redirectors" and are themselves flagged).
@@ -82,7 +89,12 @@ From headers and links only: `sender_domain` (registrable), `brand_token` (alpha
 5. Budget allows it (`TAVILY_MAX_CALLS_PER_DAY`, `TAVILY_MONTHLY_CREDIT_BUDGET`; I-25).
 6. At least one trigger: `sender_tier == unknown`; or a body link domain that differs from the sender domain and is itself not known.
 
-**Free local pre-check first.** A small shipped list `config/brands.json` maps brand tokens to their official registrable domains (about 150 entries; every entry must be verified against the brand's own site before it is committed). If the display brand is in the list and the sender domain is not one of its official domains, status is `lookalike` immediately (`origin=local_brand_list`), with no Tavily call. If it is an official domain, status is `confirmed_official` immediately. Tavily covers the long tail the list cannot.
+**Free local pre-check first.** `config/brands.json` contains reviewed official-domain
+sets, primary-source URLs and verification dates. Only active reviewed entries may
+support an official claim or local mismatch. Legacy mappings remain inactive until
+reviewed. Match the claimed brand before comparisons; do not scan unrelated brands.
+Catalog provenance and actual Search citations stay separate. D5 activates three
+reviewed brand sets, not the whole Phase 6b catalog target.
 
 ### 5.4 The queries (built by code)
 
@@ -97,10 +109,14 @@ At most 2 credits per entity. **Query guard** (`web/query_guard.py`, I-23): char
 
 From the result list (title, URL, snippet, score):
 - `result_domains`: registrable domains of result URLs.
-- `official_candidates`: up to 3 result domains that appear in the top 3 and whose domain label contains the brand token or whose title starts with it.
+- `official_candidates`: reviewed official domains for the matched claimed brand.
+  Search rank, a matching title or a caller boolean cannot establish official status.
+  Unreviewed long-tail results remain unverified.
 - `domain_in_results`: the sender domain is among `result_domains`.
 - `lookalike_of`: the sender domain differs from every official candidate (and the local list) and any of: edit distance of the second-level labels is at most `LOOKALIKE_MAX_EDIT_DISTANCE` (2); the labels are equal after homoglyph and separator folding (`0->o`, `1->l`, `rn->m`, `vv->w`, remove hyphens); or the sender label contains the official label (for example `brand-secure-login` versus `brand`).
-- `report_hits`: results from `vet_report` whose title or snippet contains the registrable domain **and** one of `scam, phishing, fraud, fake, complaint, warning, beware`.
+- `report_hits`: independent registrable sources whose title or snippet contains
+  the domain **and** one of `scam, phishing, fraud, fake, complaint, warning, beware`.
+  Duplicate URLs/paths from one source count once.
 - `sources`: up to 3 `{title, url}` pairs, stored and shown as plain text.
 
 **Status precedence:** `lookalike` > `reports_found` (`report_hits >= REPORT_HITS_MIN`, default 2) > `confirmed_official` (sender domain is an official candidate and is in the top 3) > `no_web_presence` (no result mentions the domain or brand) > `unverified`. `not_checked` when no call was made or it failed.
@@ -115,6 +131,34 @@ From the result list (title, URL, snippet, score):
 - The veto may use facts only through `WebFactsView`, which returns a `RestrictionOnly` type that exposes only `web_cap` and display data.
 - In replay, facts come from fixtures: the generator calls Tavily once per catalog entity at generation time and stores `origin=fixture`, `present_knowledge=1`. This is "present-day knowledge applied to the past". It is acceptable only because it can only reduce autonomy. Evaluation reports results **with and without** the veto.
 - In live mode, calls happen in real time and are cached.
+
+D5 enforces `fetched_at <= as_of < ttl_until` for live/local facts. The labelled
+`origin=fixture,present_knowledge=1` exception remains restriction-only. Expired
+facts cannot become fresh because the same domain or URL is requested. Empty Search
+means evidence unavailable in this check, never proof of fraud, safety or absence.
+
+### 5.9 D5 durable accounting and rollback
+
+Both endpoints require a committed physical-attempt reservation in existing
+Webfacts-owned `tavily_calls` before HTTP. Bootstrap applies `db/tavily_migration.py`;
+no new role table grants. Identity is immutable and transitions move forward; every
+retry has its own ordinal. Quotas use operational UTC via Clock, never replay time.
+All paid D5 workers share a persistent namespace: 20 Tavily credits and a separate
+USD 1 aggregate Nebius cap across configured models. Resetting a world does not reset it.
+
+Bearer credentials stay in headers; request `include_usage`. Confirmed integer credit
+units and unresolved reservations remain distinct. Missing usage stays unknown;
+Extract's reported zero before batch billing retains liability. Reserve a whole
+basic/advanced batch maximum (1/2 credits) for a single Extract URL. Finer-than-unit
+usage stays unknown rather than rounded and called confirmed. Rejected private text
+is not stored; only safe rejection metadata. Cache hits/guard rejections consume no
+physical-call quota. Failed accounting denies dispatch. Ambiguous attempts survive
+restart without blind resend. Unverified legacy rows never become a zero balance.
+
+Failed migration rolls back atomically. After paid use, stop dispatch and retain the
+upgraded accounting/audit rows during application rollback. Never restore the old
+unreserved client, drop liabilities or reset the live namespace. Automatic unknown
+charge release and post-paid downgrade are unavailable.
 
 ### 5.8 Failure modes and limits
 - Outage, timeout, or budget exhausted: status `not_checked`; behaviour is the baseline (caps unchanged). The system is never *less* safe without Tavily.

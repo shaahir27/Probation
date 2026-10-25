@@ -13,6 +13,7 @@ from fastapi import APIRouter, HTTPException
 
 from probation.api.db import connect_api as get_connection
 from probation.config import settings
+from probation.web.accounting import accounting_summary
 
 router = APIRouter(prefix="/api", tags=["webfacts"])
 
@@ -31,9 +32,15 @@ def get_web_facts() -> dict[str, Any]:
     """
     if not settings.db_path.exists():
         return {
+            "version": "d5.v1",
             "total_calls": 0,
+            "physical_attempts": 0,
             "total_credits": 0,
             "cache_hits": 0,
+            "held_credits": 0,
+            "unknown_attempts": 0,
+            "legacy_rows": 0,
+            "rejected_queries": 0,
             "queries": [],
             "entities": [],
         }
@@ -44,18 +51,18 @@ def get_web_facts() -> dict[str, Any]:
         # Query tavily_calls table
         cursor.execute(
             """
-            SELECT id, endpoint, query_text, credits, ok, latency_ms, created_at
+            SELECT id, endpoint, query_text, credits, ok, latency_ms, created_at,
+                   accounting_version,state,reserved_units,charged_units,usage_provenance,
+                   dispatched_at,reconciled_at,error_code
             FROM tavily_calls
             ORDER BY created_at COLLATE UTC_TIMESTAMP DESC LIMIT 50;
             """
         )
         call_rows = cursor.fetchall()
         calls = []
-        total_credits = 0.0
 
         for r in call_rows:
             creds = float(r["credits"] or 0.0)
-            total_credits += creds
             calls.append(
                 {
                     "id": r["id"],
@@ -65,13 +72,25 @@ def get_web_facts() -> dict[str, Any]:
                     "ok": bool(r["ok"]),
                     "latency_ms": r["latency_ms"],
                     "created_at": r["created_at"],
+                    "state": r["state"] or "legacy_unknown",
+                    "usage_provenance": r["usage_provenance"] or "legacy_unverified",
+                    "confirmed_credits": r["charged_units"] / 1000
+                    if r["charged_units"] is not None
+                    else None,
+                    "reserved_credits": r["reserved_units"] / 1000
+                    if r["reserved_units"] is not None
+                    else None,
+                    "dispatched_at": r["dispatched_at"],
+                    "reconciled_at": r["reconciled_at"],
+                    "error_code": r["error_code"],
                 }
             )
 
         # Query web_facts table (derived entity facts)
         cursor.execute(
             """
-            SELECT entity_key, status, facts_json, sources_json, fetched_at
+            SELECT entity_key, status, facts_json, sources_json, fetched_at,ttl_until,
+                   origin,present_knowledge
             FROM web_facts
             ORDER BY fetched_at COLLATE UTC_TIMESTAMP DESC LIMIT 50;
             """
@@ -88,12 +107,17 @@ def get_web_facts() -> dict[str, Any]:
                     "facts": facts,
                     "sources": sources,
                     "fetched_at": er["fetched_at"],
+                    "ttl_until": er["ttl_until"],
+                    "origin": er["origin"],
+                    "present_knowledge": bool(er["present_knowledge"]),
                 }
             )
 
         return {
-            "total_calls": len(calls),
-            "total_credits": round(total_credits, 2),
+            "version": "d5.v1",
+            **accounting_summary(conn),
+            "cache_hits": None,
+            "cache_hit_availability": "not_persisted_as_attempts",
             "queries": calls,
             "entities": entities,
         }

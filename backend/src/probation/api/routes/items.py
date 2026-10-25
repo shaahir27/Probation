@@ -11,9 +11,11 @@ import sqlite3
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
+from pydantic import ValidationError
 
 from probation.api.db import connect_api as get_connection
 from probation.config import settings
+from probation.web.types import VerificationCard
 
 router = APIRouter(prefix="/api", tags=["items"])
 
@@ -58,11 +60,29 @@ def get_item_detail(proposal_id: str) -> dict[str, Any]:
         explanation = json.loads(row["explanation_json"]) if row["explanation_json"] else {}
         web = json.loads(row["web_json"]) if row["web_json"] else {}
         reasons = json.loads(row["reasons_json"]) if row["reasons_json"] else []
+        card_data = web.get("verification_card")
+        try:
+            validated_card = VerificationCard.model_validate(card_data) if card_data else None
+            if validated_card and validated_card.fetched_at:
+                from probation.core.clock import timestamp_key
+
+                if timestamp_key(validated_card.fetched_at) > timestamp_key(
+                    web.get("decision_cutoff", row["proposed_at"])
+                ):
+                    raise ValueError("Verification postdates decision")
+            card = validated_card.model_dump() if validated_card else None
+        except (ValidationError, ValueError):
+            card = VerificationCard(
+                availability="unavailable", reasons=["stored_verification_invalid"]
+            ).model_dump()
 
         from probation.core.clock import get_clock
         from probation.engine.licence import derive_licences
 
         now = get_clock().now_iso()
+        from probation.web.view import WebFactsView
+
+        current_web = WebFactsView(conn).get_entity_facts(str(row["sender_key"] or ""), now)
         view = derive_licences(conn, now, pair=(row["class_key"], row["action"]))[
             (row["class_key"], row["action"])
         ]
@@ -125,6 +145,11 @@ def get_item_detail(proposal_id: str) -> dict[str, Any]:
                 "cap": web.get("cap"),
                 "sources": web.get("source_ids", []),
             },
+            "verification_version": "d5.v1",
+            "verification_card": card,
+            "verification_as_of": web.get("decision_cutoff", row["proposed_at"]),
+            "current_sender_verification": current_web.model_dump() if current_web else None,
+            "current_verification_as_of": now,
             "draft": (
                 {
                     "body_text": row["draft_body"],

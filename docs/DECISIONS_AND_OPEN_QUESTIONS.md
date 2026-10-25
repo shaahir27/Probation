@@ -1,5 +1,18 @@
 # DECISIONS_AND_OPEN_QUESTIONS
 
+## D5 implementation decisions — 25 October 2026
+
+Owner approved the original D5 core-plus-Extract plan and the reviewed corrections
+in `WP7_D5_IMPLEMENTATION_PLAN.md`. Reader -> web -> restriction -> gate supersedes
+the older pre-reader web diagram. Preserve conservative risk flags separately from
+supported fee display facts; raw web text never reaches reader/writer/policy prompts.
+Use configured models only, one persistent aggregate USD1 Nebius /20credit Tavily
+test allowance, operational quota time, retained unknown liability, independent
+Search provenance and current Executor restrictions. No CONTRACT edit/new dependency,
+Gmail worktree modification, public paid endpoint, push, merge or deployment.
+Whole catalog/WP7/WP13 and combined Gmail/browser acceptance remain separate.
+Actual final tests/live outcomes are recorded in `reports/phase-6b-d5.md`.
+
 A living log. Update it whenever a decision is made, a check is completed, or a spec differs from `SYSTEM_DESIGN.md`.
 Authority: below `CONTRACT.md`. Only a human approves changes to decisions marked **locked**.
 
@@ -165,6 +178,19 @@ WP1 implementation decisions, 22 October 2026 (work remains in progress):
 | 4 Oct 2026 | Tavily entity-facts service, Radar and Reading packs added (`TAVILY_AND_NEW_PACKS.md`, CCR-1) | |
 | 3 Oct 2026 | Consistency audit: fixed demotion rule, exam scheduling and cost, undo flow, chain situations, accept semantics, API additions; added `USER_FLOW.md` | |
 
+### D5 generation correction - 25 October 2026
+
+The first bounded live run exhausted structured-output limits with default model
+reasoning. Keep configured models, existing prompt bytes and token limits; use
+Nano/Super's supported instruction-only chat template setting for these bounded
+jobs (Super also requests nonempty content). Version the generation profile in
+semantic caches, provenance and reader features. A fitted policy whose recorded
+feature identity differs must ask; old evidence/exams cannot qualify a changed
+reader implicitly. Retain all prior paid attempts in the same D5 allowance.
+Primary model references:
+[Nano model card](https://huggingface.co/nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16),
+[Super model card](https://huggingface.co/nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-BF16).
+
 ### Owner decisions - 23 October 2026 WP3/WP4 continuation
 
 Approved durable accounting as described in the supplied handoff; complete and push Phase 3, merge main, then integrate/verify Phase 4 on its own branch before merging/pushing main. Explicit follow-up approval: production cold-start 200 (20 only in controlled tests), CCR-002 listed prompt limits, Reading/Chains unavailable until their later evidence suppliers. Preserve CONTRACT.md; row-scoped accounting change request and exact deviations are recorded in reports/phase-3.md and wp3/W3_D03_SPEND_ACCOUNTING_REVIEW.md. No live provider/account deployment is approved.
@@ -190,3 +216,31 @@ Approved durable accounting as described in the supplied handoff; complete and p
   the nonsemantic embedding fixture remains a failing negative control. No
   production threshold/cold-start tuning or real-provider quality claim. See
   reports/phase-5.md and phase-5-d2-acceptance.json for exact proof and limits.
+
+
+### D5 live prompt correction - 25 October 2026
+
+After instruction-only generation, the frozen synthetic cohort produced six
+schema-valid cached forms but only 2/6 declared intent matches. Risk flags remained
+conservative; no general model-quality claim follows. Writer v1 claimed an action
+without review; opportunity v1 copied the programme title as organiser. Preserve
+those evaluated files, register writer.reply.v2 and reader.opportunity.v2 using the
+same strict models and token limits, and select them explicitly in D5/writer calls.
+The consumer's optional explicit version defaults to v1 for existing callers.
+Keep validators unchanged and retain every earlier attempt/cost. Full offline and
+live revalidation are required; original failures stay in local acceptance records.
+
+
+### D5 final source-support decision - 25 October 2026
+
+Live Search found the reviewed official page but its title omitted generic
+"Program". Matching may omit only program/programme while retaining distinctive
+words, reviewed-domain proof and unique candidates. Genuine Extract/Nano output
+then exposed literal-but-wrong roles: a country selector as organiser and application
+opening as programme start. Require date-role context, reviewed organiser identity
+and contiguous eligibility quotations without dropped negation/qualifiers. Return
+unknown/partial for unsupported fields; preserve raw quarantined output, all paid
+attempts and the original live manifests. Revalidate genuine caches with transport
+disabled instead of spending again. No authority, credential, dependency, endpoint,
+prompt limit or evaluated historical asset changed. Source checks remain heuristics,
+not a guarantee of external truth. Final costs/evidence: reports/phase-6b-d5.md.

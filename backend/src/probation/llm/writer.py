@@ -17,7 +17,7 @@ from probation.llm.results import FailureCode, Provenance, WriterOutcome, Writer
 
 
 def unavailable_provenance() -> Provenance:
-    return Provenance("writer.reply", "v1", None, None, None, "none", "none", "writer")
+    return Provenance("writer.reply", "v2", None, None, None, "none", "none", "writer")
 
 
 def generate_reply(
@@ -64,6 +64,7 @@ def generate_reply(
                 {"incoming": incoming, "examples": "", "style_facts": facts},
                 examples=pairs,
                 display_names=(*redaction_names(original_sender), *display_names),
+                prompt_version="v2",
             )
             result = consumer.run(context, purpose="reply_draft", situation_id=situation_id)
             provenance = result.provenance

@@ -1,98 +1,105 @@
-"""Entity facts derivation rules.
+"""Deterministic restriction-only entity derivation from reviewed public provenance."""
 
-Authority: docs/TAVILY_AND_NEW_PACKS.md section 5 and docs/CONTRACT.md section 2.
-Deterministic derivation of EntityFacts from Tavily search results and local brand lists.
-Zero LLM calls. Facts may ONLY restrict or inform (Invariant I-21).
-"""
-
-import json
+import ipaddress
+import re
+from email.utils import parseaddr
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import urlsplit
 
-LOOKALIKE_MAX_EDIT_DISTANCE = 2
-REPORT_HITS_MIN = 2
+import publicsuffix2
+
+from probation.config import settings
+from probation.web.catalog import CatalogEntry, entries_from_data, load_catalog, reviewed_entry
+
 SCAM_TERMS = frozenset({"scam", "phishing", "fraud", "fake", "complaint", "warning", "beware"})
-
-# Known multi-part public suffixes
-TWO_PART_TLDS = frozenset(
-    {
-        "co.uk",
-        "ac.in",
-        "gov.in",
-        "org.in",
-        "edu.in",
-        "res.in",
-        "com.au",
-        "co.nz",
-        "co.jp",
-        "com.br",
-        "org.uk",
-        "gov.uk",
-        "co.in",
-        "net.in",
-    }
-)
+INFRASTRUCTURE_DOMAINS = frozenset({"googleusercontent.com", "gstatic.com", "cloudfront.net"})
 
 
 def extract_registrable_domain(url_or_domain: str) -> str:
-    """Extract registrable domain (SLD + TLD) from a URL, hostname, or email address."""
+    """Normalize a public hostname through the installed offline public-suffix list."""
     raw = url_or_domain.strip().lower()
-    if "@" in raw:
-        raw = raw.split("@")[-1]
-    if "://" in raw:
-        parsed = urlparse(raw)
-        host = parsed.netloc.split(":")[0]
-    else:
-        host = raw.split("/")[0].split(":")[0]
-
-    parts = host.split(".")
-    if len(parts) <= 2:
-        return host
-
-    last_two = ".".join(parts[-2:])
-    if last_two in TWO_PART_TLDS and len(parts) >= 3:
-        return ".".join(parts[-3:])
-    return ".".join(parts[-2:])
+    if not raw or any(ch.isspace() for ch in raw) or "\\" in raw:
+        return ""
+    try:
+        if "://" in raw:
+            parsed = urlsplit(raw)
+            if parsed.scheme not in {"http", "https"} or parsed.username or parsed.password:
+                return ""
+            host = parsed.hostname or ""
+        else:
+            host = raw.rsplit("@", 1)[-1]
+            host = urlsplit("//" + host).hostname or ""
+        host = host.rstrip(".").encode("idna").decode("ascii")
+        if len(host) > 253 or "." not in host:
+            return ""
+        labels = host.split(".")
+        if any(
+            not re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", label) for label in labels
+        ):
+            return ""
+        try:
+            ipaddress.ip_address(host)
+            return ""
+        except ValueError:
+            pass
+        if host.endswith((".local", ".internal", ".lan", ".localhost")):
+            return ""
+        # Reserved synthetic domains remain valid test entities, never live destinations.
+        if labels[-1] in {"example", "test", "invalid"}:
+            return ".".join(labels[-2:])
+        domain = publicsuffix2.get_sld(host, strict=True)
+        suffix = publicsuffix2.get_tld(host, strict=True)
+        return str(domain) if domain and domain != suffix else ""
+    except (ValueError, UnicodeError):
+        return ""
 
 
 def extract_domain_label(registrable_domain: str) -> str:
-    """Extract the second-level domain label (e.g. 'google' from 'google.com')."""
-    reg = extract_registrable_domain(registrable_domain)
-    parts = reg.split(".")
-    return parts[0] if parts else reg
+    domain = extract_registrable_domain(registrable_domain)
+    return domain.split(".")[0] if domain else ""
+
+
+def extract_email_domains(sender_key: str | None, payload: dict[str, Any]) -> tuple[str, list[str]]:
+    """Discard body URL paths locally; return sender and at most three distinct domains."""
+    _, address = parseaddr(str(payload.get("from") or payload.get("from_addr") or ""))
+    sender = extract_registrable_domain(sender_key or address)
+    body = str(payload.get("body_text") or payload.get("body") or "")
+    return sender, mail_link_domains(body)
+
+
+def mail_link_domains(body: str) -> list[str]:
+    """Use the same bounded domain projection for proposals and effect revalidation."""
+    domains: list[str] = []
+    for url in re.findall(r"https?://[^\s<>\"']+", body, re.I):
+        domain = extract_registrable_domain(url)
+        if domain and domain not in domains and domain not in INFRASTRUCTURE_DOMAINS:
+            domains.append(domain)
+        if len(domains) == 3:
+            break
+    return domains
 
 
 def levenshtein_distance(s1: str, s2: str) -> int:
-    """Compute Levenshtein edit distance between two strings."""
-    if s1 == s2:
-        return 0
-    if len(s1) == 0:
-        return len(s2)
-    if len(s2) == 0:
-        return len(s1)
-
-    v0 = list(range(len(s2) + 1))
-    v1 = [0] * (len(s2) + 1)
-
-    for i in range(len(s1)):
-        v1[0] = i + 1
-        for j in range(len(s2)):
-            cost = 0 if s1[i] == s2[j] else 1
-            v1[j + 1] = min(v1[j] + 1, v0[j + 1] + 1, v0[j] + cost)
-        v0, v1 = v1, [0] * (len(s2) + 1)
-
-    return v0[len(s2)]
+    previous = list(range(len(s2) + 1))
+    for i, left in enumerate(s1, 1):
+        current = [i]
+        for j, right in enumerate(s2, 1):
+            current.append(min(current[-1] + 1, previous[j] + 1, previous[j - 1] + (left != right)))
+        previous = current
+    return previous[-1]
 
 
 def fold_label(label: str) -> str:
-    """Normalize domain label with homoglyphs and separator stripping."""
-    s = label.lower().replace("-", "").replace("_", "")
-    s = s.replace("0", "o")
-    s = s.replace("1", "l")
-    s = s.replace("rn", "m")
-    s = s.replace("vv", "w")
-    return s
+    return (
+        label.lower()
+        .replace("-", "")
+        .replace("_", "")
+        .replace("0", "o")
+        .replace("1", "l")
+        .replace("rn", "m")
+        .replace("vv", "w")
+    )
 
 
 def is_lookalike(
@@ -100,117 +107,74 @@ def is_lookalike(
     target_label: str,
     candidate_domain: str,
     target_domain: str,
-    max_edit_distance: int = LOOKALIKE_MAX_EDIT_DISTANCE,
+    max_edit_distance: int | None = None,
 ) -> bool:
-    """Check if candidate is a lookalike/spoof of target official domain label."""
-    c_label = candidate_label.lower()
-    t_label = target_label.lower()
-
     if candidate_domain.lower() == target_domain.lower():
         return False
-
-    # 1. Homoglyph / separator equality
-    folded_c = fold_label(c_label)
-    folded_t = fold_label(t_label)
-    if folded_c == folded_t and c_label != t_label:
-        return True
-
-    # 2. Levenshtein edit distance (on labels >= 4 chars to avoid false positives)
-    if min(len(c_label), len(t_label)) >= 3:
-        if levenshtein_distance(c_label, t_label) <= max_edit_distance:
-            return True
-
-    # 3. Label containment (e.g. brand-login, brand-verify vs brand)
-    if len(t_label) >= 4 and t_label in c_label:
-        return True
-
-    return False
+    candidate, target = candidate_label.lower(), target_label.lower()
+    limit = settings.lookalike_max_edit_distance if max_edit_distance is None else max_edit_distance
+    return bool(candidate and target) and (
+        (fold_label(candidate) == fold_label(target) and candidate != target)
+        or (
+            min(len(candidate), len(target)) >= 3
+            and levenshtein_distance(candidate, target) <= limit
+        )
+        or (len(target) >= 4 and target in candidate)
+    )
 
 
-_BRANDS_CACHE: dict[str, str] | None = None
+def load_brands(brands_path: Path | None = None) -> dict[str, list[str]]:
+    """Compatibility accessor returning reviewed domain sets, never legacy claims."""
+    return {entry.brand: sorted(entry.official_domains) for entry in load_catalog(brands_path)}
 
 
-def load_brands(brands_path: Path | None = None) -> dict[str, str]:
-    """Load brand token to official domain mapping from config/brands.json."""
-    global _BRANDS_CACHE
-    if _BRANDS_CACHE is not None and brands_path is None:
-        return _BRANDS_CACHE
-
-    target_path = brands_path or Path("config/brands.json")
-    if not target_path.exists():
-        # Fallback to search relative to parent directories
-        for parent in Path(__file__).resolve().parents:
-            candidate = parent / "config" / "brands.json"
-            if candidate.exists():
-                target_path = candidate
-                break
-
-    if target_path.exists():
-        with open(target_path, encoding="utf-8") as f:
-            data = json.load(f)
-            # Filter out comment keys
-            brands = {k.lower(): v.lower() for k, v in data.items() if not k.startswith("_")}
-            if brands_path is None:
-                _BRANDS_CACHE = brands
-            return brands
-
-    return {}
+def _entry(brand: str, brands: dict[str, Any] | None) -> CatalogEntry | None:
+    if brands is None:
+        return reviewed_entry(brand)
+    entries = entries_from_data(brands if "entries" in brands else {"entries": brands})
+    return next((entry for entry in entries if entry.brand == brand.strip().casefold()), None)
 
 
 def check_local_brand_list(
-    brand_token: str,
-    sender_domain: str,
-    brands: dict[str, str] | None = None,
+    brand_token: str, sender_domain: str, brands: dict[str, Any] | None = None
 ) -> dict[str, Any] | None:
-    """Perform free local pre-check against verified brands list (TAVILY_AND_NEW_PACKS 5.3).
-
-    Returns:
-        dict with status, origin='local_brand_list', facts, and sources,
-        or None if brand token not in local list.
-    """
-    brand_map = brands if brands is not None else load_brands()
-    clean_token = brand_token.strip().lower()
-
-    if not clean_token or clean_token not in brand_map:
+    entry = _entry(brand_token, brands)
+    domain = extract_registrable_domain(sender_domain)
+    if entry is None or not domain:
         return None
-
-    official_domain = extract_registrable_domain(brand_map[clean_token])
-    sender_reg = extract_registrable_domain(sender_domain)
-
-    if sender_reg == official_domain:
-        return {
-            "status": "confirmed_official",
-            "origin": "local_brand_list",
-            "facts": {
-                "official_candidates": [official_domain],
-                "lookalike_of": None,
-                "report_hits": 0,
-                "domain_in_results": True,
-            },
-            "sources": [
-                {
-                    "title": f"Verified Brand Registry: {clean_token}",
-                    "url": f"https://{official_domain}",
-                }
-            ],
-        }
-
-    # Brand matched but domain differs -> immediate lookalike
+    official = domain in entry.official_domains
     return {
-        "status": "lookalike",
+        "status": "confirmed_official" if official else "lookalike",
         "origin": "local_brand_list",
         "facts": {
-            "official_candidates": [official_domain],
-            "lookalike_of": official_domain,
+            "official_candidates": sorted(entry.official_domains),
+            "lookalike_of": None if official else extract_registrable_domain(entry.source_url),
             "report_hits": 0,
             "domain_in_results": False,
+            "catalog_brand": entry.brand,
+            "catalog_version": entry.version,
+            "catalog_source_url": entry.source_url,
+            "catalog_verified_at": entry.verified_at,
+            "evidence_availability": "reviewed_catalog",
         },
         "sources": [
-            {
-                "title": f"Official domain for {clean_token} is {official_domain}",
-                "url": f"https://{official_domain}",
-            }
+            {"title": f"Reviewed official domains for {entry.brand}", "url": entry.source_url}
         ],
+    }
+
+
+def _safe_result(item: Any) -> dict[str, str] | None:
+    if not isinstance(item, dict):
+        return None
+    from probation.links.sanitise import sanitise_url
+
+    url, reason = sanitise_url(str(item.get("url", "")))
+    if reason is not None or not extract_registrable_domain(url):
+        return None
+    return {
+        "url": url,
+        "title": str(item.get("title", ""))[:300],
+        "content": str(item.get("content") or item.get("snippet") or "")[:4000],
     }
 
 
@@ -219,153 +183,53 @@ def derive_entity_facts(
     search_results: dict[str, Any],
     brand_token: str | None = None,
     report_results: dict[str, Any] | None = None,
-    brands: dict[str, str] | None = None,
+    brands: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Derive deterministic EntityFacts per docs/TAVILY_AND_NEW_PACKS.md section 5.5.
-
-    Status precedence:
-    lookalike > reports_found >= 2 > confirmed_official > no_web_presence > unverified.
-    not_checked when call was not made or failed.
-    """
-    clean_domain = extract_registrable_domain(domain)
-    domain_label = extract_domain_label(clean_domain)
-    effective_brand = (brand_token or domain_label).strip().lower()
-
-    # 1. Local brand pre-check
-    local_check = check_local_brand_list(effective_brand, clean_domain, brands=brands)
-    if local_check is not None:
-        return local_check
-
-    # 2. Check search call status
-    if search_results.get("status") in ("not_checked", "failed", "no_api_key", "budget_exhausted"):
-        return {
-            "status": "not_checked",
-            "origin": "tavily",
-            "facts": {
-                "official_candidates": [],
-                "lookalike_of": None,
-                "report_hits": 0,
-                "domain_in_results": False,
-            },
-            "sources": [],
-        }
-
-    raw_results = search_results.get("results", [])
-
-    # If completely empty results
-    if not raw_results:
-        return {
-            "status": "no_web_presence",
-            "origin": "tavily",
-            "facts": {
-                "official_candidates": [],
-                "lookalike_of": None,
-                "report_hits": 0,
-                "domain_in_results": False,
-            },
-            "sources": [],
-        }
-
-    # Extract result domains
-    result_domains: list[str] = []
-    official_candidates: list[str] = []
-    sources: list[dict[str, str]] = []
-
-    has_domain_mention = False
-
-    for idx, item in enumerate(raw_results):
-        url = item.get("url", "")
-        title = item.get("title", "")
-        snippet = item.get("content", "") or item.get("snippet", "")
-        item_reg = extract_registrable_domain(url)
-
-        if item_reg and item_reg not in result_domains:
-            result_domains.append(item_reg)
-
-        # Sources (up to 3)
-        if len(sources) < 3 and url:
-            sources.append({"title": title or item_reg, "url": url})
-
-        # Check mention of domain or brand
-        text_corpus = f"{title} {url} {snippet}".lower()
-        if clean_domain in text_corpus or effective_brand in text_corpus:
-            has_domain_mention = True
-
-        # Official candidates from top 3
-        if idx < 3 and item_reg not in official_candidates:
-            item_label = extract_domain_label(item_reg).lower()
-            title_lower = title.lower()
-            if effective_brand in item_label or title_lower.startswith(effective_brand):
-                official_candidates.append(item_reg)
-
-    domain_in_results = clean_domain in result_domains
-
-    # 3. Lookalike detection
-    lookalike_of: str | None = None
-    brand_map = brands if brands is not None else load_brands()
-
-    # Check against local brand dictionary targets
-    for _b_tok, b_dom in brand_map.items():
-        b_reg = extract_registrable_domain(b_dom)
-        b_label = extract_domain_label(b_reg)
-        if is_lookalike(domain_label, b_label, clean_domain, b_reg):
-            lookalike_of = b_reg
-            break
-
-    # Check against discovered official candidates
-    if lookalike_of is None:
-        for cand in official_candidates:
-            cand_label = extract_domain_label(cand)
-            if is_lookalike(domain_label, cand_label, clean_domain, cand):
-                lookalike_of = cand
-                break
-
-    # 4. Report hits (from vet_report results if provided, or search snippets)
-    report_hits = 0
-    report_sources: list[dict[str, str]] = []
-    all_report_items = []
-    if report_results and "results" in report_results:
-        all_report_items.extend(report_results["results"])
-    all_report_items.extend(raw_results)
-
-    for r_item in all_report_items:
-        r_title = r_item.get("title", "")
-        r_snip = r_item.get("content", "") or r_item.get("snippet", "")
-        r_text = f"{r_title} {r_snip}".lower()
-
-        if clean_domain in r_text:
-            if any(term in r_text for term in SCAM_TERMS):
-                report_hits += 1
-                if len(report_sources) < 3 and r_item.get("url"):
-                    report_sources.append(
-                        {"title": r_title or clean_domain, "url": r_item.get("url", "")}
-                    )
-
-    # 5. Status precedence resolution
-    # lookalike > reports_found (>= REPORT_HITS_MIN) > confirmed_official > no_web_presence > unverified
-    final_status = "unverified"
-
-    if lookalike_of is not None:
-        final_status = "lookalike"
-    elif report_hits >= REPORT_HITS_MIN:
-        final_status = "reports_found"
-        if report_sources:
-            sources = report_sources
-    elif clean_domain in official_candidates:
-        final_status = "confirmed_official"
-    elif not has_domain_mention and not domain_in_results:
-        final_status = "no_web_presence"
-    else:
-        final_status = "unverified"
-
-    return {
-        "status": final_status,
-        "origin": "tavily",
-        "facts": {
-            "official_candidates": official_candidates,
-            "lookalike_of": lookalike_of,
-            "report_hits": report_hits,
-            "domain_in_results": domain_in_results,
-        },
-        "sources": sources,
+    """A catalog establishes identity; independent search sources supply cautions."""
+    clean = extract_registrable_domain(domain)
+    brand = (brand_token or extract_domain_label(clean)).strip().casefold()
+    local = check_local_brand_list(brand, clean, brands=brands)
+    if local is not None:
+        return local
+    facts: dict[str, Any] = {
+        "official_candidates": [],
+        "lookalike_of": None,
+        "report_hits": 0,
+        "domain_in_results": False,
+        "evidence_availability": "unavailable_in_this_check",
     }
+    result: dict[str, Any] = {
+        "status": "not_checked",
+        "origin": "tavily",
+        "facts": facts,
+        "sources": [],
+    }
+    if not clean or search_results.get("status") != "ok":
+        return result
+    results = [safe for raw in search_results.get("results", []) if (safe := _safe_result(raw))]
+    result["status"] = "no_web_presence" if not results else "unverified"
+    facts["domain_in_results"] = any(extract_registrable_domain(r["url"]) == clean for r in results)
+    facts["evidence_availability"] = "search_results" if results else "unavailable_in_this_check"
+    result["sources"] = [{"title": r["title"], "url": r["url"]} for r in results[:3]]
+    independent: dict[str, dict[str, str]] = {}
+    reports = (
+        report_results.get("results", [])
+        if report_results and report_results.get("status") == "ok"
+        else []
+    )
+    for raw in [*results, *reports]:
+        safe = _safe_result(raw)
+        if safe is None:
+            continue
+        text = (safe["title"] + " " + safe["content"]).casefold()
+        if re.search(r"(?<![\w.-])" + re.escape(clean) + r"(?![\w.-])", text) and any(
+            re.search(r"\b" + term + r"\b", text) for term in SCAM_TERMS
+        ):
+            independent.setdefault(extract_registrable_domain(safe["url"]), safe)
+    facts["report_hits"] = len(independent)
+    if len(independent) >= settings.report_hits_min:
+        result["status"] = "reports_found"
+        result["sources"] = [
+            {"title": r["title"], "url": r["url"]} for r in list(independent.values())[:3]
+        ]
+    return result
