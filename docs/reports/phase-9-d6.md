@@ -67,7 +67,19 @@ Frontend and harness (second commit): `frontend/src/{App.tsx,index.css,api/{clie
 
 ## LLM cost incurred
 
-**$0.00 Nebius, 0 Tavily credits, 0 paid calls in this work.** Everything above was verified offline against synthetic data and fake transports. The cumulative ceiling ($1 Nebius / 20 Tavily credits) is untouched by this session; prior charges and unresolved holds recorded against `data/d5/live/accounting.db` under scope `d5-nemotron-tavily` still count against it and remain to be reconciled before any paid test.
+**Budget authority read from `data/d5/live/accounting.db` (read-only, 2026-10-26), scope `d5-nemotron-tavily`:**
+
+| Provider | Ceiling | Confirmed charged | Estimates | Unresolved holds | Remaining |
+|---|---|---|---|---|---|
+| Nebius (Nano `NVIDIA-Nemotron-3-Nano-30B-A3B`) | $1.00 total | $0.001109 (22 reconciled attempts) | $0.004875 | 0 | ~$0.9989 |
+| Nebius (Super `nemotron-3-super-120b-a12b`) | $1.00 total | $0.003896 (15 reconciled attempts) | $0.019298 | 0 | ~$0.9961 |
+| Tavily | 20 credits | 8.0 credits (9 recorded calls, 8 reconciled) | $0.00009 reserved | **1 call `ambiguous`** | 12 credits |
+
+Nebius total confirmed across both scopes: **$0.005005**. 29 requests succeeded, 8 `failed_closed` — those failures consumed budget and produced no effect, which is the correct fail-closed outcome and is counted, not hidden.
+
+**The one Tavily `ambiguous` row is an unresolved hold: it stays counted against the ceiling and must never be re-sent automatically.** Reconciling it is a read-only follow-up against the provider record, not a new paid request.
+
+**$0.00 Nebius, 0 Tavily credits, 0 paid calls in this D6 work.** Everything above was verified offline against synthetic data and fake transports. The cumulative ceiling ($1 Nebius / 20 Tavily credits) is untouched by this session; prior charges and unresolved holds recorded against `data/d5/live/accounting.db` under scope `d5-nemotron-tavily` still count against it and remain to be reconciled before any paid test.
 
 ## Open questions
 
