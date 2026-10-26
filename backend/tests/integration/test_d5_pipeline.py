@@ -79,10 +79,10 @@ def test_failed_reader_never_dispatches_web(memory_db, basic_situation):
         licence_level=3,
     )
     assert result.prediction.gate.value == "ASK"
-    assert result.web.cap == 3
+    assert result.web.cap == 0
 
 
-def test_web_failure_preserves_baseline(memory_db, basic_situation):
+def test_web_failure_fails_closed(memory_db, basic_situation):
     from probation.workers.d5_verification import predict_verified_email
 
     def unavailable(*args):
@@ -97,8 +97,8 @@ def test_web_failure_preserves_baseline(memory_db, basic_situation):
         reader_callable=form,
         licence_level=3,
     )
-    assert result.prediction.gate.value == "EXECUTE_UNDO"
-    assert result.web.cap == 3
+    assert result.prediction.gate.value == "SHADOW"
+    assert result.web.cap == 0
     assert result.web.reasons == ("verification_unavailable",)
 
 

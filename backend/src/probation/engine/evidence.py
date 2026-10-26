@@ -100,6 +100,7 @@ def aggregate_evidence(
     persist: bool = True,
     pooling_kappa: float | None = None,
     lb_quantile: float | None = None,
+    source_ids: tuple[str, ...] | None = None,
 ) -> dict[tuple[str, str], ClassStats]:
     """Aggregate evidence for (class_key, action) pairs as of specified timestamp.
 
@@ -114,7 +115,7 @@ def aggregate_evidence(
     as_of_dt = _parse_ts(as_of)
     window_start = format_timestamp(as_of_dt - timedelta(days=evidence_window_days))
     recent_start = format_timestamp(as_of_dt - timedelta(days=recent_window_days))
-    rows = HistoryView(conn, as_of).permission_records(family)
+    rows = HistoryView(conn, as_of).permission_records(family, source_ids)
 
     # Raw counts per (class_key, action)
     counts: dict[tuple[str, str], dict[str, int]] = {}

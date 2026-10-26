@@ -7,16 +7,17 @@ GET /licences: Current derived licences with evidence, plus the last 5 changes o
 
 import json
 import sqlite3
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from probation.api.authority import OwnerContext, require_owner
 from probation.api.db import connect_api as get_connection
 from probation.config import settings
 from probation.core.clock import get_clock
 from probation.engine.licence import derive_licences
 
-router = APIRouter(prefix="/api", tags=["licences"])
+router = APIRouter(prefix="/api", tags=["licences"], dependencies=[Depends(require_owner)])
 
 
 def _get_db() -> sqlite3.Connection:
@@ -25,9 +26,7 @@ def _get_db() -> sqlite3.Connection:
     return get_connection(settings.db_path)
 
 
-@router.get("/licences")
-def get_licences() -> dict[str, Any]:
-    """Retrieve all current derived licences with evidence and last 5 ledger licence changes."""
+def _licence_payload(source_ids: tuple[str, ...] | None) -> dict[str, Any]:
     if not settings.db_path.exists():
         return {"licences": [], "total_count": 0}
 
@@ -35,7 +34,7 @@ def get_licences() -> dict[str, Any]:
     try:
         cursor = conn.cursor()
         as_of = get_clock().now_iso()
-        views = derive_licences(conn, as_of)
+        views = derive_licences(conn, as_of, source_ids=source_ids)
         licences = []
         for (ck, act), view in views.items():
             n_strong, k_strong = view.n_strong, view.k_strong
@@ -44,19 +43,22 @@ def get_licences() -> dict[str, Any]:
             reasons, level, lb = view.reasons, int(view.level), view.lower_bound
 
             # Query last 5 ledger licence changes for this (class_key, action)
-            cursor.execute(
-                """
-                SELECT seq, payload_json, created_at
-                FROM ledger
-                WHERE kind = 'licence_change'
-                  AND json_extract(payload_json, '$.class_key') = ?
-                  AND json_extract(payload_json, '$.action') = ?
-                  AND created_at COLLATE UTC_TIMESTAMP <= ?
-                ORDER BY seq DESC LIMIT 5;
-                """,
-                (ck, act, as_of),
-            )
-            change_rows = cursor.fetchall()
+            if source_ids is None:
+                cursor.execute(
+                    """
+                    SELECT seq, payload_json, created_at
+                    FROM ledger
+                    WHERE kind = 'licence_change'
+                      AND json_extract(payload_json, '$.class_key') = ?
+                      AND json_extract(payload_json, '$.action') = ?
+                      AND created_at COLLATE UTC_TIMESTAMP <= ?
+                    ORDER BY seq DESC LIMIT 5;
+                    """,
+                    (ck, act, as_of),
+                )
+                change_rows = cursor.fetchall()
+            else:
+                change_rows = []
             history = []
             for cr in change_rows:
                 p = json.loads(cr["payload_json"]) if cr["payload_json"] else {}
@@ -72,11 +74,14 @@ def get_licences() -> dict[str, Any]:
                 )
 
             # Check for drift state / alarms
-            cursor.execute(
-                "SELECT cusum, baseline_err, last_alarm_at FROM drift_state WHERE class_key = ? AND action = ? AND (last_alarm_at IS NULL OR last_alarm_at COLLATE UTC_TIMESTAMP <= ?);",
-                (ck, act, as_of),
-            )
-            d_row = cursor.fetchone()
+            if source_ids is None:
+                cursor.execute(
+                    "SELECT cusum, baseline_err, last_alarm_at FROM drift_state WHERE class_key = ? AND action = ? AND (last_alarm_at IS NULL OR last_alarm_at COLLATE UTC_TIMESTAMP <= ?);",
+                    (ck, act, as_of),
+                )
+                d_row = cursor.fetchone()
+            else:
+                d_row = None
             drift_info = None
             if d_row:
                 drift_info = {
@@ -109,6 +114,23 @@ def get_licences() -> dict[str, Any]:
                 }
             )
 
-        return {"licences": licences, "total_count": len(licences)}
+        result: dict[str, Any] = {"licences": licences, "total_count": len(licences)}
+        if source_ids is not None:
+            result["source_cutoff"] = as_of
+        return result
     finally:
         conn.close()
+
+
+@router.get("/licences")
+def get_licences() -> dict[str, Any]:
+    """Legacy licence view, retaining its existing response and history semantics."""
+    return _licence_payload(None)
+
+
+@router.get("/permissions")
+def get_permissions(
+    owner: Annotated[OwnerContext, Depends(require_owner)],
+) -> dict[str, Any]:
+    """Derived permissions restricted to the authenticated owner's registered sources."""
+    return _licence_payload(tuple(grant.source_id for grant in owner.grants))

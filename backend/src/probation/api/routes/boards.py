@@ -1,86 +1,97 @@
-"""Pack boards endpoint per CONTRACT.md section 9.
+"""Read-only views over the locally persisted radar and reading boards."""
 
-Authority: CONTRACT.md section 9:
-GET /boards/{pack}: Board view for packs with one (radar tracker, reading library):
-entries with status, sources and the item behind each.
-"""
-
+import json
+import sqlite3
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from probation.api.authority import require_owner
 from probation.config import settings
-from probation.synth.world import SimWorld
 
-router = APIRouter(prefix="/api", tags=["boards"])
+router = APIRouter(prefix="/api", tags=["boards"], dependencies=[Depends(require_owner)])
+
+
+def _unavailable(pack: str, reason: str) -> dict[str, Any]:
+    return {
+        "pack": pack,
+        "active": False,
+        "availability": "unavailable",
+        "reason": reason,
+        "entries": [],
+    }
+
+
+def _json(value: object, fallback: Any) -> Any:
+    try:
+        return json.loads(str(value))
+    except (TypeError, ValueError):
+        return fallback
 
 
 @router.get("/boards/{pack}")
 def get_pack_board(pack: str) -> dict[str, Any]:
-    """Retrieve board entries for designated packs (e.g. 'radar', 'reading').
+    """Read existing board rows without constructing a world or creating schema."""
+    if pack not in {"radar", "reading"}:
+        raise HTTPException(status_code=404, detail="board_not_found")
+    path = settings.world_db_path
+    if not path.is_file():
+        return _unavailable(pack, "not_initialized")
 
-    Reads live state from SimWorld.tracker or SimWorld.library.
-    """
-    valid_packs = ("radar", "reading")
-    if pack not in valid_packs:
-        raise HTTPException(status_code=404, detail=f"No board view for pack '{pack}'")
-
-    if not settings.world_db_path.exists():
-        # Fall back gracefully if simulated world not yet generated
-        return {"pack": pack, "active": True, "entries": []}
-
+    conn: sqlite3.Connection | None = None
     try:
-        with SimWorld(settings.world_db_path) as world:
-            entries: list[dict[str, Any]] = []
+        conn = sqlite3.connect(f"{path.resolve().as_uri()}?mode=ro", uri=True)
+        conn.row_factory = sqlite3.Row
+        table = "tracker" if pack == "radar" else "library"
+        exists = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table,)
+        ).fetchone()
+        if exists is None:
+            return _unavailable(pack, "not_initialized")
 
+        rows = conn.execute(f"SELECT * FROM {table} ORDER BY updated_at DESC").fetchall()
+        entries: list[dict[str, Any]] = []
+        for row in rows:
             if pack == "radar":
-                raw_entries = world.get_tracker_entries()
-                for r in raw_entries:
-                    sources = r.get("sources", [])
-                    details = r.get("details", {})
-                    entries.append(
-                        {
-                            "id": str(r["id"]),
-                            "pack": "radar",
-                            "entity": str(r.get("organizer") or r.get("title") or "Opportunity"),
-                            "status": str(r.get("status", "TRACKED")),
-                            "sources": sources,
-                            "item_id": details.get("raw_item_id") or str(r["id"]),
-                            "updated_at": str(r.get("updated_at") or r.get("created_at")),
-                            "title": str(r.get("title", "")),
-                            "deadline_date": r.get("deadline_date"),
-                            "official_url": r.get("official_url"),
-                            "fee_flag": bool(r.get("fee_flag", False)),
-                        }
-                    )
-                return {"pack": "radar", "active": True, "entries": entries}
-
-            elif pack == "reading":
-                raw_entries = world.get_library_entries()
-                for r in raw_entries:
-                    url = str(r.get("url", ""))
-                    entries.append(
-                        {
-                            "id": str(r["id"]),
-                            "pack": "reading",
-                            "entity": str(r.get("title") or url),
-                            "status": str(r.get("collection", "inbox")),
-                            "sources": [{"title": str(r.get("title", "")), "url": url}],
-                            "item_id": str(r["id"]),
-                            "updated_at": str(r.get("updated_at") or r.get("saved_at")),
-                            "collection": str(r.get("collection", "inbox")),
-                            "topic": str(r.get("topic", "other")),
-                            "content_type": str(r.get("content_type", "article")),
-                        }
-                    )
-                return {"pack": "reading", "active": True, "entries": entries}
-
-    except Exception as exc:
-        return {
-            "pack": pack,
-            "active": False,
-            "entries": [],
-            "note": f"Error accessing pack '{pack}' board: {exc}",
-        }
-
-    return {"pack": pack, "active": False, "entries": []}
+                sources = _json(row["sources_json"], [])
+                details = _json(row["details_json"], {})
+                entries.append(
+                    {
+                        "id": str(row["id"]),
+                        "pack": "radar",
+                        "entity": str(row["organizer"] or row["title"] or "Opportunity"),
+                        "status": str(row["status"]),
+                        "sources": sources if isinstance(sources, list) else [],
+                        "item_id": details.get("raw_item_id") or str(row["id"])
+                        if isinstance(details, dict)
+                        else str(row["id"]),
+                        "updated_at": str(row["updated_at"] or row["created_at"]),
+                        "title": str(row["title"] or ""),
+                        "deadline_date": row["deadline_date"],
+                        "official_url": row["official_url"],
+                        "fee_flag": bool(row["fee_flag"]),
+                    }
+                )
+            else:
+                url = str(row["url"] or "")
+                title = str(row["title"] or "")
+                entries.append(
+                    {
+                        "id": str(row["id"]),
+                        "pack": "reading",
+                        "entity": title or url,
+                        "status": str(row["collection"]),
+                        "sources": [{"title": title, "url": url}],
+                        "item_id": str(row["id"]),
+                        "updated_at": str(row["updated_at"] or row["saved_at"]),
+                        "collection": str(row["collection"]),
+                        "topic": str(row["topic"] or "other"),
+                        "content_type": str(row["content_type"] or "article"),
+                    }
+                )
+        return {"pack": pack, "active": True, "availability": "available", "entries": entries}
+    except (OSError, sqlite3.Error, KeyError, TypeError, ValueError):
+        return _unavailable(pack, "board_unavailable")
+    finally:
+        if conn is not None:
+            conn.close()

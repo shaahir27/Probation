@@ -165,6 +165,7 @@ def derive_licences(
     pair: tuple[str, str] | None = None,
     stats: dict[tuple[str, str], ClassStats] | None = None,
     exam_ok_fn: Callable[[str, str, int], bool] | None = None,
+    source_ids: tuple[str, ...] | None = None,
 ) -> dict[tuple[str, str], LicenceView]:
     """Read-only authority; callers never substitute cache levels for evidence."""
     from probation.engine.evidence import aggregate_evidence
@@ -187,9 +188,14 @@ def derive_licences(
             persist=False,
             pooling_kappa=cfg.pooling_kappa,
             lb_quantile=cfg.lb_quantile,
+            source_ids=source_ids,
         )
     )
-    pairs = {pair} if pair else set(HistoryView(conn, as_of).permission_pairs()) | set(evidence)
+    pairs = (
+        {pair}
+        if pair
+        else set(HistoryView(conn, as_of).permission_pairs(source_ids)) | set(evidence)
+    )
     result: dict[tuple[str, str], LicenceView] = {}
     for ck, act in sorted(pairs):
         s = evidence.get((ck, act), ClassStats(ck, act, as_of, 0, 0, 0, 0, 0, 0.0, 0.0))

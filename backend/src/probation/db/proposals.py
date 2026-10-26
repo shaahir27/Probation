@@ -1,5 +1,6 @@
 """Brain-owned atomic persistence of the final proposal and any validated draft."""
 
+import json
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -52,6 +53,33 @@ def _values(proposal: Proposal) -> dict[str, Any]:
     }
 
 
+def _gmail_provenance(access: RoleAccess, situation_id: str) -> dict[str, Any]:
+    """Carry committed Gmail cohort flags into the immutable proposal commitment."""
+    row = access.conn.execute(
+        """SELECT src.kind, raw.payload_json FROM situations s
+        JOIN raw_items raw ON raw.id=s.raw_item_id
+        JOIN sources src ON src.id=raw.source_id WHERE s.id=?""",
+        (situation_id,),
+    ).fetchone()
+    if row is None or row["kind"] != "gmail_live":
+        return {}
+    try:
+        payload = json.loads(row["payload_json"])
+    except (TypeError, json.JSONDecodeError) as exc:
+        raise ValueError("gmail_provenance_unavailable") from exc
+    if not isinstance(payload, dict):
+        raise ValueError("gmail_provenance_unqualified")
+    context = payload.get("evidence_context")
+    retrospective = payload.get("retrospective")
+    if context not in {"prospective", "prospective_synthetic", "live", "backfill"}:
+        raise ValueError("gmail_provenance_unqualified")
+    if (context == "backfill") != (retrospective is True):
+        raise ValueError("gmail_provenance_unqualified")
+    if not isinstance(retrospective, bool):
+        raise ValueError("gmail_provenance_unqualified")
+    return {"evidence_context": context, "retrospective": retrospective}
+
+
 def persist_proposal(
     access: RoleAccess, proposal: Proposal, *, draft: DraftRecord | None = None
 ) -> Proposal:
@@ -65,6 +93,7 @@ def persist_proposal(
     proposal = Proposal.model_validate(proposal.model_dump())
     values = _values(proposal)
     with access.transaction():
+        provenance = _gmail_provenance(access, proposal.situation_id)
         if proposal.followup_of_action_id is not None:
             eligible = access.conn.execute(
                 """SELECT 1 FROM actions a JOIN proposals p ON p.id=a.proposal_id
@@ -121,6 +150,7 @@ def persist_proposal(
                 "features_hash": proposal.features_hash,
                 "audit_holdout": proposal.audit_holdout,
                 "followup_of_action_id": proposal.followup_of_action_id,
+                **provenance,
             },
             proposal.proposed_at,
         )

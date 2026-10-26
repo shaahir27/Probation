@@ -13,7 +13,7 @@ import logging
 import sqlite3
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from typing import Any
 
 from probation.config import settings
@@ -41,6 +41,19 @@ from probation.engine.novelty import EmbeddingProvider, NoveltyDetector, Novelty
 from probation.engine.policy import Policy
 from probation.engine.prediction import PredictionSnapshot, evaluate_prediction, policy_inputs
 from probation.engine.proposal_data import proposal_parameters
+from probation.engine.replay_kernel import (
+    PRIORITY_LICENCE_REVIEW,
+    PRIORITY_OUTCOME_KNOWN,
+    PRIORITY_RETRAIN,
+    PRIORITY_SITUATION,
+    ReplayEvent,
+    ReplayPosition,
+    ReplayTimeline,
+    daily_tick_events,
+)
+from probation.engine.replay_kernel import (
+    parse_utc_dt as _parse_utc_dt,
+)
 from probation.engine.report import generate_report_card
 from probation.packs.base import ExecutorIO, WorldView
 from probation.packs.calendar.resolver import resolve_calendar_outcome
@@ -54,46 +67,93 @@ from probation.workers.brain import build_reader_client, extract_features_for_si
 from probation.workers.drift import review_outcome_events
 from probation.workers.executor import Executor
 
-PRIORITY_OUTCOME_KNOWN = 0
-PRIORITY_LICENCE_REVIEW = 1
-PRIORITY_RETRAIN = 2
-PRIORITY_SITUATION = 3
-
 logger = logging.getLogger(__name__)
+
+# The replay event contract, its total ordering, the daily tick stream and the simulated-time
+# projection belong to engine.replay_kernel, so the batch backtest and the durable Examiner
+# replay run consume one stream. They stay importable here: this is the engine's replay
+# vocabulary and existing callers and tests resolve it from this module.
+__all__ = [
+    "PRIORITY_LICENCE_REVIEW",
+    "PRIORITY_OUTCOME_KNOWN",
+    "PRIORITY_RETRAIN",
+    "PRIORITY_SITUATION",
+    "ReplayEvent",
+    "ReplaySession",
+    "ReplayTimeline",
+    "prepare_replay_session",
+    "run_replay",
+]
 
 
 @dataclass(slots=True)
-class ReplayEvent:
-    """An atomic point of occurrence on the merged replay timeline."""
+class ReplaySession:
+    """One resumable pass over one replay timeline, driven through the shared kernel.
 
-    timestamp: str
-    priority: int
-    kind: str
-    payload: Any = None
-    tie_id: str = ""
+    A batch backtest drains every window in one call; the durable Examiner run advances one
+    simulated-time window per tick. Both go through `advance_to`, so a resumed replay applies
+    the same events in the same order as an uninterrupted one.
+    """
 
-    def sort_key(self) -> tuple[datetime, int, str]:
-        """Compute sort key guaranteeing non-decreasing time and tie-break ordering.
+    conn: sqlite3.Connection
+    cur: Any
+    clock: Clock
+    family: str | None
+    until: str | None
+    world: WorldView | None
+    reader_client: Any
+    reader_callable: Any
+    allow_live_llm: bool
+    distinct_families: list[str]
+    min_dt: datetime
+    timeline: ReplayTimeline
+    policies: dict[str, Policy]
+    novelties: dict[str, NoveltyDetector]
+    training_cohorts: dict[str, Any]
+    training_manifests: list[dict[str, Any]]
+    b0_baselines: dict[str, BaselineB0]
+    b0_predictions: dict[str, str]
+    b2_predictions: dict[str, str]
+    brain_access: RoleAccess
+    resolver_access: RoleAccess
+    executor: Executor
+    web_view: WebFactsView
+    retrain_as_of: str | None = None
 
-        `tie_id` makes the order total. Without it, two events at the same instant and
-        priority fall back to list position, which is whatever the producing SQL query
-        returned; SQLite does not guarantee that order for equal keys, so an index or
-        planner change could silently reorder a replay and change its ledger head.
+    @property
+    def position(self) -> ReplayPosition | None:
+        """The last event whose effects this pass has already reached."""
+        return self.timeline.position
+
+    @property
+    def remaining(self) -> int:
+        return self.timeline.remaining
+
+    def resume_from(self, position: ReplayPosition | None) -> None:
+        """Place the cursor after a durable position.
+
+        Already-applied events are still re-reached: each one is skipped by the durable-effect
+        guards in `_apply_events`, which is what makes a crash between an effect and its
+        checkpoint reconcile without duplicating it.
         """
-        dt = datetime.fromisoformat(self.timestamp.replace("Z", "+00:00"))
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=UTC)
-        else:
-            dt = dt.astimezone(UTC)
-        return (dt, self.priority, self.tie_id)
+        self.timeline.resume_after(position)
 
+    def advance_to(self, horizon: str | None) -> int:
+        """Apply every event whose simulated instant is at or before `horizon`.
 
-def _parse_utc_dt(ts_str: str) -> datetime:
-    """Parse timestamp into UTC datetime."""
-    dt = datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
-    if dt.tzinfo is None:
-        return dt.replace(tzinfo=UTC)
-    return dt.astimezone(UTC)
+        `None` drains the whole stream, which is what a batch backtest does; the durable
+        Examiner run calls this once per tick with its projected simulated instant.
+        """
+        events = self.timeline.events_until(horizon)
+        if not events:
+            return 0
+        _apply_events(self, events)
+        self.timeline.mark_applied(events[-1])
+        return len(events)
+
+    def finish(self) -> dict[str, Any]:
+        """Produce the report for a drained stream."""
+        return _finish_replay(self)
 
 
 def run_replay(
@@ -118,7 +178,7 @@ def run_replay(
         )
         clock = Clock.replay(start)
     with use_clock(clock):
-        return _run_replay(
+        session = prepare_replay_session(
             conn,
             clock,
             family,
@@ -128,9 +188,13 @@ def run_replay(
             allow_live_llm=allow_live_llm,
             embedding_provider=embedding_provider,
         )
+        if session is None:
+            return generate_report_card(conn, family=family, as_of=until)
+        session.advance_to(None)
+        return session.finish()
 
 
-def _run_replay(
+def prepare_replay_session(
     conn: sqlite3.Connection,
     clock: Clock,
     family: str | None = None,
@@ -139,14 +203,17 @@ def _run_replay(
     reader_callable: (Callable[[Situation], tuple[dict[str, Any] | None, bool]] | None) = None,
     allow_live_llm: bool = False,
     embedding_provider: EmbeddingProvider | None = None,
-) -> dict[str, Any]:
-    """Execute event-sourced replay over historical raw items up to until.
+) -> ReplaySession | None:
+    """Build the replay stream and the models that consume it.
 
     Authority: docs/ENGINE_SPEC.md section 1.2:
     - Sets clock monotonically.
     - Trains strictly on history with known_at <= current_time.
     - Emits immutable proposals with gate=SHADOW (Phase 4).
     - Appends proposal records to the hash-chained ledger.
+
+    Nothing is advanced here: the caller decides whether to drain the stream at once
+    (`run_replay`) or window by window (`ReplaySession.advance_to`).
     """
     # 1. Build the reader once. Features are derived per situation inside the loop below,
     #    at that situation's own cutoff: history clues count prior outcomes, so a batch run
@@ -172,7 +239,8 @@ def _run_replay(
     sit_rows = cur.fetchall()
 
     if not sit_rows:
-        return generate_report_card(conn, family=family, as_of=until)
+        # An empty stream is not a run: the caller reports over the data that exists.
+        return None
 
     # 3. Outcomes already persisted, plus any still missing that the world can supply.
     #    The two sources are additive, never alternatives: a resumed replay has some
@@ -356,37 +424,12 @@ def _run_replay(
     if until is not None:
         max_dt = max(max_dt, _parse_utc_dt(until))
 
-    current_day = min_dt
-    day_idx = 0
-    retrain_interval = settings.retrain_interval_days
+    # The daily review tick and the periodic retrain tick are generated by the shared kernel,
+    # so a windowed run ticks on exactly the same instants a batch run does.
+    events.extend(daily_tick_events(min_dt, max_dt, settings.retrain_interval_days))
 
-    while current_day <= max_dt:
-        day_iso = current_day.strftime("%Y-%m-%dT00:00:00Z")
-
-        # LICENCE_REVIEW daily tick (priority 1)
-        events.append(
-            ReplayEvent(
-                timestamp=day_iso,
-                priority=PRIORITY_LICENCE_REVIEW,
-                kind="LICENCE_REVIEW",
-            )
-        )
-
-        # RETRAIN tick (priority 2) every retrain_interval days
-        if day_idx % retrain_interval == 0:
-            events.append(
-                ReplayEvent(
-                    timestamp=day_iso,
-                    priority=PRIORITY_RETRAIN,
-                    kind="RETRAIN",
-                )
-            )
-
-        current_day += timedelta(days=1)
-        day_idx += 1
-
-    # Sort merged timeline
-    timeline = sorted(events, key=lambda ev: ev.sort_key())
+    # Sort merged timeline into one total order and hand the cursor to the kernel.
+    timeline = ReplayTimeline.build(events)
 
     # 6. Initialize per-family models and baselines
     distinct_families = sorted({str(r["family"]) for r in sit_rows})
@@ -430,8 +473,66 @@ def _run_replay(
     executor = Executor(conn, world=executor_io, clock=clock)
     web_view = WebFactsView(conn)
 
-    # 7. Execute replay loop
-    for ev in timeline:
+    # 7. Hand the prepared stream and models to the shared session.
+    return ReplaySession(
+        conn=conn,
+        cur=cur,
+        clock=clock,
+        family=family,
+        until=until,
+        world=world,
+        reader_client=reader_client,
+        reader_callable=reader_callable,
+        allow_live_llm=allow_live_llm,
+        distinct_families=distinct_families,
+        min_dt=min_dt,
+        timeline=timeline,
+        policies=policies,
+        novelties=novelties,
+        training_cohorts=training_cohorts,
+        training_manifests=training_manifests,
+        b0_baselines=b0_baselines,
+        b0_predictions=b0_predictions,
+        b2_predictions=b2_predictions,
+        brain_access=brain_access,
+        resolver_access=resolver_access,
+        executor=executor,
+        web_view=web_view,
+    )
+
+
+def _apply_events(session: ReplaySession, events: list[ReplayEvent]) -> None:
+    """Apply one window of the replay stream: the shared incremental event path.
+
+    Every collaborator is read from the session, so a batch drain and a windowed Examiner run
+    execute identical code over identical state and can never drift apart. Effects are guarded
+    by what is already durable, so re-reaching an applied event cannot duplicate it.
+    """
+    conn = session.conn
+    cur = session.cur
+    clock = session.clock
+    world = session.world
+    reader_client = session.reader_client
+    reader_callable = session.reader_callable
+    allow_live_llm = session.allow_live_llm
+    policies = session.policies
+    novelties = session.novelties
+    training_cohorts = session.training_cohorts
+    training_manifests = session.training_manifests
+    b0_baselines = session.b0_baselines
+    b0_predictions = session.b0_predictions
+    b2_predictions = session.b2_predictions
+    brain_access = session.brain_access
+    resolver_access = session.resolver_access
+    executor = session.executor
+    web_view = session.web_view
+    min_dt = session.min_dt
+    distinct_families = session.distinct_families
+    # The fitted horizon of the most recent retrain tick. Situations read it, so it belongs to
+    # the session rather than to one window's locals; a batch run always meets a retrain tick at
+    # its own opening instant, exactly as before.
+    as_of_iso = session.retrain_as_of
+    for ev in events:
         ev_dt = ev.sort_key()[0]
 
         # Monotonically advance clock
@@ -508,6 +609,9 @@ def _run_replay(
 
         elif ev.kind == "RETRAIN":
             as_of_iso = clock.now_iso()
+            # A window can begin after the last retrain tick, so the fitted horizon travels with
+            # the session instead of living only in one call's locals.
+            session.retrain_as_of = as_of_iso
 
             # All eligibility and historical projection is owned by HistoryView.
             from probation.engine.training import build_cohort, fit_cohort
@@ -771,6 +875,15 @@ def _run_replay(
             b2_predictions[sit.id] = b2_act
 
             # Re-derive current authority; a nightly cache is never permission truth.
+            if as_of_iso is None:
+                # I-3 fail closed. A stream always opens with a training tick, so this can only
+                # mean a window was entered without one: with no fitted horizon there is no
+                # authority to derive and no commitment may be written.
+                logger.warning(
+                    "No proposal for situation %s: the replay has not reached a training tick",
+                    sit_id,
+                )
+                continue
             licence = derive_licences(conn, as_of_iso, pair=(c_key, action)).get((c_key, action))
             licence_level = int(licence.level) if licence else 0
 
@@ -963,6 +1076,16 @@ def _run_replay(
                             executor.process_queue(as_of=c_sit.occurred_at)
 
     brain_access.commit()
+
+
+def _finish_replay(session: ReplaySession) -> dict[str, Any]:
+    """Report the replayed horizon. Reads only: no effect happens here."""
+    conn = session.conn
+    clock = session.clock
+    family = session.family
+    b0_predictions = session.b0_predictions
+    b2_predictions = session.b2_predictions
+    training_manifests = session.training_manifests
 
     # Final pass for habits and chains up to replay clock
     mine_habits(conn, as_of=clock.now_iso(), clock=clock)

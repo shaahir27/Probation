@@ -8,16 +8,20 @@ explanation (top clues, similar past cases), web status and sources (if checked)
 
 import json
 import sqlite3
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import ValidationError
 
+from probation.api.authority import OwnerContext, require_owner
 from probation.api.db import connect_api as get_connection
+from probation.api.routes import gmail_connector
 from probation.config import settings
+from probation.engine.caps import get_action_cap
+from probation.llm.draft_validation import body_hash
 from probation.web.types import VerificationCard
 
-router = APIRouter(prefix="/api", tags=["items"])
+router = APIRouter(prefix="/api", tags=["items"], dependencies=[Depends(require_owner)])
 
 
 def _get_db() -> sqlite3.Connection:
@@ -26,8 +30,73 @@ def _get_db() -> sqlite3.Connection:
     return get_connection(settings.db_path)
 
 
+def _write_capabilities(owner: OwnerContext, source_id: str) -> set[str]:
+    grant = next((item for item in owner.grants if item.source_id == source_id), None)
+    if grant is None:
+        return set()
+    try:
+        config = gmail_connector.current_config()
+        access = gmail_connector._api_access(config.store_path)
+    except HTTPException:
+        return set()
+    try:
+        connection = access.one(
+            "SELECT state FROM gmail_connections WHERE owner_id=? AND connection_id=?",
+            (owner.owner_id, grant.connection_id),
+        )
+        if connection is None or str(connection["state"]) != "ACTIVE":
+            return set()
+        return {
+            str(row["name"])
+            for row in gmail_connector._capability_rows(access, grant.connection_id)
+            if str(row["owner_role"]) == "write" and bool(row["supported"])
+        }
+    except sqlite3.Error:
+        return set()
+    finally:
+        access.conn.close()
+
+
+def _supported_actions(row: sqlite3.Row, owner: OwnerContext) -> list[str]:
+    if row["family"] != "email_action":
+        return []
+    actions = ["LEAVE"]
+    capabilities = _write_capabilities(owner, str(row["source_id"]))
+    if "archive" in capabilities and get_action_cap("ARCHIVE", family="email_action") > 0:
+        actions.insert(0, "ARCHIVE")
+    if "trash" in capabilities and get_action_cap("TRASH", family="email_action") > 0:
+        actions.insert(1 if "ARCHIVE" in actions else 0, "TRASH")
+
+    try:
+        params = json.loads(row["params_json"]) if row["params_json"] else {}
+        raw_payload = json.loads(row["raw_payload_json"]) if row["raw_payload_json"] else {}
+    except (TypeError, ValueError):
+        params, raw_payload = {}, {}
+    draft_is_bound = (
+        row["draft_body"] is not None
+        and bool(row["draft_validator_ok"])
+        and not bool(row["draft_needs_input"])
+        and params.get("draft_proposal_id") == row["id"]
+        and params.get("draft_body_hash") == body_hash(str(row["draft_body"]))
+        and bool(params.get("to_addr"))
+    )
+    if "send" in capabilities and draft_is_bound:
+        actions.append("REPLY")
+
+    has_attachments = bool(
+        raw_payload.get("attachments")
+        or raw_payload.get("has_attachments")
+        or raw_payload.get("has_attachment")
+    )
+    if "forward" in capabilities and owner.forward_recipients and not has_attachments:
+        actions.append("FORWARD")
+    return actions
+
+
 @router.get("/items/{proposal_id}")
-def get_item_detail(proposal_id: str) -> dict[str, Any]:
+def get_item_detail(
+    proposal_id: str, owner: Annotated[OwnerContext, Depends(require_owner)]
+) -> dict[str, Any]:
     """Retrieve full explanation context for a single proposal."""
     conn = _get_db()
     try:
@@ -37,12 +106,15 @@ def get_item_detail(proposal_id: str) -> dict[str, Any]:
             SELECT p.id, p.situation_id, p.family, p.class_key, p.action, p.probs_json,
                    p.p_max, p.novelty, p.licence_level, p.cap, p.gate, p.reasons_json,
                    p.params_json, p.explanation_json, p.web_json, p.audit_holdout, p.proposed_at,
-                   s.sender_key, s.occurred_at, s.redacted_text,s.raw_item_id,
+                   s.sender_key, s.occurred_at, s.redacted_text,s.raw_item_id,r.source_id,
+                   r.payload_json AS raw_payload_json,
                    d.body_text AS draft_body, d.needs_user_input AS draft_needs_input,
+                   d.validator_ok AS draft_validator_ok,
                    d.model_id AS draft_model_id,
                    ur.response AS user_response, ur.edited_action, ur.responded_at
             FROM proposals p
             JOIN situations s ON p.situation_id = s.id
+            JOIN raw_items r ON r.id=s.raw_item_id
             LEFT JOIN drafts d ON p.id = d.proposal_id
             LEFT JOIN user_responses ur ON ur.id=(SELECT u.id FROM user_responses u
                 WHERE u.proposal_id=p.id AND u.response IN('accept','reject','edit')
@@ -53,7 +125,9 @@ def get_item_detail(proposal_id: str) -> dict[str, Any]:
         )
         row = cursor.fetchone()
         if not row:
-            raise HTTPException(status_code=404, detail=f"Item '{proposal_id}' not found")
+            raise HTTPException(status_code=404, detail="item_not_found")
+        if not any(grant.source_id == row["source_id"] for grant in owner.grants):
+            raise HTTPException(status_code=404, detail="item_not_found")
 
         probs = json.loads(row["probs_json"]) if row["probs_json"] else {}
         params = json.loads(row["params_json"]) if row["params_json"] else {}
@@ -102,18 +176,17 @@ def get_item_detail(proposal_id: str) -> dict[str, Any]:
             "reasons": view.reasons,
             "valid_until": view.valid_until,
         }
+        supported_actions = _supported_actions(row, owner)
 
         return {
             "proposal_id": row["id"],
             "review_version": "v2",
             "review_url": f"/api/queue/{row['id']}/review",
-            "supported_actions": ["ARCHIVE", "TRASH", "LEAVE", "REPLY", "FORWARD"]
-            if row["family"] == "email_action"
-            else [],
+            "supported_actions": supported_actions,
             "readiness": {
-                "reply_draft_available": row["draft_body"] is not None,
+                "reply_draft_available": "REPLY" in supported_actions,
                 "reply_needs_user_input": bool(row["draft_needs_input"]),
-                "forward_requires_controlled_recipient": True,
+                "forward_requires_controlled_recipient": "FORWARD" in supported_actions,
             },
             "source_identity": {"raw_item_id": row["raw_item_id"]},
             "situation_id": row["situation_id"],

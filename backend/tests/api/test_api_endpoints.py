@@ -9,6 +9,7 @@ Verifies:
 - Zero outbound network calls from web-facts.
 """
 
+import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import patch
@@ -35,12 +36,39 @@ def request_clock(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture(autouse=True)
-def authenticated_synthetic_owner():
+def authenticated_synthetic_owner(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(settings, "probation_gmail_owner_id", "owner")
     app.dependency_overrides[optional_owner] = lambda: OwnerContext(
         "owner", (SourceGrant("src-1", "connection", "account", "owner@test.invalid"),)
     )
     yield
     app.dependency_overrides.pop(optional_owner, None)
+
+
+def test_private_read_requires_authenticated_owner(tmp_path: Path) -> None:
+    from probation.api.gmail_auth import OwnerApiCredential, hash_owner_token
+    from probation.api.routes.gmail_connector import GmailApiConfig, configure_gmail_api
+
+    app.dependency_overrides.pop(optional_owner, None)
+    configure_gmail_api(
+        GmailApiConfig(
+            owner_credential=OwnerApiCredential("owner", hash_owner_token("synthetic-key")),
+            store_path=tmp_path / "missing-private-store.db",
+        )
+    )
+    try:
+        response = client.get("/api/queue")
+    finally:
+        configure_gmail_api(None)
+    assert response.status_code == 401
+    assert response.json() == {"error": {"code": "401", "message": "owner_credential_required"}}
+
+
+def test_validation_error_does_not_echo_request_body() -> None:
+    response = client.post("/api/queue/prop-1/review", json={"password": "synthetic-secret"})
+    assert response.status_code == 422
+    assert "synthetic-secret" not in response.text
+    assert response.json() == {"error": {"code": "422", "message": "request_validation_failed"}}
 
 
 def _seed_sample_db(db_path: Path) -> None:
@@ -350,6 +378,36 @@ def test_control_commands_are_owned_and_pending_pause_blocks_review(tmp_path: Pa
         assert client.post("/api/commands", json=body).status_code == 202
 
 
+def test_replay_command_status_uses_v2_discriminator(tmp_path: Path) -> None:
+    from probation.core.lifecycle import ReplayCommandIntent, ReplayScope
+    from probation.db.access import Role, RoleAccess
+    from probation.db.replay_commands import ReplayCommandStore
+
+    path = tmp_path / "replay-status.db"
+    _seed_sample_db(path)
+    with patch.object(settings, "db_path", path):
+        with get_connection(path) as conn:
+            ReplayCommandStore(RoleAccess(conn, Role.API)).submit(
+                ReplayCommandIntent(
+                    request_id="replay-start-1",
+                    owner_id="owner",
+                    type="replay_start",
+                    scope=ReplayScope(workspace_id="synthetic-workspace", run_id="active"),
+                    created_at="2026-03-01T11:00:00Z",
+                )
+            )
+        response = client.get("/api/commands/replay-start-1")
+    assert response.status_code == 200
+    assert response.json() == {
+        "request_id": "replay-start-1",
+        "type": "replay_start",
+        "status": "pending",
+        "result": None,
+        "safe_code": None,
+        "status_url": "/api/commands/replay-start-1",
+    }
+
+
 def test_licences_endpoint(tmp_path: Path) -> None:
     test_db = tmp_path / "test_licences.db"
     _seed_sample_db(test_db)
@@ -361,6 +419,93 @@ def test_licences_endpoint(tmp_path: Path) -> None:
         assert "licences" in data
         assert len(data["licences"]) >= 1
         assert data["licences"][0]["class_key"] == "mail|known"
+
+
+def test_watching_and_permissions_are_filtered_to_owner_sources(tmp_path: Path) -> None:
+    path = tmp_path / "owner-scoped-reads.db"
+    _seed_sample_db(path)
+    now = "2026-03-01T10:30:00Z"
+    with get_connection(path) as conn:
+        conn.execute(
+            "INSERT INTO sources (id,pack,kind,ref,imported_at) VALUES ('src-other','mail','mbox','other',?)",
+            (now,),
+        )
+        conn.execute(
+            """INSERT INTO raw_items
+               (id,source_id,pack,item_kind,source_ref,occurred_at,known_at,payload_json,content_hash)
+               VALUES ('raw-watch','src-1','mail','mail_in','watch-msg',?,?, '{}','watch-hash')""",
+            (now, now),
+        )
+        conn.execute(
+            """INSERT INTO situations
+               (id,pack,family,raw_item_id,occurred_at,sender_key,content_hash,redacted_text,created_at)
+               VALUES ('sit-watch','mail','email_action','raw-watch',?,'watch@example.invalid','watch-hash','watch summary',?)""",
+            (now, now),
+        )
+        conn.execute(
+            """INSERT INTO raw_items
+               (id,source_id,pack,item_kind,source_ref,occurred_at,known_at,payload_json,content_hash)
+               VALUES ('raw-other','src-other','mail','mail_in','other-msg',?,?, '{}','other-hash')""",
+            (now, now),
+        )
+        conn.execute(
+            """INSERT INTO situations
+               (id,pack,family,raw_item_id,occurred_at,sender_key,content_hash,redacted_text,created_at)
+               VALUES ('sit-other','mail','email_action','raw-other',?,'private@example.invalid','other-hash','private summary',?)""",
+            (now, now),
+        )
+        conn.execute(
+            """INSERT INTO proposals
+               (id,situation_id,family,class_key,action,probs_json,p_max,novelty,novel,
+                licence_level,cap,gate,reasons_json,params_json,explanation_json,web_json,
+                policy_version,features_hash,audit_holdout,proposed_at,ledger_seq)
+               VALUES ('prop-other','sit-other','email_action','private|known','REPLY','{}',0.5,
+                0.2,0,0,0,'ASK','[]','{}','{}','{}','v1','other-features',0,?,1)""",
+            (now,),
+        )
+        conn.execute(
+            """INSERT INTO proposals
+               (id,situation_id,family,class_key,action,probs_json,p_max,novelty,novel,
+                licence_level,cap,gate,reasons_json,params_json,explanation_json,web_json,
+                policy_version,features_hash,audit_holdout,proposed_at,ledger_seq)
+               VALUES ('prop-watch','sit-watch','email_action','mail|known','ARCHIVE','{}',0.5,
+                0.2,0,0,0,'SHADOW','[]','{}','{}','{}','v1','watch-features',0,?,2)""",
+            (now,),
+        )
+
+    with patch.object(settings, "db_path", path):
+        watching = client.get("/api/watching")
+        permissions = client.get("/api/permissions")
+    assert watching.status_code == 200
+    assert [item["id"] for item in watching.json()["items"]] == ["prop-watch"]
+    assert permissions.status_code == 200
+    assert {item["class_key"] for item in permissions.json()["licences"]} == {"mail|known"}
+    assert permissions.json()["source_cutoff"] == "2026-03-01T11:00:00Z"
+
+
+def test_item_only_advertises_safe_available_actions(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from probation.api.routes import items
+
+    path = tmp_path / "supported-actions.db"
+    _seed_sample_db(path)
+    with patch.object(settings, "db_path", path):
+        monkeypatch.setattr(items, "_write_capabilities", lambda _owner, _source: set())
+        detail = client.get("/api/items/prop-1")
+        assert detail.status_code == 200
+        assert detail.json()["supported_actions"] == ["LEAVE"]
+        assert detail.json()["readiness"]["reply_draft_available"] is False
+
+        monkeypatch.setattr(
+            items,
+            "_write_capabilities",
+            lambda _owner, _source: {"archive", "trash", "send", "forward"},
+        )
+        detail = client.get("/api/items/prop-1")
+        assert detail.status_code == 200
+        assert detail.json()["supported_actions"] == ["ARCHIVE", "TRASH", "LEAVE", "REPLY"]
+        assert detail.json()["readiness"]["reply_draft_available"] is True
 
 
 def test_report_card_endpoint(tmp_path: Path) -> None:
@@ -427,21 +572,72 @@ def test_insights_endpoints(tmp_path: Path) -> None:
         assert client.get(f"/api/commands/{command_id}").json()["command"]["status"] == "SUCCEEDED"
 
 
+def test_legacy_command_status_is_bound_to_configured_single_owner(tmp_path: Path) -> None:
+    path = tmp_path / "admin-command-owner.db"
+    _seed_sample_db(path)
+    with patch.object(settings, "db_path", path):
+        created = client.post("/api/habits/hab-1/deny")
+        assert created.status_code == 202
+        command_id = created.json()["command"]["id"]
+        app.dependency_overrides[optional_owner] = lambda: OwnerContext(
+            "different-owner",
+            (SourceGrant("src-1", "connection", "account", "other@test.invalid"),),
+        )
+        response = client.get(f"/api/commands/{command_id}")
+    assert response.status_code == 404
+
+
 def test_boards_endpoint(tmp_path: Path) -> None:
     test_db = tmp_path / "test_boards.db"
     _seed_sample_db(test_db)
+    world_db = tmp_path / "missing-world.db"
 
-    with patch.object(settings, "db_path", test_db):
-        # In Phase 8b, radar board is registered and active
+    with (
+        patch.object(settings, "db_path", test_db),
+        patch.object(settings, "world_db_path", world_db),
+    ):
         res = client.get("/api/boards/radar")
         assert res.status_code == 200
         assert res.json()["pack"] == "radar"
-        assert res.json()["active"] is True
-        assert "entries" in res.json()
+        assert res.json()["active"] is False
+        assert res.json()["availability"] == "unavailable"
+        assert res.json()["reason"] == "not_initialized"
+        assert not world_db.exists()
 
         # Unregistered board returns 404 cleanly
         res_unknown = client.get("/api/boards/unknown_domain")
         assert res_unknown.status_code == 404
+
+        world_db.write_text("not a sqlite database", encoding="utf-8")
+        corrupt = client.get("/api/boards/radar")
+        assert corrupt.status_code == 200
+        assert corrupt.json()["reason"] == "board_unavailable"
+        assert "sqlite" not in corrupt.text.lower()
+
+
+def test_board_reads_existing_rows_without_creating_world(tmp_path: Path) -> None:
+    import sqlite3
+
+    path = tmp_path / "world.sqlite"
+    with sqlite3.connect(path) as conn:
+        conn.execute(
+            """CREATE TABLE tracker (
+                id TEXT,title TEXT,organizer TEXT,deadline_date TEXT,official_url TEXT,status TEXT,
+                fee_flag INTEGER,sources_json TEXT,details_json TEXT,created_at TEXT,updated_at TEXT
+            )"""
+        )
+        conn.execute(
+            """INSERT INTO tracker VALUES
+               ('entry-1','Grant','Foundation',NULL,'https://example.invalid','TRACKED',0,
+                '[{"title":"Source"}]','{"raw_item_id":"raw-1"}','2026-03-01T10:00:00Z',
+                '2026-03-01T10:00:00Z')"""
+        )
+
+    with patch.object(settings, "world_db_path", path):
+        response = client.get("/api/boards/radar")
+    assert response.status_code == 200
+    assert response.json()["active"] is True
+    assert response.json()["entries"][0]["item_id"] == "raw-1"
 
 
 def test_webfacts_recorded_activity(tmp_path: Path) -> None:
@@ -458,19 +654,167 @@ def test_webfacts_recorded_activity(tmp_path: Path) -> None:
         assert len(data["entities"]) == 1
 
 
-def test_replay_endpoints() -> None:
-    res = client.get("/api/replay/state")
-    assert res.status_code == 200
-    assert "running" in res.json()
+def test_replay_endpoints(tmp_path: Path) -> None:
+    from probation.api.gmail_auth import OwnerApiCredential, hash_owner_token
+    from probation.api.routes.gmail_connector import GmailApiConfig, configure_gmail_api
 
-    res_start = client.post("/api/replay/start")
-    assert res_start.status_code == 200
-    assert res_start.json()["state"]["running"] is True
+    path = tmp_path / "d6-replay-api.db"
+    _seed_sample_db(path)
+    owner_override = app.dependency_overrides.pop(optional_owner)
+    configure_gmail_api(
+        GmailApiConfig(
+            owner_credential=OwnerApiCredential("owner", hash_owner_token("synthetic-key")),
+            store_path=tmp_path / "connector-store.db",
+        )
+    )
+    try:
+        assert client.get("/api/replay/state").status_code == 401
+    finally:
+        configure_gmail_api(None)
+        app.dependency_overrides[optional_owner] = owner_override
 
-    res_speed = client.post("/api/replay/speed", json={"speed": 10.0})
-    assert res_speed.status_code == 200
-    assert res_speed.json()["speed"] == 10.0
+    with patch.object(settings, "db_path", path):
+        state = client.get("/api/replay/state")
+        assert state.status_code == 200
+        assert state.json()["running"] is False
 
-    res_pause = client.post("/api/replay/pause")
-    assert res_pause.status_code == 200
-    assert res_pause.json()["state"]["running"] is False
+        started = client.post("/api/replay/start", json={"request_id": "d6-start"})
+        assert started.status_code == 202
+        assert started.json()["status"] == "accepted"
+        assert started.json()["status_url"] == "/api/commands/d6-start"
+        status = client.get(started.json()["status_url"])
+        assert status.status_code == 200
+        assert status.json()["type"] == "replay_start"
+        assert status.json()["status"] == "pending"
+
+        speed = client.post("/api/replay/speed", json={"request_id": "d6-speed", "speed": 10})
+        assert speed.status_code == 202
+        assert speed.json()["status"] == "accepted"
+        assert (
+            client.post(
+                "/api/replay/speed", json={"request_id": "d6-bad-speed", "speed": 5}
+            ).status_code
+            == 422
+        )
+
+        paused = client.post("/api/replay/pause", json={"request_id": "d6-pause"})
+        assert paused.status_code == 202
+        assert paused.json()["status"] == "accepted"
+
+
+def test_report_card_filters_reach_the_engine(tmp_path: Path) -> None:
+    """An unmatched task, action or cutoff must change the answer, proving it was applied."""
+    test_db = tmp_path / "report_filters.db"
+    _seed_sample_db(test_db)
+    with patch.object(settings, "db_path", test_db):
+        matched = client.get(
+            "/api/report-card?family=email_action"
+            "&class_key=mail%7Cknown&action=REPLY&as_of=2026-03-01T11:00:00Z"
+        )
+        assert matched.status_code == 200
+        body = matched.json()
+        assert body["scope"] == "filtered_cohort"
+        assert body["filters"] == {
+            "family": "email_action",
+            "class_key": "mail|known",
+            "action": "REPLY",
+        }
+        assert body["total_proposals"] == 1
+
+        wrong_task = client.get("/api/report-card?class_key=mail%7Cother&action=REPLY")
+        assert wrong_task.json()["total_proposals"] == 0
+        wrong_action = client.get("/api/report-card?class_key=mail%7Cknown&action=TRASH")
+        assert wrong_action.json()["total_proposals"] == 0
+        before_arrival = client.get("/api/report-card?as_of=2026-02-28T10:00:00Z")
+        assert before_arrival.json()["total_proposals"] == 0
+        assert client.get("/api/report-card?since=2026-03-02T10:00:00Z").status_code == 400
+
+
+def test_metrics_separate_intended_decisions_from_confirmed_effects(tmp_path: Path) -> None:
+    """A proposal to act is never reported as an effect, and future cutoffs are refused."""
+    test_db = tmp_path / "metrics.db"
+    _seed_sample_db(test_db)
+    with patch.object(settings, "db_path", test_db):
+        summary = client.get("/api/metrics/summary")
+        assert summary.status_code == 200
+        data = summary.json()
+        assert data["proposals_total"] == 1
+        assert data["asks"] == 1
+        assert data["intended_actions"] == 0
+        # act-1 is DONE in the mutable table, so it is a confirmed effect; the ASK proposal is not.
+        assert data["confirmed_effects"] == 1
+        assert data["unconfirmed_effects"] == 0
+        # No append-only outcome evidence exists, so agreement has no denominator.
+        assert data["agreement"] == {"numerator": 0, "denominator": 0, "rate": None}
+        assert data["scope"]["sources"] == 1
+        assert "automatic_actions" not in data and "agreement_rate" not in data
+
+        assert client.get("/api/metrics/summary?as_of=2030-01-01T00:00:00Z").status_code == 400
+        scoped = client.get("/api/metrics/summary?class_key=mail%7Cother")
+        assert scoped.json()["proposals_total"] == 0
+
+
+def _seed_spend(conn: sqlite3.Connection) -> None:
+    """One confirmed charge, one estimate, one dispatched hold and one ambiguous hold."""
+    now = "2026-03-01T10:00:00Z"
+    conn.execute(
+        """INSERT INTO budget_scopes (scope_id,provider,account_label,model_id,period_rule,
+           period_key,cap_units,price_version,created_at_op)
+           VALUES ('scope-1','nebius','acct','nemotron','total','all',10000000,'v1',?)""",
+        (now,),
+    )
+    for request_id, state in (
+        ("req-ok", "succeeded"),
+        ("req-hold", "succeeded"),
+        ("req-gone", "unavailable"),
+    ):
+        conn.execute(
+            """INSERT INTO llm_requests (request_id,scope_id,owner_role,semantic_digest,prompt_id,
+               prompt_version,model_id,cache_key,situation_id,result_state,created_at_op)
+               VALUES (?,'scope-1','brain',?,'p','v1','nemotron',?,NULL,?,?)""",
+            (request_id, f"digest-{request_id}", f"cache-{request_id}", state, now),
+        )
+    attempts = (
+        ("att-ok", "req-ok", "reconciled", 5000, 5000),
+        ("att-est", "req-hold", "reserved", 3000, 0),
+        ("att-dis", "req-hold", "dispatched", 2000, 0),
+        ("att-amb", "req-hold", "ambiguous", 1500, 0),
+        ("att-none", "req-gone", "never_dispatched", 0, 0),
+    )
+    for ordinal, (attempt_id, request_id, state, estimate, charged) in enumerate(attempts, start=1):
+        conn.execute(
+            """INSERT INTO llm_attempts (attempt_id,request_id,scope_id,owner_role,ordinal,stage,
+               state,estimate_units,charged_units,tokens_in_bound,tokens_out_bound,usage_provenance,
+               reserved_at_op)
+               VALUES (?,?,'scope-1','brain',?,'structured',?,?,?,0,0,'estimated',?)""",
+            (attempt_id, request_id, ordinal, state, estimate, charged, now),
+        )
+    conn.commit()
+
+
+def test_exposure_separates_confirmed_charges_estimates_and_holds(tmp_path: Path) -> None:
+    """An unresolved hold is never presented as free or as a confirmed cost."""
+    test_db = tmp_path / "spend.db"
+    _seed_sample_db(test_db)
+    with get_connection(test_db) as conn:
+        _seed_spend(conn)
+    with patch.object(settings, "db_path", test_db):
+        body = client.get("/api/exposure").json()["budget"]
+        assert body["available"] is True
+        assert body["confirmed_usd"] == 0.00005
+        assert body["estimated_usd"] == 0.00003
+        assert body["unresolved_holds"] == 2
+        assert set(body["holds_by_state"]) == {"reserved", "dispatched", "ambiguous"}
+        assert body["never_dispatched"] == 1
+
+
+def test_exposure_reports_spend_records_as_unavailable(tmp_path: Path) -> None:
+    """A database without the durable spend audit says unavailable instead of zero."""
+    test_db = tmp_path / "no-spend.db"
+    _seed_sample_db(test_db)
+    with get_connection(test_db) as conn:
+        conn.execute("DROP TABLE llm_attempts")
+        conn.commit()
+    with patch.object(settings, "db_path", test_db):
+        body = client.get("/api/exposure").json()["budget"]
+        assert body == {"available": False, "reason": "spend_records_unavailable"}

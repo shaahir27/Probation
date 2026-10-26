@@ -345,6 +345,43 @@ def test_one_role_per_process_plan(engine: Path, private_store: Path, clock: Clo
         assert command[command.index("--role") + 1] == role.value
 
 
+def test_api_capability_requires_owner_settings_and_existing_store(
+    engine: Path, private_store: Path, clock: Clock
+) -> None:
+    env = _env_with()
+    runtime = GmailRuntime(
+        db_path=engine,
+        private_store_path=private_store,
+        env=env,
+        clock=clock,
+    )
+    assert runtime.plan()[RuntimeRole.API][2] is False
+
+    env.update(
+        {
+            "PROBATION_GMAIL_OWNER_API_KEY": "synthetic-owner-key",
+            "PROBATION_GMAIL_OWNER_ID": "synthetic-owner",
+            "PROBATION_GMAIL_STORE": str(private_store.with_name("missing.db")),
+        }
+    )
+    missing_store = GmailRuntime(
+        db_path=engine,
+        private_store_path=private_store,
+        env=env,
+        clock=clock,
+    )
+    assert missing_store.plan()[RuntimeRole.API][2] is False
+
+    env["PROBATION_GMAIL_STORE"] = str(private_store)
+    configured = GmailRuntime(
+        db_path=engine,
+        private_store_path=private_store,
+        env=env,
+        clock=clock,
+    )
+    assert configured.plan()[RuntimeRole.API][2] is True
+
+
 def test_executor_credential_failure_degrades_write_not_observation(
     engine: Path, private_store: Path, clock: Clock
 ) -> None:
@@ -390,7 +427,10 @@ def test_stop_shuts_down_all_roles(engine: Path, private_store: Path, clock: Clo
     report = runtime.run(stop, join_timeout=0.01)
     assert len(handles) == len(RuntimeRole)
     assert all(handle.terminated for handle in handles.values())
-    assert {status.state for status in report.values()} == {"stopped"}
+    assert report.status(RuntimeRole.API).state == "degraded"
+    assert all(
+        status.state == "stopped" for role, status in report.items() if role is not RuntimeRole.API
+    )
 
 
 def test_role_failure_does_not_silently_hide(
@@ -422,7 +462,7 @@ def test_role_failure_does_not_silently_hide(
     assert len(report) == len(RuntimeRole)
     assert report.status(RuntimeRole.OBSERVATION).state == "stopped"
     assert report.status(RuntimeRole.EXECUTOR).state == "stopped"
-    assert report.status(RuntimeRole.API).state == "stopped"
+    assert report.status(RuntimeRole.API).state == "degraded"
 
 
 def test_no_service_installation_or_admin_path() -> None:

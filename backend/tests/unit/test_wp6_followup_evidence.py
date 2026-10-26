@@ -16,10 +16,12 @@ def history():
     conn.executescript("""
     CREATE TABLE proposals(id,situation_id,family,class_key,action,gate,proposed_at,ledger_seq,followup_of_action_id);
     CREATE TABLE situations(id,pack,raw_item_id,occurred_at,sender_key,content_hash,redacted_text,hands_off_reason,variant);
-    CREATE TABLE raw_items(id,known_at,payload_json);
+    CREATE TABLE sources(id,kind);
+    CREATE TABLE raw_items(id,source_id,known_at,payload_json);
     CREATE TABLE ledger(seq,kind,ref_id,payload_json,created_at);
     INSERT INTO situations VALUES('s','mail','r','2026-01-01T00:00:00Z',NULL,'hash','text',NULL,'');
-    INSERT INTO raw_items VALUES('r','2026-01-01T00:00:00Z','{}');
+    INSERT INTO sources VALUES('synthetic-source','synthetic');
+    INSERT INTO raw_items VALUES('r','synthetic-source','2026-01-01T00:00:00Z','{}');
     """)
     yield conn
     conn.close()

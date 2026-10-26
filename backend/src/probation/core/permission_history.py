@@ -8,15 +8,40 @@ from probation.core.clock import timestamp_key
 from probation.db.guards import ReadConnection
 
 
+def _stored_payload(raw: object) -> dict[str, Any] | None:
+    """Parse a stored provider payload. Malformed provenance fails closed, never raises."""
+    if raw is None or raw == "":
+        return {}
+    if not isinstance(raw, str):
+        return None
+    try:
+        value = json.loads(raw)
+    except (TypeError, ValueError):
+        return None
+    return value if isinstance(value, dict) else None
+
+
 def permission_records(
-    conn: sqlite3.Connection | ReadConnection, as_of: str, family: str | None
+    conn: sqlite3.Connection | ReadConnection,
+    as_of: str,
+    family: str | None,
+    source_ids: tuple[str, ...] | None = None,
 ) -> list[dict[str, Any]]:
+    if source_ids == ():
+        return []
+    source_clause = (
+        f" AND r.source_id IN ({','.join('?' for _ in source_ids)})"
+        if source_ids is not None
+        else ""
+    )
     rows = conn.execute(
-        """SELECT p.*,s.pack,s.raw_item_id,s.occurred_at,s.sender_key,s.content_hash,
+        f"""SELECT p.*,s.pack,s.raw_item_id,s.occurred_at,s.sender_key,s.content_hash,
                   s.redacted_text,s.hands_off_reason,s.variant,r.payload_json AS raw_payload_json,
+                  r.source_id,src.kind AS source_kind,
                   l.payload_json AS commitment,l.created_at AS committed_at
            FROM proposals p JOIN situations s ON s.id=p.situation_id
            JOIN raw_items r ON r.id=s.raw_item_id
+           LEFT JOIN sources src ON src.id=r.source_id
            JOIN ledger l ON l.seq=p.ledger_seq AND l.kind='proposal' AND l.ref_id=p.id
            WHERE p.proposed_at COLLATE UTC_TIMESTAMP <= ?
              AND p.gate IN ('SHADOW','SUGGEST','ASK')
@@ -25,13 +50,28 @@ def permission_records(
              AND r.known_at COLLATE UTC_TIMESTAMP <= ?
              AND l.created_at COLLATE UTC_TIMESTAMP <= ?
              AND (? IS NULL OR p.family=?)
+             {source_clause}
            ORDER BY p.proposed_at COLLATE UTC_TIMESTAMP,p.id""",
-        (as_of, as_of, as_of, as_of, family, family),
+        (as_of, as_of, as_of, as_of, family, family, *(source_ids or ())),
     ).fetchall()
     proposals: dict[str, dict[str, Any]] = {}
     for row in rows:
         item = dict(row)
         commitment = json.loads(item.pop("commitment"))
+        raw_payload = _stored_payload(item.get("raw_payload_json"))
+        if raw_payload is None:
+            continue
+        gmail_source = item["source_kind"] == "gmail_live"
+        if gmail_source and (
+            raw_payload.get("retrospective") is not False
+            or raw_payload.get("evidence_context")
+            not in {"prospective", "prospective_synthetic", "live"}
+            or commitment.get("retrospective") is not False
+            or commitment.get("evidence_context")
+            not in {"prospective", "prospective_synthetic", "live"}
+            or commitment.get("evidence_context") != raw_payload.get("evidence_context")
+        ):
+            continue
         if (
             commitment.get("situation_id") != item["situation_id"]
             or commitment.get("class_key") != item["class_key"]

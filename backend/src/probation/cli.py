@@ -1,5 +1,7 @@
 """CLI entry point. Authority: docs/CONTRACT.md section 10."""
 
+import os
+
 import typer
 from rich.table import Table
 
@@ -275,8 +277,48 @@ def serve(
     host: str = typer.Option("127.0.0.1", "--host", help="Listen address"),
     port: int = typer.Option(8000, "--port", min=1, max=65535, help="Listen port"),
     reload: bool = typer.Option(False, "--reload", help="Development reload"),
+    gmail_runtime: bool = typer.Option(
+        False,
+        "--gmail-runtime",
+        help="Start the role-separated local Gmail runtime with the API",
+    ),
 ) -> None:
     """Serve the existing FastAPI dashboard API."""
+    if gmail_runtime:
+        from pathlib import Path
+        from threading import Event
+
+        from probation.core.clock import Clock
+        from probation.workers.gmail_role_loops import WorkLedger
+        from probation.workers.gmail_runtime import GmailRuntime
+
+        if host != "127.0.0.1":
+            raise typer.BadParameter("--gmail-runtime requires host 127.0.0.1")
+        if settings.probation_gmail_store is None:
+            raise typer.BadParameter("PROBATION_GMAIL_STORE must name the configured private store")
+        child_source = dict(os.environ)
+        # Use values already loaded by Pydantic Settings; never read or copy the dotenv file.
+        for field_name, value in settings.model_dump().items():
+            if value is not None:
+                child_source[field_name.upper()] = str(value)
+        child_source["DB_PATH"] = str(settings.db_path)
+        child_source["PROBATION_API_PORT"] = str(port)
+        runtime = GmailRuntime(
+            db_path=settings.db_path,
+            private_store_path=Path(settings.probation_gmail_store),
+            env=child_source,
+            clock=Clock.live(),
+            # The supervisor's own ledger, fed by each child's reported status lines. Without it
+            # no role can ever prove it did work, so readiness would stay unavailable forever.
+            work=WorkLedger(),
+        )
+        report = runtime.run(Event())
+        for role, status in report.items():
+            console.print(
+                f"{role.value}: {status.state} (ready={status.capability_ready})"
+                + (f" ({status.detail})" if status.detail else "")
+            )
+        return
     import uvicorn
 
     uvicorn.run("probation.api.app:app", host=host, port=port, reload=reload)

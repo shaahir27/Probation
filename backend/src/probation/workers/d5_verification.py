@@ -129,12 +129,12 @@ def predict_verified_email(
     features = compute_features(
         situation, history, consumer=consumer, reader_callable=reader_callable
     )
-    web = WebObservation(reasons=("reader_unavailable",))
+    web = WebObservation(cap=0, reasons=("reader_unavailable",))
     if features.reader_ok and features.reader is not None:
         try:
             web = verify(situation, features, history)
         except (OSError, sqlite3.Error, ValueError, TypeError):
-            web = WebObservation(reasons=("verification_unavailable",))
+            web = WebObservation(cap=0, reasons=("verification_unavailable",))
     final_cutoff = clock.now_iso()
     if timestamp_key(final_cutoff) < timestamp_key(cutoff):
         raise ValueError("Decision clock moved backwards")
@@ -184,7 +184,7 @@ def persist_verified_email(
         raise ValueError("A known outcome cannot follow a new prospective commitment")
     if history.get_raw_item(situation.raw_item_id) is None:
         raise ValueError("Proposal source not known")
-    if conn.execute("SELECT 1 FROM proposals WHERE situation_id=?", (situation.id,)).fetchone():
+    if situation.id in history.proposed_situation_ids():
         raise ValueError("An initial proposal is already committed")
     prediction, features = result.prediction, result.features
     licence = derive_licences(

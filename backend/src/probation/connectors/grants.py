@@ -6,6 +6,11 @@ from probation.core.lifecycle import SourceGrant
 from probation.db.gmail_store import ConnectorAccess
 
 
+def gmail_source_id(connection_id: str) -> str:
+    """Canonical engine source identity persisted by the Gmail ingestion bridge."""
+    return f"gmail-source:{connection_id}"
+
+
 def source_grants_for_owner(access: ConnectorAccess, owner_id: str) -> tuple[SourceGrant, ...]:
     """Every registered connection this owner holds; the rows are the only source of grants."""
     rows = access.query(
@@ -15,7 +20,7 @@ def source_grants_for_owner(access: ConnectorAccess, owner_id: str) -> tuple[Sou
     )
     return tuple(
         SourceGrant(
-            source_id=f"gmail:{row['connection_id']}",
+            source_id=gmail_source_id(str(row["connection_id"])),
             connection_id=str(row["connection_id"]),
             account_id=str(row["account_id"]),
             from_addr=str(row["account_id"]),

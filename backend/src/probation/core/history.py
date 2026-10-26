@@ -99,10 +99,12 @@ class HistoryView:
 
         return training_records(self._conn, self.as_of, family)
 
-    def permission_records(self, family: str | None = None) -> list[dict[str, Any]]:
+    def permission_records(
+        self, family: str | None = None, source_ids: tuple[str, ...] | None = None
+    ) -> list[dict[str, Any]]:
         from probation.core.permission_history import permission_records
 
-        return permission_records(self._conn, self.as_of, family)
+        return permission_records(self._conn, self.as_of, family, source_ids)
 
     def known_entity_senders(self) -> set[str]:
         """Only eligible strong user decisions establish web-domain familiarity."""
@@ -140,7 +142,23 @@ class HistoryView:
 
         return alarm_times(self._conn, self.as_of, class_key, action, family)
 
-    def permission_pairs(self) -> list[tuple[str, str]]:
+    def permission_pairs(self, source_ids: tuple[str, ...] | None = None) -> list[tuple[str, str]]:
+        if source_ids == ():
+            return []
+        if source_ids is not None:
+            rows = self._conn.execute(
+                """SELECT DISTINCT p.class_key,p.action FROM proposals p
+                   JOIN situations s ON s.id=p.situation_id
+                   JOIN raw_items r ON r.id=s.raw_item_id
+                   WHERE p.proposed_at COLLATE UTC_TIMESTAMP<=?
+                     AND s.occurred_at COLLATE UTC_TIMESTAMP<=?
+                     AND r.known_at COLLATE UTC_TIMESTAMP<=?
+                     AND r.source_id IN ({}) ORDER BY p.class_key,p.action""".format(
+                    ",".join("?" for _ in source_ids)
+                ),
+                (self.as_of, self.as_of, self.as_of, *source_ids),
+            ).fetchall()
+            return [(str(row[0]), str(row[1])) for row in rows]
         rows = self._conn.execute(
             """SELECT class_key,action FROM proposals WHERE proposed_at COLLATE UTC_TIMESTAMP <= ?
                UNION SELECT class_key,action FROM licence_cache WHERE computed_at COLLATE UTC_TIMESTAMP <= ?
@@ -247,6 +265,46 @@ class HistoryView:
         cursor = self._conn.cursor()
         cursor.execute(query, tuple(params))
         return list(cursor.fetchall())
+
+    def proposed_situation_ids(self) -> set[str]:
+        """Return only proposal identities committed by this view's cutoff."""
+        rows = self._conn.execute(
+            """SELECT DISTINCT situation_id FROM proposals
+               WHERE proposed_at COLLATE UTC_TIMESTAMP <= ?""",
+            (self.as_of,),
+        ).fetchall()
+        return {str(row[0]) for row in rows}
+
+    def pending_gmail_situations(self, limit: int = 32) -> list[sqlite3.Row]:
+        """Return bounded, known Gmail situations without a known proposal or outcome."""
+        if not 1 <= limit <= 256:
+            raise ValueError("Invalid pending-situation limit")
+        return list(
+            self._conn.execute(
+                """SELECT s.* FROM situations s
+                   JOIN raw_items r ON r.id=s.raw_item_id
+                   JOIN sources src ON src.id=r.source_id
+                   WHERE s.pack='mail' AND s.family='email_action'
+                     AND src.kind='gmail_live'
+                     AND s.occurred_at COLLATE UTC_TIMESTAMP <= ?
+                     AND r.known_at COLLATE UTC_TIMESTAMP <= ?
+                     AND COALESCE(json_extract(r.payload_json,'$.is_sent'),0)=0
+                     AND NOT EXISTS (
+                       SELECT 1 FROM proposals p WHERE p.situation_id=s.id
+                         AND p.proposed_at COLLATE UTC_TIMESTAMP <= ?
+                     )
+                     AND NOT EXISTS (
+                       SELECT 1 FROM outcomes o WHERE o.situation_id=s.id
+                         AND o.known_at COLLATE UTC_TIMESTAMP <= ?
+                     )
+                     AND NOT EXISTS (
+                       SELECT 1 FROM outcome_events e WHERE e.situation_id=s.id
+                         AND e.known_at COLLATE UTC_TIMESTAMP <= ?
+                     )
+                   ORDER BY s.occurred_at COLLATE UTC_TIMESTAMP,s.id LIMIT ?""",
+                (self.as_of, self.as_of, self.as_of, self.as_of, self.as_of, limit),
+            ).fetchall()
+        )
 
     def get_outcomes(
         self,

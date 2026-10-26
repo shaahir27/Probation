@@ -578,3 +578,43 @@ def test_redaction_and_llm_boundary_untouched(
             imported.update(alias.name for alias in node.names)
     assert not any(name.startswith("probation.llm") for name in imported)
     assert "datetime" not in imported and "time" not in imported
+
+
+def test_canonical_source_identity_links_ingestion_grants_and_execution(
+    store: ConnectorAccess,
+    store_path: Path,
+    engine: sqlite3.Connection,
+    payloads: _Payloads,
+) -> None:
+    """One canonical id: the ingested engine source, the owner's grant and the execution binding."""
+    from probation.connectors.grants import (
+        gmail_source_id,
+        source_grant_for,
+        source_grants_for_owner,
+    )
+
+    _commit_observation(store, "m1", payloads)
+    assert _bridge(store, engine, payloads).run().raw_items_stored == 1
+    rows = engine.execute("SELECT id,kind FROM sources").fetchall()
+    assert [(row["id"], row["kind"]) for row in rows] == [
+        (gmail_source_id(CONNECTION), "gmail_live")
+    ]
+
+    registration = ConnectorAccess(open_store(store_path), "administration")
+    registration.write(
+        "gmail_connections",
+        """INSERT INTO gmail_connections
+         (connection_id,account_id,owner_id,state,selection_revision,label_ids,credential_ref,
+          granted_scopes,created_at,updated_at)
+         VALUES (?,?,?,?,1,'["COHORT"]','cred-ref-1','["gmail.readonly"]',?,?)""",
+        (CONNECTION, ACCOUNT, "owner-1", "AUTHORIZED", NOW, NOW),
+    )
+    registration.conn.close()
+    reader = ConnectorAccess(open_store(store_path), "api")
+    try:
+        grants = source_grants_for_owner(reader, "owner-1")
+        assert [grant.source_id for grant in grants] == [row["id"] for row in rows]
+        assert source_grant_for(reader, "owner-1", CONNECTION, ACCOUNT) == grants[0]
+        assert source_grants_for_owner(reader, "other-owner") == ()
+    finally:
+        reader.conn.close()

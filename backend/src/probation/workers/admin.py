@@ -11,15 +11,20 @@ from probation.db.commands import COMMAND_ADAPTER, DenyHabit
 from probation.workers.examiner import run_examiner_job
 
 
-def process_admin_commands(conn: sqlite3.Connection, *, clock: Clock | None = None) -> list[str]:
+def process_admin_commands(
+    conn: sqlite3.Connection, *, clock: Clock | None = None, limit: int = 32
+) -> list[str]:
     if conn.in_transaction:
         raise ValueError("Command drain requires a clean Examiner connection")
+    if not 1 <= limit <= 256:
+        raise ValueError("Invalid Examiner command batch size")
     clk = clock or get_clock()
     access = RoleAccess(conn, Role.EXAMINER)
     rows = access.conn.execute(
         """SELECT * FROM admin_commands WHERE status='PENDING'
-        AND requested_at COLLATE UTC_TIMESTAMP <= ? ORDER BY requested_at COLLATE UTC_TIMESTAMP,id""",
-        (clk.now_iso(),),
+        AND requested_at COLLATE UTC_TIMESTAMP <= ? ORDER BY requested_at COLLATE UTC_TIMESTAMP,id
+        LIMIT ?""",
+        (clk.now_iso(), limit),
     ).fetchall()
     completed: list[str] = []
     for row in rows:

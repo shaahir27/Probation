@@ -70,12 +70,54 @@ def test_owner_required_and_legacy_mutation_rejected(client):
         == 422
     )
     app.dependency_overrides.pop(require_owner)
+    # D6 replaced the injected owner stub with real credential verification. With no owner
+    # credential configured, a private mutation is unavailable rather than silently served.
     assert (
         client.post(
             "/api/queue/review-proposal/review", json={"version": "v2", "response": "accept"}
         ).status_code
-        == 403
+        == 503
     )
+
+
+def test_configured_owner_auth_rejects_outside_and_ungranted_clients(client, tmp_path, monkeypatch):
+    """A token from off-loopback is refused; a loopback owner with no Gmail grant cannot review."""
+    from probation.api import gmail_auth
+    from probation.api.routes import gmail_connector
+
+    app.dependency_overrides.pop(require_owner)
+    config = gmail_connector.GmailApiConfig(
+        owner_credential=gmail_auth.OwnerApiCredential(
+            owner_id="owner", token_sha256=gmail_auth.hash_owner_token("synthetic-owner-token")
+        ),
+        store_path=tmp_path / "absent-connector-store.db",
+    )
+    with TestClient(app, client=("127.0.0.1", 50000)) as loopback:
+        monkeypatch.setattr(gmail_connector, "_config", config)
+        payload = {"version": "v2", "response": "accept"}
+        anonymous = loopback.post("/api/queue/review-proposal/review", json=payload)
+        assert anonymous.status_code == 401
+        assert anonymous.json()["error"]["message"] == gmail_auth.AUTH_FAILURE_CODE
+        wrong = loopback.post(
+            "/api/queue/review-proposal/review",
+            json=payload,
+            headers={"Authorization": "Bearer wrong-token"},
+        )
+        assert wrong.status_code == 401
+        assert wrong.json()["error"]["message"] == gmail_auth.AUTH_FAILURE_CODE
+        ungranted = loopback.post(
+            "/api/queue/review-proposal/review",
+            json=payload,
+            headers={"Authorization": "Bearer synthetic-owner-token"},
+        )
+        assert ungranted.status_code == 403
+        assert ungranted.json()["error"]["message"] == "source_grant_required"
+    denied = client.post(
+        "/api/queue/review-proposal/review",
+        json={"version": "v2", "response": "accept"},
+        headers={"Authorization": "Bearer synthetic-owner-token"},
+    )
+    assert denied.status_code == 401
 
 
 def test_response_status_owner_scope(client):

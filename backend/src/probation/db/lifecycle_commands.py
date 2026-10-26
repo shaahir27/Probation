@@ -11,7 +11,7 @@ class CommandStore:
 
     def get(self, request_id: str) -> CommandIntent | None:
         row = self.access.conn.execute(
-            "SELECT * FROM command_requests WHERE id=?", (request_id,)
+            "SELECT * FROM command_requests WHERE id=? AND schema_version=1", (request_id,)
         ).fetchone()
         if row is None:
             return None
@@ -53,7 +53,7 @@ class CommandStore:
     def known(self, as_of: str) -> list[CommandIntent]:
         rows = self.access.conn.execute(
             """SELECT id FROM command_requests
-            WHERE created_at COLLATE UTC_TIMESTAMP <= ? ORDER BY created_at COLLATE UTC_TIMESTAMP,id""",
+            WHERE schema_version=1 AND created_at COLLATE UTC_TIMESTAMP <= ? ORDER BY created_at COLLATE UTC_TIMESTAMP,id""",
             (as_of,),
         ).fetchall()
         return [item for row in rows if (item := self.get(row["id"])) is not None]
@@ -62,7 +62,7 @@ class CommandStore:
         require_role(self.access, "examiner")
         rows = self.access.conn.execute(
             """SELECT c.id FROM command_requests c
-            WHERE c.created_at COLLATE UTC_TIMESTAMP <= ? AND NOT EXISTS(
+            WHERE c.schema_version=1 AND c.created_at COLLATE UTC_TIMESTAMP <= ? AND NOT EXISTS(
             SELECT 1 FROM command_receipts r WHERE r.command_id=c.id AND r.consumer='examiner'
             AND r.state IN('succeeded','failed')) ORDER BY c.created_at COLLATE UTC_TIMESTAMP,c.id LIMIT ?""",
             (as_of, limit),

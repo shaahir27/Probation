@@ -8,15 +8,16 @@ Contract ActionStatus enum: PENDING | HELD | DONE | UNDONE | CANCELLED | FAILED.
 
 import json
 import sqlite3
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from probation.api.authority import OwnerContext, require_owner
 from probation.api.db import connect_api as get_connection
 from probation.config import settings
 from probation.core.clock import get_clock, parse_timestamp
 
-router = APIRouter(prefix="/api", tags=["actions"])
+router = APIRouter(prefix="/api", tags=["actions"], dependencies=[Depends(require_owner)])
 
 
 def _get_db() -> sqlite3.Connection:
@@ -26,13 +27,16 @@ def _get_db() -> sqlite3.Connection:
 
 
 @router.get("/actions")
-def get_actions() -> dict[str, Any]:
+def get_actions(owner: Annotated[OwnerContext, Depends(require_owner)]) -> dict[str, Any]:
     """Executed and held actions per CONTRACT.md section 9."""
     if not settings.db_path.exists():
         return {"actions": [], "total_count": 0}
 
     conn = _get_db()
     try:
+        allowed_sources = tuple(grant.source_id for grant in owner.grants)
+        if not allowed_sources:
+            return {"actions": [], "total_count": 0}
         cursor = conn.cursor()
         cursor.execute(
             """
@@ -44,8 +48,11 @@ def get_actions() -> dict[str, Any]:
             FROM actions a
             LEFT JOIN proposals p ON a.proposal_id = p.id
             LEFT JOIN situations s ON p.situation_id = s.id
+            LEFT JOIN raw_items r ON r.id=s.raw_item_id
+            WHERE r.source_id IN ({})
             ORDER BY a.created_at COLLATE UTC_TIMESTAMP DESC;
-            """
+            """.format(",".join("?" for _ in allowed_sources)),
+            allowed_sources,
         )
         rows = cursor.fetchall()
 

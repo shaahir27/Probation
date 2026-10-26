@@ -17,6 +17,7 @@ import sqlite3
 from dataclasses import dataclass
 from typing import Any, Final
 
+from probation.connectors.grants import gmail_source_id
 from probation.connectors.types import ConnectorError, MessagePayload, PayloadReader
 from probation.core.clock import Clock
 from probation.db.access import Role, RoleAccess
@@ -46,7 +47,7 @@ class IngestResult:
 
 def source_id_for(connection_id: str) -> str:
     """Deterministic engine source id for one opaque connector connection."""
-    return f"gmail-source:{connection_id}"
+    return gmail_source_id(connection_id)
 
 
 def raw_item_id_for(connection_id: str, native_message_id: str) -> str:

@@ -1,12 +1,13 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import FastAPI, Request
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import Depends, FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from probation.api.authority import OwnerContext, require_owner
 from probation.api.db import connect_api as get_connection
 from probation.api.routes import (
     actions,
@@ -17,6 +18,7 @@ from probation.api.routes import (
     items,
     licences,
     queue,
+    readiness,
     replay,
     report,
     responses,
@@ -26,10 +28,19 @@ from probation.config import settings
 from probation.core.clock import get_clock, use_clock
 from probation.db.ledger import ledger_snapshot
 
+Owner = Annotated[OwnerContext, Depends(require_owner)]
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    gmail_connector.configure_gmail_api_from_env()
+    gmail_connector.configure_gmail_api_from_env(
+        {
+            "PROBATION_GMAIL_OWNER_API_KEY": settings.probation_gmail_owner_api_key,
+            "PROBATION_GMAIL_OWNER_ID": settings.probation_gmail_owner_id,
+            "PROBATION_GMAIL_STORE": str(settings.probation_gmail_store or ""),
+            "PROBATION_GMAIL_BIND_HOST": settings.probation_gmail_bind_host,
+        }
+    )
     yield
 
 
@@ -49,15 +60,6 @@ async def share_context_clock(request: Request, call_next: Any) -> Any:
         return await call_next(request)
 
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-
 @app.exception_handler(StarletteHTTPException)
 async def custom_http_exception_handler(
     request: Request, exc: StarletteHTTPException
@@ -66,6 +68,17 @@ async def custom_http_exception_handler(
     return JSONResponse(
         status_code=exc.status_code,
         content={"error": {"code": str(exc.status_code), "message": str(exc.detail)}},
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def request_validation_error_handler(
+    request: Request, exc: RequestValidationError
+) -> JSONResponse:
+    """Do not echo submitted bodies, headers, or credentials in validation failures."""
+    return JSONResponse(
+        status_code=422,
+        content={"error": {"code": "422", "message": "request_validation_failed"}},
     )
 
 
@@ -80,6 +93,7 @@ app.include_router(report.router)
 app.include_router(insights.router)
 app.include_router(boards.router)
 app.include_router(webfacts.router)
+app.include_router(readiness.router)
 app.include_router(replay.router)
 app.include_router(gmail_connector.router)
 
@@ -87,12 +101,32 @@ app.include_router(gmail_connector.router)
 @app.get("/health")
 @app.get("/api/health")
 def health_check() -> dict[str, str]:
-    """Health check endpoint."""
-    return {"status": "ok", "service": "probation", "mode": settings.clock_mode}
+    """Liveness only: the process answers, and a read probe proves the database handle opens."""
+    if not settings.db_path.exists():
+        return {"status": "ok", "service": "probation", "mode": settings.clock_mode}
+    conn = get_connection(settings.db_path)
+    try:
+        return {"status": "ok", "service": "probation", "mode": settings.clock_mode}
+    except OSError:
+        return {"status": "degraded", "service": "probation", "mode": settings.clock_mode}
+    finally:
+        conn.close()
+
+
+@app.get("/api/bootstrap")
+def api_bootstrap() -> dict[str, Any]:
+    """Return safe UI bootstrap metadata; profile selection remains server-owned."""
+    return {
+        "version": "d6.v1",
+        "profile": settings.app_profile,
+        "auth_required": True,
+    }
 
 
 @app.get("/api/ledger/verify")
-def api_ledger_verify() -> dict[str, Any]:
+def api_ledger_verify(
+    owner: Owner,
+) -> dict[str, Any]:
     """Verify hash chain integrity per CONTRACT.md section 9."""
     if not settings.db_path.exists():
         return {
@@ -116,7 +150,7 @@ def api_ledger_verify() -> dict[str, Any]:
 
 
 @app.get("/api/settings")
-def api_settings() -> dict[str, Any]:
+def api_settings(owner: Owner) -> dict[str, Any]:
     """Read-only view of effective tunables per CONTRACT.md section 9 and 11."""
     # Exclude secret keys per CONTRACT.md
     safe_settings = {
@@ -139,10 +173,10 @@ def api_settings() -> dict[str, Any]:
 
 
 @app.get("/api/exposure")
-def api_exposure() -> dict[str, Any]:
+def api_exposure(owner: Owner) -> dict[str, Any]:
     """Return text sent to LLMs per item and aggregate counts per CONTRACT.md section 9."""
     if not settings.db_path.exists():
-        return {"calls": 0, "total_cost_usd": 0.0, "breakdown": []}
+        return {"calls": 0, "total_cost_usd": 0.0, "breakdown": [], "budget": _budget_absent()}
 
     conn = get_connection(settings.db_path)
     try:
@@ -180,6 +214,61 @@ def api_exposure() -> dict[str, Any]:
             "calls": total_calls,
             "total_cost_usd": round(total_cost, 4),
             "breakdown": breakdown,
+            "budget": _budget_summary(conn),
         }
     finally:
         conn.close()
+
+
+def _budget_absent() -> dict[str, Any]:
+    return {"available": False, "reason": "database_not_initialized"}
+
+
+def _budget_summary(conn: Any) -> dict[str, Any]:
+    """Separate confirmed charges from estimates and unresolved holds, per CONTRACT.md section 6.
+
+    ``exposure_log`` is reported usage; the durable attempt rows are the money audit. An
+    ambiguous attempt is a hold that may already have been charged, so it is never counted as
+    free and never counted as confirmed.
+    """
+    tables = {
+        str(row[0])
+        for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
+    }
+    if not {"llm_attempts", "llm_requests"}.issubset(tables):
+        return {"available": False, "reason": "spend_records_unavailable"}
+    units = 1e8
+    confirmed = int(
+        conn.execute(
+            "SELECT COALESCE(SUM(charged_units),0) FROM llm_attempts WHERE state='reconciled'"
+        ).fetchone()[0]
+        or 0
+    )
+    held = conn.execute(
+        """SELECT state, COUNT(*) AS attempts, COALESCE(SUM(estimate_units),0) AS estimate
+           FROM llm_attempts WHERE state IN ('reserved','dispatched','ambiguous')
+           GROUP BY state"""
+    ).fetchall()
+    estimates = {
+        str(row["state"]): {
+            "attempts": int(row["attempts"]),
+            "usd_estimate": round(int(row["estimate"]) / units, 6),
+        }
+        for row in held
+    }
+    unresolved = sum(entry["attempts"] for state, entry in estimates.items() if state != "reserved")
+    priced = conn.execute(
+        """SELECT COUNT(*) FROM llm_attempts a JOIN llm_requests q ON q.request_id=a.request_id
+           WHERE q.result_state='unavailable' AND a.state='never_dispatched'"""
+    ).fetchone()[0]
+    return {
+        "available": True,
+        "confirmed_usd": round(confirmed / units, 6),
+        "estimated_usd": round(
+            sum(int(row["estimate"]) for row in held if row["state"] == "reserved") / units, 6
+        ),
+        "unresolved_holds": unresolved,
+        "holds_by_state": estimates,
+        "never_dispatched": int(priced or 0),
+        "unit": "usd",
+    }

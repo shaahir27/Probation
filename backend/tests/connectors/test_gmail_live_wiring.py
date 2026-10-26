@@ -19,6 +19,7 @@ from probation.api.routes.gmail_connector import (
     configure_gmail_api,
     configure_gmail_api_from_env,
 )
+from probation.config import settings
 from probation.connectors.credentials import RoleCredentialProvider
 from probation.connectors.credentials_state import (
     ProvisionedGrant,
@@ -405,3 +406,35 @@ def test_api_unconfigured_503_and_configured_serves(engine: Path, private_store:
         headers={"Authorization": "Bearer wrong-key"},
     )
     assert resp.status_code == 401
+
+
+def test_owner_can_sign_in_before_gmail_store_exists(tmp_path: Path, monkeypatch) -> None:
+    db_path = tmp_path / "data" / "db" / "probation.db"
+    missing_store = tmp_path / "data" / "private" / "connectors" / "gmail_metadata.db"
+    monkeypatch.setattr(settings, "db_path", db_path)
+    assert configure_gmail_api_from_env({"PROBATION_GMAIL_OWNER_API_KEY": "test-key-123"})
+
+    response = TestClient(app, client=("127.0.0.1", 50000)).get(
+        "/api/queue", headers={"Authorization": "Bearer test-key-123"}
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"items": [], "digests": [], "total_count": 0}
+    assert not missing_store.exists()
+
+
+def test_non_loopback_bind_host_is_rejected_not_substituted(private_store: Path) -> None:
+    """A bind host outside loopback fails the configuration instead of quietly replacing it."""
+    from probation.api import gmail_auth
+    from probation.api.routes import gmail_connector
+
+    configure_gmail_api(None)
+    env = {
+        "PROBATION_GMAIL_OWNER_API_KEY": "test-key-123",
+        "PROBATION_GMAIL_OWNER_ID": "owner-1",
+        "PROBATION_GMAIL_STORE": str(private_store),
+        "PROBATION_GMAIL_BIND_HOST": "0.0.0.0",
+    }
+    with pytest.raises(gmail_auth.ConnectorApiMisconfigured, match="bind_host_not_loopback"):
+        configure_gmail_api_from_env(env)
+    assert gmail_connector._config is None

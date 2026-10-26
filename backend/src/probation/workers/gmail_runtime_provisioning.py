@@ -361,14 +361,15 @@ def executor_steps(
 
 
 #: Stages this runtime can genuinely staff offline. The Gmail write path needs a live write
-#: transport and an installed grant bundle; Brain followups need fitted prediction snapshots.
+#: transport and an installed grant bundle; authority-lost follow-ups are Brain-owned work and are
+#: never staffed by the executor coordinator, which holds no prediction snapshot.
 EXECUTOR_PROVISIONS: Final[tuple[StepProvisioning, ...]] = (
     StepProvisioning("resolver", "provisioned"),
     StepProvisioning("examiner", "provisioned"),
     StepProvisioning("consume", "provisioned"),
     StepProvisioning("effects", "not_provisioned", "gmail_write_path_not_provisioned"),
     StepProvisioning("examiner_after", "provisioned"),
-    StepProvisioning("followups", "not_provisioned", "brain_followup_snapshots_absent"),
+    StepProvisioning("followups", "not_provisioned", "followups_owned_by_brain_role"),
 )
 
 EXECUTOR_LIVE_PROVISIONS: Final[tuple[StepProvisioning, ...]] = (
@@ -377,7 +378,7 @@ EXECUTOR_LIVE_PROVISIONS: Final[tuple[StepProvisioning, ...]] = (
     StepProvisioning("consume", "provisioned"),
     StepProvisioning("effects", "provisioned"),
     StepProvisioning("examiner_after", "provisioned"),
-    StepProvisioning("followups", "not_provisioned", "brain_followup_snapshots_absent"),
+    StepProvisioning("followups", "not_provisioned", "followups_owned_by_brain_role"),
 )
 
 

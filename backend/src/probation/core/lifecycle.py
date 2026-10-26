@@ -1,4 +1,8 @@
-"""Immutable D3 lifecycle contracts; provider capabilities remain outside these records."""
+"""Immutable D3 lifecycle contracts; provider capabilities remain outside these records.
+
+The versioned replay control records are owned by ``core/replay_controls.py`` and re-exported
+here only so established import paths keep resolving to the same classes.
+"""
 
 import hashlib
 from dataclasses import dataclass
@@ -7,6 +11,12 @@ from typing import Any, Literal, Self
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from probation.core.hashing import canonical_json
+from probation.core.replay_controls import (
+    ReplayCommandIntent as ReplayCommandIntent,
+)
+from probation.core.replay_controls import (
+    ReplayScope as ReplayScope,
+)
 
 HOLD_MINUTES = 10
 

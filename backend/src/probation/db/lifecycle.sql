@@ -9,8 +9,8 @@ CREATE TRIGGER IF NOT EXISTS d3_responses_valid BEFORE INSERT ON user_responses 
  SELECT CASE WHEN NEW.action_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM actions WHERE id=NEW.action_id AND proposal_id=NEW.proposal_id) THEN RAISE(ABORT,'wrong action reference') END;
 END;
 CREATE TABLE IF NOT EXISTS command_requests(
- id TEXT PRIMARY KEY,schema_version INTEGER NOT NULL CHECK(schema_version=1),owner_id TEXT NOT NULL,
- request_key TEXT NOT NULL,type TEXT NOT NULL CHECK(type IN('pause','resume','revoke')),
+ id TEXT PRIMARY KEY,schema_version INTEGER NOT NULL CHECK(schema_version IN(1,2)),owner_id TEXT NOT NULL,
+ request_key TEXT NOT NULL,type TEXT NOT NULL CHECK((schema_version=1 AND type IN('pause','resume','revoke')) OR (schema_version=2 AND type IN('replay_start','replay_pause','replay_speed'))),
  scope_json TEXT NOT NULL CHECK(json_valid(scope_json)),payload_hash TEXT NOT NULL,created_at TEXT NOT NULL,
  UNIQUE(owner_id,request_key)
 );

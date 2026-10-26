@@ -9,13 +9,14 @@ import json
 import sqlite3
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from probation.api.authority import require_owner
 from probation.api.db import connect_api as get_connection
 from probation.config import settings
 from probation.web.accounting import accounting_summary
 
-router = APIRouter(prefix="/api", tags=["webfacts"])
+router = APIRouter(prefix="/api", tags=["webfacts"], dependencies=[Depends(require_owner)])
 
 
 def _get_db() -> sqlite3.Connection:

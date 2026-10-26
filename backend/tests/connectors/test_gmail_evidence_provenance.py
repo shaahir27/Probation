@@ -7,7 +7,6 @@ to precede its outcome and keeps retrospective provenance separate, which is exa
 correlated provider change is: retrospective provenance, never a fresh vote.
 """
 
-import inspect
 import json
 import sqlite3
 from datetime import UTC, datetime
@@ -18,7 +17,8 @@ import pytest
 from fake_gmail_read import FakeGmailTransport, _Message
 
 from probation.core.clock import Clock, format_timestamp
-from probation.core.enums import ClockMode, LedgerKind
+from probation.core.enums import ClockMode, GateDecision, LedgerKind
+from probation.core.types import Proposal
 from probation.db.access import Role, RoleAccess
 from probation.db.connection import apply_schema, get_connection
 from probation.db.gmail_store import ConnectorAccess, migrate_store, open_store
@@ -168,6 +168,11 @@ def _commit_proposal(
     extra: dict[str, Any] | None = None,
 ) -> int:
     """One immutable prospective commitment, shaped exactly like ``db.proposals`` writes it."""
+    evidence_context = (extra or {}).get(
+        "evidence_context",
+        "backfill" if (extra or {}).get("retrospective") is True else "prospective",
+    )
+    retrospective = evidence_context == "backfill"
     conn.execute(
         "INSERT INTO sources VALUES(?,?,?,?,?)",
         (f"src-{situation_id}", "mail", "gmail_live", "cohort", at),
@@ -183,7 +188,7 @@ def _commit_proposal(
             f"<{situation_id}@sender.test>",
             at,
             at,
-            "{}",
+            json.dumps({"evidence_context": evidence_context, "retrospective": retrospective}),
             "hash",
         ),
     )
@@ -198,6 +203,8 @@ def _commit_proposal(
         "action": PAIR[1],
         "gate": "SUGGEST",
         "policy_version": "fitted",
+        "evidence_context": evidence_context,
+        "retrospective": retrospective,
         **(extra or {}),
     }
     seq = RoleAccess(conn, Role.BRAIN).append_ledger(
@@ -595,21 +602,162 @@ def test_backfill_cannot_grant_live_authority(tmp_path: Path) -> None:
     assert derive_licences(engine, LATER, pair=PAIR)[PAIR].level == 0
 
 
-def test_backfill_label_is_not_yet_carried_by_the_writer() -> None:
-    """DOCUMENTED GAP, interface request IR-D4-1: nothing stamps the cohort onto a commitment.
+@pytest.mark.parametrize(
+    ("context", "retrospective", "qualifies"),
+    [("prospective", False, True), ("backfill", True, False)],
+)
+def test_proposal_writer_preserves_gmail_provenance(
+    memory_db: sqlite3.Connection,
+    basic_situation: Any,
+    context: str,
+    retrospective: bool,
+    qualifies: bool,
+) -> None:
+    """The immutable proposal commitment preserves the Gmail ingest cohort."""
+    from probation.core.permission_history import permission_records
 
-    ``core/permission_history.py`` honours ``retrospective``/``evidence_context`` and drops such a
-    record from qualifying evidence, and the test above proves the exclusion works. The released
-    projection emits the flag on every record it hands to the ingest path. But the only writer of
-    proposal commitments, ``db/proposals.persist_proposal``, builds its ledger payload from a fixed
-    field list that contains neither key, so a Gmail backfill imported through the ordinary path is
-    committed as ordinary prospective evidence. D4 does not change a shared file to close it; this
-    test keeps the gap visible instead of reporting it closed.
-    """
-    source = inspect.getsource(persist_proposal)
-    assert "append_ledger" in source, "the commitment writer moved, re-read this test"
-    assert "retrospective" not in source
-    assert "evidence_context" not in source
+    memory_db.execute("UPDATE sources SET kind='gmail_live' WHERE id='wp1-source'")
+    memory_db.execute(
+        "UPDATE raw_items SET payload_json=? WHERE id='wp1-raw'",
+        (json.dumps({"evidence_context": context, "retrospective": retrospective}),),
+    )
+    proposal = Proposal(
+        id="d6-gmail-provenance",
+        situation_id=basic_situation.id,
+        family="email_action",
+        class_key=PAIR[0],
+        action="ARCHIVE",
+        p_max=0.99,
+        novel=False,
+        gate=GateDecision.SUGGEST,
+        licence_level=1,
+        cap=2,
+        policy_version="d6-test",
+        features_hash="d6-test",
+        proposed_at=basic_situation.occurred_at,
+    )
+    committed = persist_proposal(RoleAccess(memory_db, Role.BRAIN), proposal)
+    commitment = json.loads(
+        memory_db.execute(
+            "SELECT payload_json FROM ledger WHERE seq=?", (committed.ledger_seq,)
+        ).fetchone()[0]
+    )
+    assert commitment["evidence_context"] == context
+    assert commitment["retrospective"] is retrospective
+    _outcome_event(
+        memory_db,
+        situation_id=basic_situation.id,
+        proposal_id=proposal.id,
+        at="2026-01-01T10:00:01Z",
+    )
+    assert bool(permission_records(memory_db, "2026-01-01T10:00:02Z", None)) is qualifies
+
+
+def _suggestion(conn: sqlite3.Connection, situation: Any, proposal_id: str) -> Proposal:
+    """Persist one SUGGEST proposal for the fixture situation chain."""
+    return persist_proposal(
+        RoleAccess(conn, Role.BRAIN),
+        Proposal(
+            id=proposal_id,
+            situation_id=situation.id,
+            family="email_action",
+            class_key=PAIR[0],
+            action="ARCHIVE",
+            p_max=0.99,
+            novel=False,
+            gate=GateDecision.SUGGEST,
+            licence_level=1,
+            cap=2,
+            policy_version="d6-test",
+            features_hash="d6-test",
+            proposed_at=situation.occurred_at,
+        ),
+    )
+
+
+def _mark_gmail(conn: sqlite3.Connection, payload: str) -> None:
+    conn.execute("UPDATE sources SET kind='gmail_live' WHERE id='wp1-source'")
+    conn.execute("UPDATE raw_items SET payload_json=? WHERE id='wp1-raw'", (payload,))
+
+
+def test_gmail_proposal_without_provenance_is_refused_and_history_stays_intact(
+    memory_db: sqlite3.Connection, basic_situation: Any
+) -> None:
+    """Missing or unusable Gmail cohort flags fail closed: no commitment, no ledger growth."""
+    from probation.core.permission_history import permission_records
+    from probation.db.ledger import ledger_snapshot
+
+    before = ledger_snapshot(memory_db)
+    for unusable in ("[]", "{}"):
+        _mark_gmail(memory_db, unusable)
+        with pytest.raises(ValueError, match="gmail_provenance_unqualified"):
+            _suggestion(memory_db, basic_situation, f"prop-{unusable}")
+        assert memory_db.execute("SELECT COUNT(*) FROM proposals").fetchone()[0] == 0
+    after = ledger_snapshot(memory_db)
+    assert (after.ok, after.head_hash, after.length) == (
+        before.ok,
+        before.head_hash,
+        before.length,
+    )
+
+    # An already-persisted non-Gmail proposal whose source is later labelled Gmail must not
+    # raise and must not qualify: unreadable provenance is excluded, never trusted.
+    memory_db.execute("UPDATE sources SET kind='synthetic' WHERE id='wp1-source'")
+    memory_db.execute("UPDATE raw_items SET payload_json='{}' WHERE id='wp1-raw'")
+    _suggestion(memory_db, basic_situation, "prop-read-guard")
+    _outcome_event(
+        memory_db,
+        situation_id=basic_situation.id,
+        proposal_id="prop-read-guard",
+        at="2026-01-01T10:00:01Z",
+    )
+    _mark_gmail(memory_db, "[]")
+    assert permission_records(memory_db, "2026-01-01T10:00:02Z", None) == []
+
+
+def test_legacy_gmail_evidence_never_qualifies_and_mutation_cannot_launder_it(
+    memory_db: sqlite3.Connection, basic_situation: Any
+) -> None:
+    """Ambiguous legacy provenance stays excluded even after storage is rewritten prospectively."""
+    from probation.core.permission_history import permission_records
+    from probation.db.ledger import ledger_snapshot
+
+    _suggestion(memory_db, basic_situation, "prop-legacy-read")
+    _outcome_event(
+        memory_db,
+        situation_id=basic_situation.id,
+        proposal_id="prop-legacy-read",
+        at="2026-01-01T10:00:01Z",
+    )
+    _mark_gmail(memory_db, json.dumps({"evidence_context": "backfill", "retrospective": True}))
+    head = ledger_snapshot(memory_db).head_hash
+    assert permission_records(memory_db, "2026-01-01T10:00:02Z", None) == []
+
+    # A later storage mutation cannot launder the already-committed retrospective cohort:
+    # the commitment and the stored payload must both declare prospective context.
+    _mark_gmail(memory_db, json.dumps({"evidence_context": "prospective", "retrospective": False}))
+    assert permission_records(memory_db, "2026-01-01T10:00:02Z", None) == []
+    assert ledger_snapshot(memory_db).head_hash == head
+
+
+def test_prospective_gmail_evidence_respects_the_cutoff(
+    memory_db: sqlite3.Connection, basic_situation: Any
+) -> None:
+    """Future outcome data is invisible before its known time and unreadable from a later read."""
+    from probation.core.permission_history import permission_records
+
+    _mark_gmail(memory_db, json.dumps({"evidence_context": "prospective", "retrospective": False}))
+    _suggestion(memory_db, basic_situation, "prop-cutoff")
+    ids = lambda rows: [row["id"] for row in rows]  # noqa: E731
+    assert ids(permission_records(memory_db, "2026-01-01T10:00:00Z", None)) == []
+    _outcome_event(
+        memory_db,
+        situation_id=basic_situation.id,
+        proposal_id="prop-cutoff",
+        at="2026-01-01T10:00:01Z",
+    )
+    assert ids(permission_records(memory_db, "2026-01-01T10:00:00Z", None)) == []
+    assert ids(permission_records(memory_db, "2026-01-01T10:00:02Z", None)) == ["prop-cutoff"]
 
 
 def test_resync_does_not_duplicate_or_restore(tmp_path: Path) -> None:

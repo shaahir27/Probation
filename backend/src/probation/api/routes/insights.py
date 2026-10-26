@@ -14,17 +14,19 @@ import json
 import sqlite3
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 
-from probation.api.authority import OwnerContext, optional_owner
+from probation.api.authority import OwnerContext, require_owner
 from probation.api.db import connect_api as get_connection
 from probation.config import settings
-from probation.core.clock import get_clock
+from probation.core.clock import get_clock, timestamp_key
 from probation.core.enums import GateDecision
+from probation.core.permission_history import permission_records
 from probation.db.access import Role, RoleAccess
 from probation.db.commands import DenyHabit, RunExam, command_record, enqueue_command
+from probation.engine.report import rate
 
-router = APIRouter(prefix="/api", tags=["insights"])
+router = APIRouter(prefix="/api", tags=["insights"], dependencies=[Depends(require_owner)])
 
 
 RunExamBody = RunExam
@@ -37,109 +39,183 @@ def _get_db() -> sqlite3.Connection:
 
 
 @router.get("/metrics/summary")
-def get_metrics_summary() -> dict[str, Any]:
-    """Scorecard numbers and time series per CONTRACT.md section 9."""
+def get_metrics_summary(
+    owner: Annotated[OwnerContext, Depends(require_owner)],
+    family: Annotated[str | None, Query(max_length=64)] = None,
+    class_key: Annotated[str | None, Query(max_length=160)] = None,
+    action: Annotated[str | None, Query(max_length=48)] = None,
+    as_of: Annotated[str | None, Query(max_length=32)] = None,
+) -> dict[str, Any]:
+    """Scorecard numbers per CONTRACT.md section 9, bounded by cutoff, filter and owner scope.
+
+    Intended decisions and confirmed effects are counted separately: a proposal to act is
+    never reported as an action that happened.
+    """
+    empty: dict[str, Any] = {
+        "proposals_total": 0,
+        "asks": 0,
+        "suggestions": 0,
+        "intended_actions": 0,
+        "confirmed_effects": 0,
+        "unconfirmed_effects": 0,
+        "agreement": None,
+        "weekly_series": [],
+        "alarms": [],
+        "scope": {
+            "family": family,
+            "class_key": class_key,
+            "action": action,
+            "sources": len(owner.grants),
+        },
+    }
     if not settings.db_path.exists():
-        return {
-            "proposals_total": 0,
-            "asks": 0,
-            "suggestions": 0,
-            "automatic_actions": 0,
-            "agreement_rate": None,
-            "weekly_series": [],
-            "alarms": [],
-        }
+        return empty
+    cutoff = get_clock().now_iso() if as_of is None else as_of
+    if timestamp_key(cutoff) > timestamp_key(get_clock().now_iso()):
+        raise HTTPException(status_code=400, detail="cutoff_in_future")
+    allowed_sources = tuple(grant.source_id for grant in owner.grants)
+    if not allowed_sources:
+        return empty
 
     conn = _get_db()
     try:
+        pair = ",".join("?" for _ in allowed_sources)
+        filters = (
+            " AND (? IS NULL OR p.family=?) AND (? IS NULL OR p.class_key=?)"
+            " AND (? IS NULL OR p.action=?)"
+        )
+        filter_params: tuple[Any, ...] = (
+            family,
+            family,
+            class_key,
+            class_key,
+            action,
+            action,
+        )
+        scope_params = (cutoff, cutoff, cutoff, *allowed_sources, *filter_params)
         cursor = conn.cursor()
-        cursor.execute("SELECT COUNT(*) AS cnt, gate FROM proposals GROUP BY gate;")
-        gate_counts = {r["gate"]: r["cnt"] for r in cursor.fetchall()}
-
+        cursor.execute(
+            f"""SELECT p.gate, COUNT(*) AS cnt FROM proposals p
+                JOIN situations s ON s.id=p.situation_id
+                JOIN raw_items r ON r.id=s.raw_item_id
+                WHERE p.proposed_at COLLATE UTC_TIMESTAMP <= ?
+                  AND s.occurred_at COLLATE UTC_TIMESTAMP <= ?
+                  AND r.known_at COLLATE UTC_TIMESTAMP <= ?
+                  AND r.source_id IN ({pair}){filters}
+                GROUP BY p.gate;""",
+            scope_params,
+        )
+        gate_counts = {str(r["gate"]): int(r["cnt"]) for r in cursor.fetchall()}
         asks = gate_counts.get(GateDecision.ASK.value, 0)
         suggestions = gate_counts.get(GateDecision.SUGGEST.value, 0)
-        auto_exec = sum(
-            gate_counts.get(g, 0)
+        intended = sum(
+            gate_counts.get(g.value, 0)
             for g in (
-                GateDecision.HOLD_THEN_EXECUTE.value,
-                GateDecision.EXECUTE_UNDO.value,
-                GateDecision.EXECUTE_SILENT.value,
+                GateDecision.HOLD_THEN_EXECUTE,
+                GateDecision.EXECUTE_UNDO,
+                GateDecision.EXECUTE_SILENT,
             )
         )
         total_props = sum(gate_counts.values())
 
-        # Outcomes agreement calculation
-        cursor.execute(
-            """
-            SELECT p.action AS prop_act, o.observed_action
-            FROM proposals p
-            JOIN outcomes o ON p.situation_id = o.situation_id
-            WHERE o.strength = 'STRONG';
-            """
+        # Agreement uses the same append-only, cutoff-bounded evidence the licence maths uses:
+        # one genuine vote per situation, never the mutable final-state table.
+        records = permission_records(conn, cutoff, family, source_ids=allowed_sources)
+        evaluated = [
+            record
+            for record in records
+            if class_key in (None, record["class_key"]) and action in (None, record["action"])
+        ]
+        same = sum(
+            1
+            for record in evaluated
+            if record["decision"].get("observed_action") == record["action"]
         )
-        matched_rows = cursor.fetchall()
-        same_count = sum(1 for r in matched_rows if r["prop_act"] == r["observed_action"])
-        diff_count = len(matched_rows) - same_count
-        agreement = (
-            round(same_count / (same_count + diff_count), 4)
-            if (same_count + diff_count) > 0
-            else None
-        )
+        agreement = rate(same, len(evaluated))
 
-        # Weekly time series
         cursor.execute(
-            """
-            SELECT strftime('%Y-W%W', proposed_at) AS week,
-                   SUM(CASE WHEN gate = 'ASK' THEN 1 ELSE 0 END) AS asks,
-                   SUM(CASE WHEN gate = 'SUGGEST' THEN 1 ELSE 0 END) AS suggestions,
-                   SUM(CASE WHEN gate IN ('HOLD_THEN_EXECUTE','EXECUTE_UNDO','EXECUTE_SILENT') THEN 1 ELSE 0 END) AS auto_actions,
-                   COUNT(*) AS total
-            FROM proposals
-            GROUP BY week
-            ORDER BY week ASC;
-            """
+            f"""SELECT COUNT(*) AS cnt FROM actions a
+                JOIN proposals p ON p.id=a.proposal_id
+                JOIN situations s ON s.id=p.situation_id
+                JOIN raw_items r ON r.id=s.raw_item_id
+                WHERE a.status IN ('DONE','UNDONE')
+                  AND COALESCE(a.executed_at, a.created_at) COLLATE UTC_TIMESTAMP <= ?
+                  AND r.source_id IN ({pair}){filters}""",
+            (cutoff, *allowed_sources, *filter_params),
         )
-        series_rows = cursor.fetchall()
+        confirmed = int(cursor.fetchone()["cnt"] or 0)
+        cursor.execute(
+            """SELECT COUNT(*) AS cnt FROM execution_attempts
+               WHERE state IN ('unknown','dispatched')
+                 AND updated_at COLLATE UTC_TIMESTAMP <= ?""",
+            (cutoff,),
+        )
+        unconfirmed = int(cursor.fetchone()["cnt"] or 0)
+
+        cursor.execute(
+            f"""SELECT strftime('%Y-W%W', p.proposed_at) AS week,
+                       SUM(CASE WHEN p.gate='ASK' THEN 1 ELSE 0 END) AS asks,
+                       SUM(CASE WHEN p.gate='SUGGEST' THEN 1 ELSE 0 END) AS suggestions,
+                       SUM(CASE WHEN p.gate IN ('HOLD_THEN_EXECUTE','EXECUTE_UNDO','EXECUTE_SILENT')
+                           THEN 1 ELSE 0 END) AS intended_actions,
+                       COUNT(*) AS total
+                FROM proposals p
+                JOIN situations s ON s.id=p.situation_id
+                JOIN raw_items r ON r.id=s.raw_item_id
+                WHERE p.proposed_at COLLATE UTC_TIMESTAMP <= ?
+                  AND s.occurred_at COLLATE UTC_TIMESTAMP <= ?
+                  AND r.known_at COLLATE UTC_TIMESTAMP <= ?
+                  AND r.source_id IN ({pair}){filters}
+                GROUP BY week ORDER BY week ASC;""",
+            scope_params,
+        )
         weekly_series = [
             {
-                "week": r["week"],
-                "asks": r["asks"],
-                "suggestions": r["suggestions"],
-                "auto_actions": r["auto_actions"],
-                "total": r["total"],
+                "week": str(r["week"]),
+                "asks": int(r["asks"] or 0),
+                "suggestions": int(r["suggestions"] or 0),
+                "intended_actions": int(r["intended_actions"] or 0),
+                "total": int(r["total"] or 0),
             }
-            for r in series_rows
+            for r in cursor.fetchall()
         ]
 
-        # Drift and family-shift alarms from ledger
         cursor.execute(
-            """
-            SELECT seq, kind, ref_id, payload_json, created_at
-            FROM ledger
-            WHERE kind IN ('drift_alarm', 'family_shift')
-            ORDER BY seq DESC LIMIT 20;
-            """
+            """SELECT seq,kind,ref_id,payload_json,created_at FROM ledger
+               WHERE kind IN ('drift_alarm','family_shift')
+                 AND created_at COLLATE UTC_TIMESTAMP <= ?
+               ORDER BY seq DESC LIMIT 20;""",
+            (cutoff,),
         )
-        alarm_rows = cursor.fetchall()
         alarms = [
             {
-                "seq": r["seq"],
-                "kind": r["kind"],
-                "ref_id": r["ref_id"],
+                "seq": int(r["seq"]),
+                "kind": str(r["kind"]),
+                "ref_id": str(r["ref_id"]),
                 "payload": json.loads(r["payload_json"]) if r["payload_json"] else {},
-                "created_at": r["created_at"],
+                "created_at": str(r["created_at"]),
             }
-            for r in alarm_rows
+            for r in cursor.fetchall()
         ]
 
         return {
             "proposals_total": total_props,
             "asks": asks,
             "suggestions": suggestions,
-            "automatic_actions": auto_exec,
-            "agreement_rate": agreement,
+            "intended_actions": intended,
+            "confirmed_effects": confirmed,
+            "unconfirmed_effects": unconfirmed,
+            "agreement": agreement,
             "weekly_series": weekly_series,
             "alarms": alarms,
+            "scope": {
+                "family": family,
+                "class_key": class_key,
+                "action": action,
+                "as_of": cutoff,
+                "sources": len(allowed_sources),
+                "evaluated_pairs": len(evaluated),
+            },
         }
     finally:
         conn.close()
@@ -317,7 +393,7 @@ def run_exam(body: RunExamBody) -> dict[str, Any]:
 
 @router.get("/commands/{command_id}")
 def get_command(
-    command_id: str, owner: Annotated[OwnerContext | None, Depends(optional_owner)]
+    command_id: str, owner: Annotated[OwnerContext, Depends(require_owner)]
 ) -> dict[str, Any]:
     conn = _get_db()
     try:
@@ -327,6 +403,13 @@ def get_command(
 
             if conn.execute("SELECT id FROM command_requests WHERE id=?", (command_id,)).fetchone():
                 return control_status(conn, command_id, owner)
+            raise HTTPException(status_code=404, detail="Command not found")
+        # Legacy admin_commands lack owner_id. This app supports one configured private owner,
+        # so bind their status to that credential; absent/mismatched configuration fails closed.
+        if (
+            not settings.probation_gmail_owner_id
+            or owner.owner_id != settings.probation_gmail_owner_id
+        ):
             raise HTTPException(status_code=404, detail="Command not found")
         return {"command": command_record(row)}
     finally:

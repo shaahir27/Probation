@@ -31,16 +31,13 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from probation.api.authority import OwnerContext
 from probation.api.gmail_auth import (
-    CONNECTOR_API_BIND_HOSTS,
     ConnectorApiMisconfigured,
     OwnerApiCredential,
-    OwnerAuthError,
     hash_owner_token,
-    resolve_owner_context,
     verify_loopback_binding,
-    verify_owner_request,
 )
 from probation.api.routes.queue import _get_db
+from probation.connectors.grants import gmail_source_id
 from probation.connectors.readiness import (
     ReadinessSignals,
     connection_ref_hash,
@@ -85,27 +82,34 @@ def configure_gmail_api(config: GmailApiConfig | None) -> None:
 
 
 def configure_gmail_api_from_env(environ: Mapping[str, str] | None = None) -> bool:
-    """Configure the private Gmail connector API from environment variables if present."""
+    """Configure local owner auth; an absent connector store grants no Gmail sources."""
     env = os.environ if environ is None else environ
     key = env.get("PROBATION_GMAIL_OWNER_API_KEY", "").strip()
-    owner_id = env.get("PROBATION_GMAIL_OWNER_ID", "").strip()
-    store = env.get("PROBATION_GMAIL_STORE", "").strip()
-    if not (key and owner_id and store):
+    if not key:
         configure_gmail_api(None)
         return False
+    owner_id = env.get("PROBATION_GMAIL_OWNER_ID", "").strip() or "local-owner"
+    store = env.get("PROBATION_GMAIL_STORE", "").strip()
     bind_host = env.get("PROBATION_GMAIL_BIND_HOST", "127.0.0.1").strip()
     try:
+        if not store:
+            from probation.db.gmail_store import default_store_path
+
+            store = str(default_store_path())
         cred = OwnerApiCredential(owner_id=owner_id, token_sha256=hash_owner_token(key))
         config = GmailApiConfig(
             owner_credential=cred,
             store_path=Path(store),
-            bind_host=bind_host if bind_host in CONNECTOR_API_BIND_HOSTS else "127.0.0.1",
+            bind_host=bind_host,
         )
-        configure_gmail_api(config)
-        return True
-    except (ConnectorApiMisconfigured, ValueError):
+    except (ConnectorApiMisconfigured, ValueError) as exc:
+        # An invalid binding is a deployment error. Clearing the config and continuing would
+        # leave a private API running on a host the owner never approved.
         configure_gmail_api(None)
-        return False
+        code = exc.args[0] if isinstance(exc, ConnectorApiMisconfigured) else "invalid_owner_config"
+        raise ConnectorApiMisconfigured(str(code)) from exc
+    configure_gmail_api(config)
+    return True
 
 
 def current_config() -> GmailApiConfig:
@@ -117,21 +121,9 @@ def current_config() -> GmailApiConfig:
 
 def require_gmail_owner(request: Request) -> OwnerContext:
     """Authenticate the injected owner credential and resolve grants from registration rows."""
-    config = current_config()
-    try:
-        credential = verify_owner_request(
-            authorization=request.headers.get("Authorization"),
-            client_host=request.client.host if request.client is not None else None,
-            credential=config.owner_credential,
-        )
-    except OwnerAuthError as exc:
-        # One uniform typed 401 for every failure mode: no origin, header or token detail leaks.
-        raise HTTPException(status_code=401, detail=exc.safe_code) from exc
-    access = _api_access(config.store_path)
-    try:
-        return resolve_owner_context(credential.owner_id, access)
-    finally:
-        access.conn.close()
+    from probation.api.owner_auth import owner_for_request
+
+    return owner_for_request(request)
 
 
 Owner = Annotated[OwnerContext, Depends(require_gmail_owner)]
@@ -372,7 +364,7 @@ def submit_connection_command(
     finally:
         access.conn.close()
     connection_id = str(row["connection_id"])
-    grant = owner.grant_for(f"gmail:{connection_id}")
+    grant = owner.grant_for(gmail_source_id(connection_id))
     conn = _get_db()
     try:
         if conn.execute("SELECT id FROM admin_commands WHERE id=?", (body.request_id,)).fetchone():

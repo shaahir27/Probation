@@ -172,13 +172,22 @@ def test_tavily_budget_and_audit_use_same_clock(
     assert len(calls) == 2
 
 
-def test_api_replay_state_uses_the_application_clock(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_api_replay_state_uses_the_application_clock(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     from fastapi.testclient import TestClient
 
     from probation.api.app import app
+    from probation.api.authority import OwnerContext, require_owner
+    from probation.config import settings
+    from probation.db.connection import init_db
 
+    engine = tmp_path / "replay_state.db"
+    init_db(engine)
+    monkeypatch.setattr(settings, "db_path", engine)
     clock = Clock.replay(datetime(2026, 6, 1, 10, 0, 0, 123456, tzinfo=UTC))
     monkeypatch.setattr(app.state, "clock", clock)
+    monkeypatch.setitem(app.dependency_overrides, require_owner, lambda: OwnerContext("owner", ()))
     with TestClient(app) as client:
         response = client.get("/api/replay/state")
         assert response.status_code == 200

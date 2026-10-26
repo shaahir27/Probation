@@ -37,6 +37,9 @@ def migrate_lifecycle(conn: sqlite3.Connection) -> None:
     """Bootstrap-only atomic D3 migration; original rows and ledger remain intact."""
     if conn.in_transaction or getattr(conn, "bound_role", None) is not None:
         raise ValueError("Lifecycle migration requires a clean bootstrap connection")
+    from probation.db.replay_migration import migrate_replay_commands
+
+    migrate_replay_commands(conn)
     columns = {
         "user_responses": {
             "schema_version": "INTEGER NOT NULL DEFAULT 1 CHECK(schema_version IN(1,2))",

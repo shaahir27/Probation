@@ -7,6 +7,7 @@ from unittest.mock import patch
 import pytest
 from typer.testing import CliRunner
 
+from probation.api.authority import OwnerContext
 from probation.config import settings
 from probation.core.hashing import GENESIS
 from probation.db.connection import get_connection, init_db
@@ -28,7 +29,12 @@ def test_api_and_cli_report_the_actual_last_hash(tmp_path: Path, count: int) -> 
     head = row[0] if row else GENESIS
     conn.close()
     with patch.object(settings, "db_path", target):
-        assert api_ledger_verify() == {"ok": True, "seq": None, "length": count, "head_hash": head}
+        assert api_ledger_verify(OwnerContext("owner", ())) == {
+            "ok": True,
+            "seq": None,
+            "length": count,
+            "head_hash": head,
+        }
         result = CliRunner().invoke(app, ["ledger", "verify"])
     assert result.exit_code == 0
     if count:

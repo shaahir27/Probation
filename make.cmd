@@ -4,6 +4,11 @@ rem make.cmd - Windows wrapper for Probation development targets
 set TARGET=%1
 if "%TARGET%"=="" set TARGET=help
 
+if not defined PROBATION_ENV_FILE (
+    set "PROBATION_ENV_FILE=%~dp0.env"
+    if not exist "%~dp0.env" if exist "%~dp0..\..\..\.env" set "PROBATION_ENV_FILE=%~dp0..\..\..\.env"
+)
+
 set PYTHONPATH=%~dp0backend\src;%PYTHONPATH%
 
 if defined PROBATION_PYTHON (

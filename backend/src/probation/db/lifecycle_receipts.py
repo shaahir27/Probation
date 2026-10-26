@@ -165,3 +165,38 @@ class ReceiptStore:
             )
             if cursor.rowcount != 1:
                 raise StaleClaim("receipt_claim_expired")
+
+    def checkpoint_command(
+        self,
+        claim: ReceiptClaim,
+        *,
+        now: str,
+        lease_seconds: int,
+        result: dict[str, Any],
+    ) -> str:
+        """Renew a claimed Examiner command while atomically saving its bounded checkpoint."""
+        require_role(self.access, "examiner")
+        if claim.request_kind != "command" or claim.consumer != "examiner":
+            raise StaleClaim("checkpoint_claim_mismatch")
+        until = lease_end(now, lease_seconds)
+        with self.access.transaction():
+            cursor = write(
+                self.access,
+                "command_receipts",
+                """UPDATE command_receipts SET result_json=?,lease_until=?,updated_at=?
+                WHERE id=? AND command_id=? AND consumer='examiner' AND claim_owner=?
+                AND fence=? AND state='claimed' AND lease_until COLLATE UTC_TIMESTAMP > ?""",
+                (
+                    canonical_json(result),
+                    until,
+                    now,
+                    claim.receipt_id,
+                    claim.request_id,
+                    claim.owner,
+                    claim.fence,
+                    now,
+                ),
+            )
+            if cursor.rowcount != 1:
+                raise StaleClaim("receipt_claim_expired")
+        return until

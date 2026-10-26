@@ -63,16 +63,38 @@ def control_status(
     conn: sqlite3.Connection, command_id: str, owner: OwnerContext | None
 ) -> dict[str, Any]:
     access = RoleAccess(conn, Role.API)
-    intent = CommandStore(access).get(command_id)
     if owner is None:
         raise HTTPException(403, "authenticated_owner_required")
-    if intent is None or intent.owner_id != owner.owner_id:
+    row = conn.execute(
+        "SELECT schema_version FROM command_requests WHERE id=?", (command_id,)
+    ).fetchone()
+    if row is None:
         raise HTTPException(404, "command_not_found")
-    receipt = ReceiptStore(access).get_command(command_id)
-    return {
-        "request_id": command_id,
-        "type": intent.type,
-        "scope": intent.scope.model_dump(),
-        "status": receipt.state if receipt else "pending",
-        "safe_code": receipt.safe_code if receipt else None,
-    }
+    if int(row["schema_version"]) == 1:
+        lifecycle_intent = CommandStore(access).get(command_id)
+        if lifecycle_intent is None or lifecycle_intent.owner_id != owner.owner_id:
+            raise HTTPException(404, "command_not_found")
+        receipt = ReceiptStore(access).get_command(command_id)
+        return {
+            "request_id": command_id,
+            "type": lifecycle_intent.type,
+            "scope": lifecycle_intent.scope.model_dump(),
+            "status": receipt.state if receipt else "pending",
+            "safe_code": receipt.safe_code if receipt else None,
+        }
+    if int(row["schema_version"]) == 2:
+        from probation.db.replay_commands import ReplayCommandStore
+
+        replay_intent = ReplayCommandStore(access).get(command_id)
+        if replay_intent is None or replay_intent.owner_id != owner.owner_id:
+            raise HTTPException(404, "command_not_found")
+        receipt = ReceiptStore(access).get_command(command_id)
+        return {
+            "request_id": command_id,
+            "type": replay_intent.type,
+            "status": receipt.state if receipt else "pending",
+            "result": receipt.result if receipt else None,
+            "safe_code": receipt.safe_code if receipt else None,
+            "status_url": f"/api/commands/{command_id}",
+        }
+    raise HTTPException(404, "command_not_found")

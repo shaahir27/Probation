@@ -3,19 +3,33 @@
 Authority: docs/ENGINE_SPEC.md section 12 and docs/TECH_STACK_AND_REPO.md section 4.
 """
 
+import os
+from collections.abc import Mapping
 from pathlib import Path
 
+from pydantic import AliasChoices, Field, field_validator
+from pydantic.fields import FieldInfo
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_ENV_FILE = os.environ.get("PROBATION_ENV_FILE", ".env")
 
 
 class Settings(BaseSettings):
     """System-wide configuration settings loaded from environment and defaults."""
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=_ENV_FILE,
         env_file_encoding="utf-8",
+        env_ignore_empty=True,
         extra="ignore",
     )
+
+    @field_validator("app_profile")
+    @classmethod
+    def known_profile(cls, value: str) -> str:
+        if value not in {"private", "synthetic"}:
+            raise ValueError("app_profile must be private or synthetic")
+        return value
 
     # --- LLM Settings (Nebius Token Factory) ---
     llm_base_url: str = "https://api.tokenfactory.nebius.com/v1"
@@ -38,6 +52,8 @@ class Settings(BaseSettings):
 
     # --- Runtime ---
     clock_mode: str = "replay"  # "replay" | "live"
+    # Selected by trusted server configuration only; a browser can never choose a profile.
+    app_profile: str = "private"  # "private" | "synthetic"
     user_addresses: str = "meena@example.test"
     user_tz: str = "Asia/Kolkata"
     embed_model: str = "sentence-transformers/all-MiniLM-L6-v2"
@@ -51,6 +67,15 @@ class Settings(BaseSettings):
     web_facts_ttl_positive_days: int = 30
     web_facts_ttl_negative_days: int = 7
     extract_max_chars: int = 20000
+
+    # --- Owner-bound local Gmail API (credentials remain in the API/connector roles) ---
+    probation_gmail_owner_api_key: str = Field(
+        default="",
+        validation_alias=AliasChoices("PROBATION_GMAIL_OWNER_API_KEY", "PROBATION_OWNER_API_KEY"),
+    )
+    probation_gmail_owner_id: str = "local-owner"
+    probation_gmail_store: Path | None = Path("data/private/connectors/gmail_metadata.db")
+    probation_gmail_bind_host: str = "127.0.0.1"
 
     # --- Files Pack ---
     files_watch_dirs: str = "data/synth/1/fs/Downloads,data/synth/1/fs/Desktop"
@@ -115,4 +140,55 @@ class Settings(BaseSettings):
     chain_window_hours: int = 24
 
 
-settings = Settings()
+_WORKER_ROLES = frozenset(
+    {"observation", "brain", "resolver", "examiner", "webfacts", "api", "executor"}
+)
+
+
+def _source_keys(name: str, field: FieldInfo) -> tuple[str, ...]:
+    """The environment keys that may legitimately supply one field, in precedence order."""
+    alias = field.validation_alias
+    if alias is None:
+        return (name,)
+    if isinstance(alias, str):
+        return (alias,)
+    if isinstance(alias, AliasChoices):
+        return tuple(str(choice) for choice in alias.choices)
+    return (name,)
+
+
+def _from_mapping(values: Mapping[str, str]) -> dict[str, str]:
+    """Map one environment-style mapping onto settings fields, ignoring empty values.
+
+    ``env_ignore_empty`` semantics are kept: an empty variable supplies nothing, so a lower
+    priority source may still provide the field.
+    """
+    supplied: dict[str, str] = {}
+    for name, field in Settings.model_fields.items():
+        for key in _source_keys(name, field):
+            value = values.get(key, values.get(key.upper(), ""))
+            if value:
+                supplied.setdefault(key, value)
+                break
+    return supplied
+
+
+def load_settings(environ: Mapping[str, str] | None = None) -> Settings:
+    """Load trusted settings from exactly one source: the environment handed to this call.
+
+    Validating the worker role from one mapping while reading values out of ``os.environ`` would
+    let the two disagree, so the mapping is authoritative for both. A marked worker child is
+    additionally denied the dotenv file: its scrubbed environment is all it may have.
+    """
+    values: Mapping[str, str] = os.environ if environ is None else environ
+    role = values.get("PROBATION_WORKER_ROLE")
+    if role is not None and role not in _WORKER_ROLES:
+        raise ValueError("invalid_worker_role")
+    supplied = _from_mapping(values)
+    if role is not None:
+        # Pydantic Settings accepts this private constructor kwarg at runtime; its stub omits it.
+        return Settings(_env_file=None, **supplied)  # type: ignore[call-arg,arg-type]
+    return Settings(_env_file=_ENV_FILE, **supplied)  # type: ignore[call-arg,arg-type]
+
+
+settings = load_settings()

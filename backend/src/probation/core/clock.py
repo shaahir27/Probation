@@ -137,6 +137,15 @@ _context_clock: ContextVar[Clock | None] = ContextVar("probation_clock", default
 _default_clock: Clock | None = None
 
 
+def operational_clock() -> Clock:
+    """Wall-clock timekeeper for leases, staleness and liveness.
+
+    Simulated scenario time and operational time are deliberately separate: a replay clock must
+    never freeze or rewind a freshness decision.
+    """
+    return Clock(mode=ClockMode.LIVE)
+
+
 def get_clock() -> Clock:
     """Return the current runtime clock, shared by all roles in that context.
 
