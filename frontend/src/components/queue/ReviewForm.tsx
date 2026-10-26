@@ -49,6 +49,12 @@ interface ReviewFormProps {
   onFreshReview(): void;
 }
 
+function initialSelection(proposedAction: string, supportedActions: string[]): string {
+  return supportedActions.includes(proposedAction)
+    ? proposedAction
+    : (supportedActions[0] ?? proposedAction);
+}
+
 export function ReviewForm({
   formKey,
   proposedAction,
@@ -62,17 +68,17 @@ export function ReviewForm({
   onReview,
   onFreshReview,
 }: ReviewFormProps) {
-  const [selected, setSelected] = useState(proposedAction);
+  const [selected, setSelected] = useState(() => initialSelection(proposedAction, supportedActions));
   const [body, setBody] = useState(draftText ?? "");
   const [forwardRecipient, setForwardRecipient] = useState("");
   const [fieldError, setFieldError] = useState<string | null>(null);
 
   useEffect(() => {
-    setSelected(proposedAction);
+    setSelected(initialSelection(proposedAction, supportedActions));
     setBody(draftText ?? "");
     setForwardRecipient("");
     setFieldError(null);
-  }, [formKey, proposedAction, draftText]);
+  }, [formKey, proposedAction, draftText, supportedActions]);
 
   // A logout clears every unsubmitted draft and selection with the session.
   useEffect(() => registerSessionReset(() => {
@@ -192,7 +198,7 @@ export function ReviewForm({
       )}
 
       {options.length > 1 && (
-        <details open={!isSupported} className="space-y-3 text-sm">
+        <details open={!options.includes(proposedAction)} className="space-y-3 text-sm">
           <summary className="min-h-11 cursor-pointer py-3 text-ink-secondary underline underline-offset-4">Choose another action</summary>
           <div className="space-y-2">
           <label htmlFor="review-action" className="block text-sm text-ink-secondary">
@@ -232,7 +238,7 @@ export function ReviewForm({
           </Button>
         )}
       </div>
-      {!isSupported && (
+      {!options.includes(proposedAction) && (
         <p className="text-sm text-ink-secondary">
           Probation has no recommendation for this email yet. Choose an action above, or leave it
           as it is.

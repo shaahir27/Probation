@@ -317,22 +317,14 @@ def serve(
         grants: dict[RuntimeRole, ProvisionedGrant] = {}
         store_path = Path(settings.probation_gmail_store)
         try:
-            read_loaded = load_setup_read_grant(
-                store_path, settings.probation_gmail_owner_id
-            )
+            read_loaded = load_setup_read_grant(store_path, settings.probation_gmail_owner_id)
         except ConnectorError as exc:
-            console.print(
-                f"[yellow]Read-only Gmail setup grant unavailable: {exc.safe_code}[/]"
-            )
+            console.print(f"[yellow]Read-only Gmail setup grant unavailable: {exc.safe_code}[/]")
             read_loaded = None
         try:
-            write_loaded = load_setup_write_grant(
-                store_path, settings.probation_gmail_owner_id
-            )
+            write_loaded = load_setup_write_grant(store_path, settings.probation_gmail_owner_id)
         except ConnectorError as exc:
-            console.print(
-                f"[yellow]Executor write grant unavailable: {exc.safe_code}[/]"
-            )
+            console.print(f"[yellow]Executor write grant unavailable: {exc.safe_code}[/]")
             write_loaded = None
         if read_loaded is not None:
             runtime_env[read_loaded.grant.env_name] = read_loaded.bundle_json

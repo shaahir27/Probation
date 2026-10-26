@@ -128,9 +128,7 @@ def load_setup_read_grant(
     *,
     oauth_settings: ReadOAuthSettings | None = None,
 ) -> LoadedGrant | None:
-    return load_setup_grant(
-        store_path, owner_id, role="read", oauth_settings=oauth_settings
-    )
+    return load_setup_grant(store_path, owner_id, role="read", oauth_settings=oauth_settings)
 
 
 def load_setup_write_grant(
@@ -139,6 +137,4 @@ def load_setup_write_grant(
     *,
     oauth_settings: ReadOAuthSettings | None = None,
 ) -> LoadedGrant | None:
-    return load_setup_grant(
-        store_path, owner_id, role="write", oauth_settings=oauth_settings
-    )
+    return load_setup_grant(store_path, owner_id, role="write", oauth_settings=oauth_settings)

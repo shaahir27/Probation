@@ -4,6 +4,7 @@ import { Button } from "../components/common/Button";
 import { StatePanel } from "../components/common/StatePanel";
 import { ApiError } from "../api/client";
 import { ConnectAppsPanel } from "./ConnectAppsPanel";
+import { formatWhen } from "../lib/emailText";
 
 function money(value: number): string {
   return `$${value.toFixed(4)}`;
@@ -151,7 +152,7 @@ export function PrivacyPanel({ authenticated }: { authenticated: boolean }) {
             <li key={entry.id} className="space-y-1 p-3">
               <p className="break-words">{entry.query}</p>
               <p className="text-xs text-ink-tertiary">
-                {entry.endpoint} · {entry.created_at} · {entry.ok ? "returned" : "failed"}
+                {entry.endpoint} · {formatWhen(entry.created_at)} · {entry.ok ? "returned" : "failed"}
               </p>
             </li>
           ))}
@@ -160,7 +161,7 @@ export function PrivacyPanel({ authenticated }: { authenticated: boolean }) {
       {data.entities.map((entity) => (
         <div key={entity.domain} className="space-y-1 rounded-2xl border border-line bg-surface p-4 text-sm">
           <p className="break-words font-medium">{entity.domain}</p>
-          <p className="text-xs text-ink-tertiary">Status: {entity.status} · checked {entity.fetched_at}</p>
+          <p className="text-xs text-ink-tertiary">Status: {entity.status} · checked {formatWhen(entity.fetched_at)}</p>
           <ul className="flex flex-wrap gap-2 text-xs">
             {entity.sources.map((source, index) => (
               <li key={`${source.url}-${index}`}>

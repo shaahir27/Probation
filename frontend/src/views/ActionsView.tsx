@@ -2,6 +2,7 @@ import { RESULT_NOT_CONFIRMED, actionStatusLabel, isConfirmedComplete, isUnconfi
 import { ActionItem } from "../api/types";
 import { Button } from "../components/common/Button";
 import { EmptyState } from "../components/common/EmptyState";
+import { formatWhen, parseEmailText } from "../lib/emailText";
 
 interface ActionsViewProps {
   actions: ActionItem[];
@@ -19,11 +20,14 @@ export function ActionsView({ actions, busyId, conflict, error, onUndo }: Action
   return (
     <section aria-labelledby="actions-title" className="space-y-6">
       <header>
-        <h1 id="actions-title" className="font-serif text-[28px]">
+        <h1 id="actions-title" className="page-title">
           Activity
         </h1>
-        <p className="mt-2 text-sm text-ink-secondary">
+        <p className="mt-2 max-w-2xl text-sm text-ink-secondary">
           What Probation has done, what is still waiting, and what can be undone or cancelled now.
+        </p>
+        <p className="mt-2 max-w-2xl text-xs leading-5 text-ink-tertiary">
+          Undo is re-checked against the mailbox when you ask. If Probation cannot prove the original state, it refuses the undo and changes nothing.
         </p>
       </header>
 
@@ -40,7 +44,7 @@ export function ActionsView({ actions, busyId, conflict, error, onUndo }: Action
           description="Actions Probation takes will appear here with their current status."
         />
       ) : (
-        <ul className="work-panel divide-y divide-line">
+        <ul className="border-t border-line divide-y divide-line">
           {actions.map((action) => {
             const unconfirmed = isUnconfirmedResult(action.status) || isUnconfirmedResult(action.execution_status);
             const confirmed = isConfirmedComplete(action.status) && !unconfirmed;
@@ -48,13 +52,15 @@ export function ActionsView({ actions, busyId, conflict, error, onUndo }: Action
             // copy for it is "Result not confirmed".
             const label = unconfirmed ? RESULT_NOT_CONFIRMED : actionStatusLabel(action.status);
             const canUndo = Boolean(action.undo_available);
+            const text = parseEmailText(action.summary);
             return (
               <li key={action.id} className="flex flex-wrap items-start justify-between gap-4 py-5 first:pt-0 last:pb-0">
-                <div className="min-w-0 space-y-1">
-                  <p className="text-sm font-medium break-words">{action.summary || action.type.replace(/_/g, " ").toLowerCase()}</p>
+                <div className="min-w-0 max-w-3xl space-y-1">
+                  <p className="font-serif text-[18px] font-normal leading-[1.35] tracking-[-0.01em] break-words">{action.summary ? text.subject : action.type.replace(/_/g, " ").toLowerCase()}</p>
+                  {text.preview && <p className="line-clamp-2 text-sm leading-6 text-ink-secondary">{text.preview}</p>}
                   <p className="text-sm text-ink-secondary">
                     {label}
-                    {action.hold_until !== null ? ` · Held until ${action.hold_until}` : ""}
+                    {action.hold_until !== null ? ` · Held until ${formatWhen(action.hold_until)}` : ""}
                     {!confirmed && !unconfirmed ? " · Not completed yet" : ""}
                   </p>
                   {unconfirmed && (
@@ -63,7 +69,7 @@ export function ActionsView({ actions, busyId, conflict, error, onUndo }: Action
                     </p>
                   )}
                   {action.undo_deadline !== null && action.undo_deadline !== undefined && (
-                    <p className="text-xs text-ink-tertiary">Undo window until {action.undo_deadline}.</p>
+                    <p className="text-xs text-ink-tertiary">Undo window until {formatWhen(action.undo_deadline)}.</p>
                   )}
                 </div>
                 <div className="shrink-0">

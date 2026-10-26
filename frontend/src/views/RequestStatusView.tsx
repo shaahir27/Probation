@@ -50,7 +50,7 @@ export function RequestStatusView({ id, authenticated }: { id: string; authentic
 
   return (
     <section className="max-w-xl space-y-4" aria-labelledby="request-title">
-      <h1 id="request-title" className="font-serif text-2xl">
+      <h1 id="request-title" className="page-title">
         Request status
       </h1>
 

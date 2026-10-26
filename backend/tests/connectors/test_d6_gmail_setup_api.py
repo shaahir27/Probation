@@ -42,9 +42,7 @@ def surface(tmp_path, monkeypatch):
         return process
 
     manager = setup.SetupManager(spawn, lambda path, owner: verified["value"])
-    write_manager = setup.SetupManager(
-        spawn, lambda path, owner: verified["value"], kind="write"
-    )
+    write_manager = setup.SetupManager(spawn, lambda path, owner: verified["value"], kind="write")
     app.state.gmail_read_setup = manager
     app.state.gmail_write_setup = write_manager
     client = TestClient(app, base_url="http://127.0.0.1:8000", client=("127.0.0.1", 50000))

@@ -1,5 +1,6 @@
 import { VerificationCard as VerificationCardType } from "../../api/types";
 import { ExternalLink } from "../common/ExternalLink";
+import { formatWhen } from "../../lib/emailText";
 import {
   availabilityDetail,
   availabilityLabel,
@@ -93,8 +94,8 @@ export function VerificationCard({ card, asOf }: VerificationCardProps) {
           )}
 
           <p className="text-xs text-ink-tertiary">
-            {card.fetched_at ? `Read on ${card.fetched_at}. ` : "No read time recorded. "}
-            {asOf ? `Judged as of ${asOf}.` : "The check time could not be confirmed."}
+            {card.fetched_at ? `Read on ${formatWhen(card.fetched_at)}. ` : "No read time recorded. "}
+            {asOf ? `Judged as of ${formatWhen(asOf)}.` : "The check time could not be confirmed."}
           </p>
         </>
       )}

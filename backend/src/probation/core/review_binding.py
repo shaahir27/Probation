@@ -118,8 +118,7 @@ def build_review_binding(
             # Legacy/synthetic sources store the resource ref itself as the message identity.
             native_message = str(raw["source_ref"] or "")
             if not (
-                NATIVE_MESSAGE_ID.fullmatch(native_message)
-                or MESSAGE_ID.fullmatch(native_message)
+                NATIVE_MESSAGE_ID.fullmatch(native_message) or MESSAGE_ID.fullmatch(native_message)
             ):
                 raise DraftInvalid("original_message_id_required")
         rfc_message = str(payload.get("rfc_message_id") or payload.get("message_id") or "")

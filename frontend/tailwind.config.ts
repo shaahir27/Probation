@@ -13,6 +13,7 @@ const config: Config = {
         surfaceRaised: "var(--surface-raised)",
         surfaceSubtle: "var(--surface-subtle)",
         surfaceRecessed: "var(--surface-recessed)",
+        "surface-recessed": "var(--surface-recessed)",
         line: "var(--line)",
         ink: {
           DEFAULT: "var(--ink)",
@@ -23,6 +24,12 @@ const config: Config = {
           DEFAULT: "var(--brand)",
           hover: "var(--brand-hover)",
           on: "var(--on-brand)",
+          muted: "var(--brand-muted)",
+        },
+        accent: {
+          DEFAULT: "var(--accent)",
+          on: "var(--on-accent)",
+          soft: "var(--accent-soft)",
         },
         focus: "var(--focus)",
         status: {
@@ -33,6 +40,7 @@ const config: Config = {
       },
       fontFamily: {
         serif: [
+          "Fraunces",
           "Georgia",
           "Cambria",
           '"Times New Roman"',
@@ -40,14 +48,12 @@ const config: Config = {
           "serif",
         ],
         sans: [
+          "Manrope",
           "ui-sans-serif",
           "system-ui",
           "-apple-system",
           "BlinkMacSystemFont",
           '"Segoe UI"',
-          "Roboto",
-          '"Helvetica Neue"',
-          "Arial",
           "sans-serif",
         ],
       },

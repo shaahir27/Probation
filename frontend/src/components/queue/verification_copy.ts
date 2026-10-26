@@ -71,7 +71,7 @@ export function feeStatusCopy(card: VerificationCard | null): string {
     case "unknown":
     default:
       // An unconfirmed cost is never presented as free.
-      return `${COST_NOT_CONFIRMED}. Probation has not confirmed whether anything costs money.`;
+      return "Probation has not confirmed whether anything costs money.";
   }
 }
 

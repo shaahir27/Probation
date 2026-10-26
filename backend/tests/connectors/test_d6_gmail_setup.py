@@ -159,9 +159,7 @@ def test_fresh_write_grant_has_separate_owner_only_token(tmp_path, fake_acl):
     assert read_path != write_path
     assert write.role == "write"
     assert write.connection_id == read.connection_id
-    assert write.credential_ref == write_grant(
-        "synthetic-owner", ACCOUNT, "Label_1"
-    ).credential_ref
+    assert write.credential_ref == write_grant("synthetic-owner", ACCOUNT, "Label_1").credential_ref
     conn = open_store(store)
     try:
         row = conn.execute("SELECT credential_ref,state FROM gmail_connections").fetchone()
@@ -187,9 +185,7 @@ def test_fresh_write_grant_has_separate_owner_only_token(tmp_path, fake_acl):
         bundle(scopes=(MODIFY_SCOPE, SEND_SCOPE), account="another@example.test"),
     ],
 )
-def test_invalid_write_grant_is_rejected_before_persistence(
-    tmp_path, monkeypatch, value
-):
+def test_invalid_write_grant_is_rejected_before_persistence(tmp_path, monkeypatch, value):
     monkeypatch.setattr(setup, "verify_and_migrate_store", lambda path: pytest.fail("opened store"))
     with pytest.raises(ConnectorError):
         setup.persist_write_authorization(config(), value, root=tmp_path)

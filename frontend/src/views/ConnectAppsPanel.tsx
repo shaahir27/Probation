@@ -114,6 +114,7 @@ export function ConnectAppsPanel({ profile }: { profile: "private" | "synthetic"
   const writeConnected = writeFlow.initial.data?.connected === true;
   const connection = connections.data?.connections[0] ?? null;
   const connectionState = connection?.state ?? null;
+  const accessLoading = readFlow.initial.isLoading || connections.isLoading;
   const [confirmDisconnect, setConfirmDisconnect] = useState(false);
   const [command, setCommand] = useState<{ id: string; kind: CommandKind } | null>(null);
   const [commandNotice, setCommandNotice] = useState<string | null>(null);
@@ -186,7 +187,7 @@ export function ConnectAppsPanel({ profile }: { profile: "private" | "synthetic"
       <h2 id="connect-apps-title" className="section-heading">Connect apps</h2>
       <p className="section-caption">Bring your work into Probation. You choose what it can see, and every kind of task earns its own permission.</p>
     </header>
-    {!isPrivate && <p className="work-panel-soft text-sm leading-6">You're exploring a synthetic workspace. Real accounts are connected only in the private app.</p>}
+    {!isPrivate && <p className="border-t border-line pt-5 text-sm leading-6 text-ink-secondary">You're exploring a synthetic workspace. Real accounts are connected only in the private app.</p>}
     <div className="divide-y divide-line">
       {APPS.map((app) => <article key={app.id} className="flex flex-wrap items-start gap-4 py-6 first:pt-0">
         <img src={`/integrations/${app.id}.webp`} alt="" width="44" height="44" className="shrink-0 object-contain" />
@@ -194,7 +195,7 @@ export function ConnectAppsPanel({ profile }: { profile: "private" | "synthetic"
           <h3 className="font-medium">{app.name}</h3>
           <p className="text-sm leading-6 text-ink-secondary">{app.description}</p>
           {app.available && (isPrivate
-            ? <p className="text-xs text-ink-secondary">{readConnected ? `Connection ${CONNECTION_STATE_COPY[connectionState ?? ""] ?? "Connected"}` : "No account connected"}</p>
+            ? <p className="text-xs text-ink-secondary">{accessLoading ? "Checking access…" : readConnected ? `Connection ${CONNECTION_STATE_COPY[connectionState ?? ""] ?? "Connected"}` : "No account connected"}</p>
             : <p className="text-xs text-ink-secondary">Prototype  /  selected test label  /  read-only connection  ·  Not connected</p>)}
         </div>
         {!app.available ? <span className="text-sm text-ink-secondary">Planned</span>
@@ -203,16 +204,16 @@ export function ConnectAppsPanel({ profile }: { profile: "private" | "synthetic"
             {!readConnected && <Button variant="primary" onClick={() => void readFlow.start()} disabled={readFlow.pending || readFlow.initial.isLoading}>
               {readFlow.pending ? "Waiting for Google..." : "Connect Gmail"}
             </Button>}
-            {readConnected && <div className="space-y-4 rounded-xl border border-line bg-surfaceRaised p-4 md:min-w-[420px]">
+            {readConnected && <div className="space-y-4 border-t border-line pt-5 md:min-w-[420px]">
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-1">
                   <p className="text-xs uppercase tracking-wide text-ink-tertiary">Read access</p>
-                  <p role="status" className="text-sm font-medium text-brand">Connected  /  read-only</p>
+                  <p role="status" className="text-sm font-medium text-brand">{accessLoading ? "Checking access…" : "Connected  /  read-only"}</p>
                   <p className="text-xs leading-5 text-ink-secondary">Only the selected test label. The rest of the mailbox is never read.</p>
                 </div>
                 <div className="space-y-1">
                   <p className="text-xs uppercase tracking-wide text-ink-tertiary">Action access</p>
-                  <p className="text-sm font-medium">{writeConnected ? "Granted" : "Not granted"}</p>
+                  <p className="text-sm font-medium">{writeFlow.initial.isLoading ? "Checking…" : writeConnected ? "Granted" : "Not granted"}</p>
                   <p className="text-xs leading-5 text-ink-secondary">Archive, label, send or forward - only after you review each decision.</p>
                 </div>
               </div>

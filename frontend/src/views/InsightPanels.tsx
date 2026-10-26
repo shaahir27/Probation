@@ -3,6 +3,7 @@ import { ArrowRight, Filter } from "lucide-react";
 import { ChainItem, ExamRunItem, HabitItem, MetricsSummaryResponse, ReportCardResponse, TaskReportItem } from "../api/types";
 import { Button } from "../components/common/Button";
 import { StatePanel } from "../components/common/StatePanel";
+import { formatWhen } from "../lib/emailText";
 
 /** Counts, never a global trust score. Percentages name their own cohort. */
 export function ReportCardPanel({ reportCard }: { reportCard: ReportCardResponse | null }) {
@@ -30,7 +31,7 @@ export function ReportCardPanel({ reportCard }: { reportCard: ReportCardResponse
         </h2>
         <p className="text-sm text-ink-secondary">
           Scope: {reportCard.family} · evaluated {total} of {reportCard.total_proposals} recorded situations
-          {reportCard.as_of ? ` · as of ${reportCard.as_of}` : ""}.
+          {reportCard.as_of ? ` · as of ${formatWhen(reportCard.as_of)}` : ""}.
         </p>
         <ul className="flex flex-wrap gap-x-5 gap-y-1 text-sm">
           <li>Same as you: <strong>{reportCard.same}</strong> ({pct(reportCard.same)}%)</li>
@@ -137,7 +138,7 @@ export function MetricsPanel({ metrics }: { metrics: MetricsSummaryResponse | nu
           <ul className="divide-y rounded-2xl border border-line bg-surface text-sm">
             {metrics.alarms.map((alarm) => (
               <li key={`${alarm.seq}-${alarm.created_at}`} className="p-3">
-                {alarm.kind.replace(/_/g, " ")} · {alarm.created_at}
+                {alarm.kind.replace(/_/g, " ")} · {formatWhen(alarm.created_at)}
               </li>
             ))}
           </ul>
@@ -288,7 +289,7 @@ export function ExamsPanel({ exams, busy, error, onRun }: ExamsPanelProps) {
                     ? "Passed"
                     : `Not passed (${exam.critical_violations ?? 0} critical)`}
                 {" · "}
-                {exam.finished_at ? `Finished ${exam.finished_at}` : "In progress"}
+                {exam.finished_at ? `Finished ${formatWhen(exam.finished_at)}` : "In progress"}
               </p>
             </li>
           ))}

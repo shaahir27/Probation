@@ -7,9 +7,9 @@ import ts from "typescript";
  * runner can import real production code without a bundler or an extra dependency.
  * Extensionless relative specifiers are rewritten because Node ESM requires them.
  */
-export async function stageApiModules(temp, names) {
+export async function stageApiModules(temp, names, base = "api") {
   for (const name of names) {
-    const source = await readFile(new URL(`../src/api/${name}.ts`, import.meta.url), "utf8");
+    const source = await readFile(new URL(`../src/${base}/${name}.ts`, import.meta.url), "utf8");
     const { outputText } = ts.transpileModule(source, {
       compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
     });

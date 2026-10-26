@@ -12,7 +12,7 @@ export function DesktopSidebar({ currentTab, currentSection, queueCount }: Deskt
   return <aside className="workspace-sidebar hidden md:flex">
     <a href="#/home" className="workspace-brand" aria-label="Probation overview">
       <ProbationMark className="h-10 w-9 text-brand" />
-      <span><span className="block font-serif text-2xl tracking-tight">Probation</span><span className="block text-xs text-ink-tertiary mt-1">Permission, earned.</span></span>
+      <span><span className="block font-serif text-[26px] leading-none tracking-[-0.02em]">Probation</span><span className="mt-2 flex items-center gap-1.5 text-xs text-ink-tertiary"><span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-accent ring-1 ring-ink" />Permission, earned.</span></span>
     </a>
     <p className="px-3 text-xs text-ink-tertiary mb-3">Your email workspace</p>
     <nav aria-label="Main navigation" className="space-y-1">

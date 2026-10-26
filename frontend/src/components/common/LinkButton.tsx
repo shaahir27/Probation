@@ -20,7 +20,7 @@ export function LinkButton({ href, children, variant = "secondary", size = "md",
     lg: "px-5 py-2.5 text-base rounded-xl gap-2.5 min-h-[48px]",
   };
   const variants = {
-    primary: "bg-ink text-canvas hover:bg-white font-semibold",
+    primary: "bg-ink text-canvas hover:bg-brand font-semibold",
     secondary: "bg-surface hover:bg-surfaceRaised border border-line text-ink",
   };
   return (

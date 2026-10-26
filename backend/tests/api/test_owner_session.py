@@ -162,9 +162,12 @@ def test_synthetic_profile_is_a_trusted_loopback_workspace(surface, monkeypatch)
     setup_state = surface["client"].get("/api/gmail/setup/read")
     assert setup_state.status_code == 200
     assert setup_state.json()["reason"] == "private_profile_required"
-    assert surface["client"].post(
-        "/api/gmail/setup/read", json={"version": "v1", "request_id": "synthetic-1"}
-    ).status_code == 403
+    assert (
+        surface["client"]
+        .post("/api/gmail/setup/read", json={"version": "v1", "request_id": "synthetic-1"})
+        .status_code
+        == 403
+    )
 
     remote = TestClient(app, base_url="http://127.0.0.1:8000", client=("10.0.0.9", 50000))
     assert remote.get("/api/queue").status_code == 401

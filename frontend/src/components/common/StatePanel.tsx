@@ -10,6 +10,7 @@ interface StatePanelProps {
   /** Only for error/stale: retrying must be a real re-read, never a fake success. */
   onRetry?: () => void;
   retryLabel?: string;
+  retrying?: boolean;
   action?: ReactNode;
   className?: string;
 }
@@ -42,6 +43,7 @@ export function StatePanel({
   description,
   onRetry,
   retryLabel = "Try again",
+  retrying = false,
   action,
   className = "",
 }: StatePanelProps) {
@@ -55,8 +57,8 @@ export function StatePanel({
       <h2 className="text-base font-medium text-ink">{title}</h2>
       <p className="max-w-prose text-sm text-ink-secondary">{description}</p>
       {onRetry && (
-        <Button variant="secondary" size="md" onClick={onRetry}>
-          {retryLabel}
+        <Button variant="secondary" size="md" onClick={onRetry} disabled={retrying}>
+          {retrying ? "Refreshing…" : retryLabel}
         </Button>
       )}
       {action}

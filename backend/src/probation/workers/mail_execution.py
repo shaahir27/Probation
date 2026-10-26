@@ -277,9 +277,7 @@ class MailLifecycle:
             )
 
     @staticmethod
-    def _restore_undo_anchor(
-        io: Any, action: Action, binding: Any
-    ) -> None:
+    def _restore_undo_anchor(io: Any, action: Action, binding: Any) -> None:
         """Reinstall the durable effect anchor stored with a label undo proof.
 
         Without it, a cursor that moved past the effect would compare absolute label versions

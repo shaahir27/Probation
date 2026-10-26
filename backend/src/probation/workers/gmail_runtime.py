@@ -294,9 +294,7 @@ def build_role_context(
     if live and grant is not None:
         live_transport = GmailHttpTransport()
         try:
-            token_store = RefreshTokenStore(
-                token_root(Path(private_store_path), role=grant.role)
-            )
+            token_store = RefreshTokenStore(token_root(Path(private_store_path), role=grant.role))
             provider = build_live_provider(
                 grant=grant,
                 env=env,

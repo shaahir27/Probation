@@ -327,9 +327,12 @@ def test_incremental_observes_a_message_that_gains_the_cohort_label_later(store:
         # The message arrives first without the owner label, so it is not yet in the cohort.
         fake.add_message(_message("m-late", labels={"INBOX"}))
         _sync(fake, access).incremental(_selection(), owner="reader-a")
-        assert access.one(
-            "SELECT 1 AS present FROM gmail_observations WHERE native_message_id='m-late'"
-        ) is None
+        assert (
+            access.one(
+                "SELECT 1 AS present FROM gmail_observations WHERE native_message_id='m-late'"
+            )
+            is None
+        )
 
         # The owner labels it afterwards: the label event is its first admission and the body
         # must be fetched, otherwise the email joins the cohort without ever being observed.

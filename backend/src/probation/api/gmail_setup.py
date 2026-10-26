@@ -29,7 +29,11 @@ from probation.connectors.acl import verify_owner_only
 from probation.connectors.credentials_state import BASE_CHILD_ENV
 from probation.connectors.gmail_read_grant import (
     registered_read_grant as find_registered_read_grant,
+)
+from probation.connectors.gmail_read_grant import (
     registered_write_grant as find_registered_write_grant,
+)
+from probation.connectors.gmail_read_grant import (
     token_exists,
 )
 from probation.core.clock import configure_clock_collation
@@ -155,9 +159,7 @@ class SetupManager:
         kind: str = "read",
     ) -> None:
         self._kind = "write" if kind == "write" else "read"
-        self._launcher = launcher or (
-            lambda owner_id, store: _launch(owner_id, store, self._kind)
-        )
+        self._launcher = launcher or (lambda owner_id, store: _launch(owner_id, store, self._kind))
         self._verifier = verifier or (
             registered_write_grant if self._kind == "write" else registered_read_grant
         )

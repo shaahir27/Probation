@@ -1,6 +1,7 @@
 import { QueueItem } from "../api/types";
 import { EmptyState } from "../components/common/EmptyState";
 import { StatePanel } from "../components/common/StatePanel";
+import { parseEmailText } from "../lib/emailText";
 
 interface WatchingViewProps {
   items: QueueItem[];
@@ -35,7 +36,7 @@ export function WatchingView({ items, errorMessage = null, onRetry }: WatchingVi
   return (
     <section aria-labelledby="watching-title" className="space-y-4">
       <header>
-        <h1 id="watching-title" className="font-serif text-2xl">
+        <h1 id="watching-title" className="page-title">
           Watching
         </h1>
         <p className="mt-1 text-sm text-ink-secondary">
@@ -44,14 +45,18 @@ export function WatchingView({ items, errorMessage = null, onRetry }: WatchingVi
         </p>
       </header>
       <ul className="divide-y border-y border-line">
-        {items.map((item) => (
-          <li key={item.id} className="py-4">
-            <a href={`#/watching/${encodeURIComponent(item.id)}`} className="block min-h-11">
-              <span className="block break-words text-sm font-medium text-ink">{item.summary || "Email details unavailable"}</span>
-              <span className="mt-1 block text-sm text-ink-secondary">Open details</span>
-            </a>
-          </li>
-        ))}
+        {items.map((item) => {
+          const text = parseEmailText(item.summary);
+          return (
+            <li key={item.id} className="py-4">
+              <a href={`#/watching/${encodeURIComponent(item.id)}`} className="block min-h-11">
+                <span className="block break-words font-serif text-[17px] font-normal leading-[1.35] tracking-[-0.01em] text-ink">{text.subject}</span>
+                {text.preview && <span className="mt-1 block line-clamp-2 text-sm leading-6 text-ink-secondary">{text.preview}</span>}
+                <span className="mt-2 block text-xs text-ink-tertiary">Open details</span>
+              </a>
+            </li>
+          );
+        })}
       </ul>
     </section>
   );

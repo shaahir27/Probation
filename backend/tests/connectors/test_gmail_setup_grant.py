@@ -75,9 +75,7 @@ def _write_token(store: Path, grant: ProvisionedGrant) -> Path:
     return root
 
 
-def _write_executor_token(
-    store: Path, read: ProvisionedGrant
-) -> tuple[ProvisionedGrant, Path]:
+def _write_executor_token(store: Path, read: ProvisionedGrant) -> tuple[ProvisionedGrant, Path]:
     grant = write_grant("owner", read.account_id, APPROVED_READ_LABEL)
     root = token_root(store, role="write")
     root.mkdir()

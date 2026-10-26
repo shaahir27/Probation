@@ -60,7 +60,7 @@ _LIFECYCLE_BASELINE = {
     "probation/packs/mail/executor.py": "d19261606b300b08",
     # Live undo persists the effect anchor in the durable proof and restores it before the
     # label-version equality check; snapshots carry the provider history point it needs.
-    "probation/workers/mail_execution.py": "fc75187e69bf2d6d",
+    "probation/workers/mail_execution.py": "bc56786eed83ca86",
     "probation/packs/mail/lifecycle_io.py": "92f811471e72f68f",
     "probation/packs/mail/lifecycle_operations.py": "a141c68899117e86",
 }

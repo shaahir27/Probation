@@ -26,10 +26,10 @@ export function MoreView({ section, profile, authenticated }: MoreViewProps) {
   const onSettled = useCallback(() => { client.invalidateQueries({ queryKey: queryKeys.exams }); }, [client]);
   const runExam = (classKey: string, action: string) => void commands.submit("run-exam", `${classKey}|${action}`, () => apiClient.runExam(classKey, action));
   return <div className="space-y-6">
-    <header><h1 className="font-serif text-[28px]">More</h1><p className="mt-2 text-sm text-ink-secondary">Connections, earned performance, exposure and recorded usage.</p></header>
+    <header><h1 className="page-title">More</h1><p className="mt-2 text-sm text-ink-secondary">Connections, earned performance, exposure and recorded usage.</p></header>
     <nav aria-label="More destinations" className="flex flex-wrap gap-x-5 gap-y-1 border-b border-line pb-1">{SECTIONS.map((entry) => <a key={entry.id} href={`#/more/${entry.id}`} aria-current={active === entry.id ? "page" : undefined} className={`review-tab ${active === entry.id ? "text-ink border-ink" : "text-ink-secondary"}`}>{entry.label}</a>)}</nav>
     <CommandStatus commandIds={commands.submitted.map((entry) => entry.commandId)} onSettled={onSettled} />
-    <div className="work-panel">
+    <div className="space-y-6">
       {active === "connections" && <ConnectionsPanel profile={profile} />}
       {active === "privacy" && <PrivacyPanel authenticated={authenticated} />}
       {active === "usage" && <UsagePanel authenticated={authenticated} />}

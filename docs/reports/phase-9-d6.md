@@ -1,9 +1,9 @@
 # Phase 9 handoff — D6: API and complete frontend surface
 
 **Earlier D6 branch:** `phase-9-d6-api-frontend` / `data/d6/worktree`
-**Final completion tree:** `main` at the repository root, based on `00a1570`; the Connect apps, live read-only Gmail and More/Performance completion is the final work recorded in this report.
+**Final completion tree:** `main` at the repository root. The historical read-only completion is at `00a1570`; the superseding live write/session/interface completion starts at checkpoint `0e300e3`, followed by the final commit `FINAL_COMMIT`. Nothing pushed, merged or deployed.
 **Base commit:** `29f1f6616cdb08ee769a4f2bbad95b35e50f902d` (`phase-6c: fix Gmail cohort filtering`, verified equal to accepted `main`)
-**D6 commits:** `6a3eb99` (backend, contracts, readiness), `ec0a30b` + `a574c99` (acceptance matrix, handoff, budget reconciliation), `4884e7b` (dashboard, harness, browser evidence), `00a1570` (final D6 identities and second gate). Nothing pushed.
+**D6 commits:** `6a3eb99` (backend, contracts, readiness), `ec0a30b` + `a574c99` (acceptance matrix, handoff, budget reconciliation), `4884e7b` (dashboard, harness, browser evidence), `00a1570` (final read-only D6 identities and second gate), `0e300e3` (owner sessions, read/write setup, live Gmail access, correctness fixes), `FINAL_COMMIT` (email workspace redesign and final verification).
 **Milestone name:** D6 (the `phase-9` prefix is the API/dashboard implementation phase)
 
 ## Done
@@ -201,3 +201,82 @@ result.
 The final local commit is `FINAL_COMMIT`. It includes the D6 code, tests, docs and root README.
 The pre-existing staged `build_history` WP4 files and the local build-history D6 DB-repair notes
 are intentionally **not** part of it, per the D6 scope. No push, merge or deployment was performed.
+
+---
+
+## Superseding completion — live write path, owner sessions and email workspace — 27 October 2026
+
+This section supersedes the read-only limitations above. The tree now includes the
+separately consented Executor write grant, live Gmail effects, owner sessions, Connect apps
+access controls and the final Gmail-style interface. Nothing was pushed, merged or deployed.
+
+### What changed
+
+- **Owner sessions.** `POST /api/session` verifies the owner key once and returns an
+  HttpOnly, SameSite=Strict, `Path=/api` session cookie with a 30-minute idle lifetime.
+  The key never enters browser storage, a URL or a response body. Refresh restores the
+  session; `DELETE /api/session` destroys it server-side. Unsafe cookie requests require
+  `X-Probation-CSRF: 1`. A synthetic profile is a trusted server selection, loopback-only.
+- **Read/write Gmail setup and access controls.** Read and write consents are separate.
+  Tokens live in separate owner-only directories; the write grant is loaded only into the
+  Executor child. Connect apps supports grant action access, pause/resume and a confirmed
+  disconnect command. The API holds no provider credential.
+- **Live correctness fixes.** The live supervisor forces `CLOCK_MODE=live`; the API child
+  receives the self-forward allowlist; message identity separates Gmail native IDs from RFC
+  `Message-ID` headers; controls apply in completion order; a message that gains the owner
+  label after arrival is observed; label evidence is re-bootstrapped when needed.
+- **Durable undo proof.** Label effects store the provider anchor, before-revision and
+  baseline in the durable undo proof and restore them before the equality check. Live undo
+  still refuses when label-history evidence is not continuous.
+- **Interface.** New light **Ledger & Signal** system (warm stone paper, forest ink, one
+  citron permit mark), self-hosted Fraunces + Manrope, Gmail-style master–detail Review,
+  flat Activity/Permissions/Connect surfaces, readable subject/preview/body parsing, hidden
+  sender disclaimers, readable dates and a working stale-data refresh. Design guidance from
+  the downloaded Taste, UI UX Pro Max and Impeccable skills was applied; no successful
+  automated design-inspector run is claimed.
+
+### Real Gmail evidence
+
+| Operation | Evidence | Result |
+|---|---|---|
+| Archive | Executor attempt `confirmed`; Gmail effect receipt `confirmed`; real `messages.modify` | **Passed** |
+| Trash | Executor attempt `confirmed`; Gmail effect receipt `confirmed`; real trash/untrash path | **Passed** |
+| Forward/send | Executor attempt `confirmed`; Gmail effect receipt `confirmed`; real `messages.send` to the allowlisted self account | **Passed** |
+| Pause / resume | Durable connection commands; live UI status | **Passed** |
+| Undo | Live request recorded; Executor refused with `undo_label_history_conflict` / `resource_outside_cohort`; no effect | **Fail-closed, not passed** |
+| Reply | No validated draft in the live proposal | **Not exercised; no body fabricated** |
+| Disconnect | UI two-step and API command path tested; not executed live because it requires a fresh Google consent | **Implemented, not live-executed** |
+
+No third-party recipient, permanent delete, settings change or automatic retry was used.
+The final live demo queue contains one unanswered cold-start ASK item.
+
+### Verification on this tree
+
+- **Backend:** `python scripts/check.py` — **1483 passed, 2 deselected, 0 failed**; ruff,
+  format, project mypy and `mypy --strict` clean; protected fixture/result hashes unchanged.
+  The lifecycle baseline digest was updated deliberately for the durable undo-anchor change
+  and is covered by `test_mail_lifecycle_effect_paths_match_the_reviewed_baseline`.
+- **Frontend:** `tsc --noEmit` clean; production build passed; `npm run test:unit`
+  **16/16**; `npx playwright test` **40/40** across all four journeys (workspace, private,
+  durable, synthetic-connections), including 200% zoom, session persistence, master–detail
+  review and the Connect apps access controls.
+- **Budget:** no paid model or Tavily call was made in this live session. Cumulative D5
+  authority is unchanged: Nebius confirmed $0.005005; Tavily 11 credits usable with one
+  unresolved `ambiguous` hold that is never re-sent.
+
+### Remaining limitations
+
+- Live undo is fail-closed when provider label-history evidence is not continuous; it is
+  not claimed as a live pass. The durable anchor fields and native/RFC identity fix are
+  covered offline and were added after the failed live undo proofs.
+- Reply remains conditional on a validated draft from the pipeline.
+- Disconnect was not executed live because it would require another Google consent.
+- The existing pending forward action has no effect and remains an honest pending record.
+- Google Calendar, Google Drive, files, chains, habits, Radar and Reading are not part of
+  this focused email release. No deployment, public URL or multi-user account is claimed.
+
+### Final commit
+
+The final local commit is `FINAL_COMMIT`. It follows checkpoint `0e300e3`; the earlier staged
+`build_history` WP4 files and local build-history D6 notes are not part of it. No push,
+merge or deployment was performed.

@@ -18,7 +18,7 @@ import { Header } from "./components/layout/Header";
 import { StatePanel } from "./components/common/StatePanel";
 import { CommandStatus } from "./components/common/CommandStatus";
 import { HomeView } from "./views/HomeView";
-import { QueueView } from "./views/QueueView";
+import { ReviewWorkspace } from "./views/ReviewWorkspace";
 import { ActionsView } from "./views/ActionsView";
 import { PermissionsView } from "./views/PermissionsView";
 import { MoreView } from "./views/MoreView";
@@ -168,7 +168,7 @@ function Workspace() {
   const setGate = (next: QueueGate) => navigate(setQueryFilter({ page: "queue" }, "gate", next === "all" ? null : next));
 
   return (
-    <div className="flex min-h-screen flex-col bg-canvas font-sans text-ink selection:bg-brand selection:text-brand-on md:flex-row">
+    <div className="flex min-h-screen flex-col border-t-4 border-accent bg-canvas font-sans text-ink selection:bg-brand selection:text-brand-on md:flex-row">
       <DesktopSidebar currentTab={tab} currentSection={route.page === "more" ? route.section ?? "connections" : undefined} queueCount={items.length} />
 
       <div className="flex min-h-screen min-w-0 flex-1 flex-col pb-24 md:pb-6">
@@ -200,10 +200,12 @@ function Workspace() {
               }. The list may no longer match what is recorded. Nothing on this page has changed because of it.`}
               onRetry={() => {
                 void queue.refetch();
+                void watching.refetch();
                 void actions.refetch();
                 void permissions.refetch();
               }}
               retryLabel="Refresh now"
+              retrying={coreStatus.isFetching}
             />
           )}
 
@@ -217,7 +219,9 @@ function Workspace() {
                 void watching.refetch();
                 void actions.refetch();
                 void permissions.refetch();
+                void replay.refetch();
               }}
+              retrying={coreStatus.isFetching}
             />
           )}
 
@@ -243,25 +247,20 @@ function Workspace() {
                 />
               )}
 
-              {route.page === "queue" && (
-                <QueueView
+              {(route.page === "queue" || route.page === "item") && (
+                <ReviewWorkspace
                   items={items}
                   gate={gate}
                   onGateChange={setGate}
-                  onSelectItem={(item) => navigate({ page: "item", id: item.id })}
-                />
-              )}
-
-              {route.page === "item" && (
-                <ItemDetailView
-                  id={route.id}
+                  selectedId={route.page === "item" ? route.id : null}
                   // The authoritative content comes from the by-id detail read. The queue row is
                   // only the preview, and a background list refresh must never remove it: when
                   // another tab answers an item it leaves the queue, which would unmount the
                   // screen (and the conflict message) the owner is still reading.
-                  item={openRow(route.id)}
+                  selectedItem={route.page === "item" ? openRow(route.id) : undefined}
                   authenticated={authenticated}
                   review={review}
+                  onSelect={(item) => navigate({ page: "item", id: item.id })}
                   onBack={() => navigate({ page: "queue" })}
                 />
               )}

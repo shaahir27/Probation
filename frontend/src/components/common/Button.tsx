@@ -14,7 +14,7 @@ export function Button({
   ...props
 }: ButtonProps) {
   const base =
-    "inline-flex items-center justify-center font-medium transition-all select-none focus:outline-none focus:ring-2 focus:ring-focus btn-tactile disabled:opacity-50 disabled:pointer-events-none";
+    "inline-flex items-center justify-center font-semibold transition-all select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 focus-visible:ring-offset-canvas btn-tactile disabled:opacity-45 disabled:pointer-events-none active:translate-y-px";
 
   const sizes = {
     // `sm` is only for dense secondary affordances. Anything primary, and anything
@@ -25,7 +25,7 @@ export function Button({
   };
 
   const variants = {
-    primary: "bg-ink text-canvas hover:bg-white font-semibold",
+    primary: "bg-ink text-canvas hover:bg-brand font-semibold",
     secondary: "bg-surface hover:bg-surfaceRaised border border-line text-ink",
     danger: "bg-status-danger/10 hover:bg-status-danger/20 border border-status-danger/30 text-status-danger",
     ghost: "bg-transparent hover:bg-surfaceSubtle text-ink-secondary hover:text-ink",

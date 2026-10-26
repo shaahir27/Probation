@@ -50,9 +50,7 @@ def write_grant(owner_id: str, account_id: str, label_id: str) -> ProvisionedGra
     return ProvisionedGrant("write", f"d6-read-{digest}", account, f"cred-d6-write-{digest}")
 
 
-def _registered_connection(
-    access: ConnectorAccess, owner_id: str
-) -> ProvisionedGrant | None:
+def _registered_connection(access: ConnectorAccess, owner_id: str) -> ProvisionedGrant | None:
     rows = access.query(
         "SELECT connection_id,account_id,credential_ref,label_ids,granted_scopes,state "
         "FROM gmail_connections WHERE owner_id=?",
