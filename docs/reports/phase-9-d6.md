@@ -1,9 +1,9 @@
 # Phase 9 handoff — D6: API and complete frontend surface
 
 **Earlier D6 branch:** `phase-9-d6-api-frontend` / `data/d6/worktree`
-**Final completion tree:** `main` at the repository root. The historical read-only completion is at `00a1570`; the superseding live write/session/interface completion starts at checkpoint `0e300e3`, followed by the final commit `FINAL_COMMIT`. Nothing pushed, merged or deployed.
+**Final completion tree:** `main` at the repository root. The historical read-only completion is at `00a1570`; the superseding live write/session/interface completion starts at checkpoint `0e300e3`, followed by the final commit `3f368a5`. Nothing pushed, merged or deployed.
 **Base commit:** `29f1f6616cdb08ee769a4f2bbad95b35e50f902d` (`phase-6c: fix Gmail cohort filtering`, verified equal to accepted `main`)
-**D6 commits:** `6a3eb99` (backend, contracts, readiness), `ec0a30b` + `a574c99` (acceptance matrix, handoff, budget reconciliation), `4884e7b` (dashboard, harness, browser evidence), `00a1570` (final read-only D6 identities and second gate), `0e300e3` (owner sessions, read/write setup, live Gmail access, correctness fixes), `FINAL_COMMIT` (email workspace redesign and final verification).
+**D6 commits:** `6a3eb99` (backend, contracts, readiness), `ec0a30b` + `a574c99` (acceptance matrix, handoff, budget reconciliation), `4884e7b` (dashboard, harness, browser evidence), `00a1570` (final read-only D6 identities and second gate), `0e300e3` (owner sessions, read/write setup, live Gmail access, correctness fixes), `3f368a5` (email workspace redesign and final verification).
 **Milestone name:** D6 (the `phase-9` prefix is the API/dashboard implementation phase)
 
 ## Done
@@ -122,7 +122,7 @@ startup and do not complete the outstanding live Gmail acceptance.
 ## D6 final completion — Connect apps and live read-only Gmail — 26 October 2026
 
 **Final tree:** `main` at the repository root, based on `00a1570`. The final local commit
-is `FINAL_COMMIT` (nothing pushed, merged or deployed). The earlier
+is `3f368a5` (nothing pushed, merged or deployed). The earlier
 `phase-9-d6-api-frontend` worktree remains the historical milestone.
 
 ### Delivered after `00a1570`
@@ -198,7 +198,7 @@ result.
 
 ### Final commit and preservation
 
-The final local commit is `FINAL_COMMIT`. It includes the D6 code, tests, docs and root README.
+The final local commit is `3f368a5`. It includes the D6 code, tests, docs and root README.
 The pre-existing staged `build_history` WP4 files and the local build-history D6 DB-repair notes
 are intentionally **not** part of it, per the D6 scope. No push, merge or deployment was performed.
 
@@ -277,6 +277,6 @@ The final live demo queue contains one unanswered cold-start ASK item.
 
 ### Final commit
 
-The final local commit is `FINAL_COMMIT`. It follows checkpoint `0e300e3`; the earlier staged
+The final local commit is `3f368a5`. It follows checkpoint `0e300e3`; the earlier staged
 `build_history` WP4 files and local build-history D6 notes are not part of it. No push,
 merge or deployment was performed.
