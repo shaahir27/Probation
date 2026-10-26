@@ -1,30 +1,38 @@
 # D6 Acceptance Matrix
 
-Track D6 acceptance using evidence from the D6 worktree. “Pending” means no end-to-end evidence has yet been recorded; a passing unit test alone does not satisfy browser or live acceptance.
+Track D6 acceptance using evidence from the D6 worktree. "Pending" means no end-to-end evidence has yet been recorded; a passing unit test alone does not satisfy browser or live acceptance.
+
+Evidence key for the rows below:
+
+- **OFFLINE** — `python scripts/check.py` in `data/d6/worktree` on the D6 tree: `1403 passed, 2 deselected, 0 failed`, ruff lint+format clean, project mypy and `mypy --strict` on `core/`+`engine/` clean, protected fixture and published-result hashes unchanged. Commit `6a3eb99`.
+- **BROWSER** — `frontend`: `playwright test --list` reports **37 specs in 8 files** that all load; execution is blocked because no Playwright browser binary is installed on this host and that download needs owner approval.
+- **LIVE** — real Gmail/model effects. None run in D6 work; gated on the approved manifest and the paid-test go-ahead.
 
 | Plan item | Required evidence | Status |
 |---|---|---|
-| A09 Derived permission parity | API, Examiner, Executor agree at same cutoff; no explicit-approval promotion | Pending |
-| A10 Response race | Concurrent accept/edit/reject, idempotent same request, typed conflict, truthful 202 | Pending |
-| A11 Draft/edit/forward | Immutable bindings, address/content validation, separate forward recipient | Pending |
-| A12 Archive/trash/undo | Real before-state, duplicate/conflict/expired undo behavior | Pending |
-| A13 Holds and consent | No early autonomous send, fresh restriction check, cancellation has no effect | Pending |
-| A14 Crash after effect | Durable attempt and reconciliation; no duplicate uncertain send | Pending |
-| A15 Correction/drift restart | Owned correction, deduped alarm/demotion before next eligible effect | Pending |
-| A16 Gmail observation | Pagination, race/resync, MIME bounds, no body URL or attachment fetch | Pending |
-| A17 Gmail auth/revoke | Account/scope/state/revoke checks and role grant isolation | Pending |
-| A18 Authorized real Gmail flow | Approved incoming synthetic cohort; only owner-approved operations; sanitized outcome | Pending; requires approved manifest |
-| A19 Tavily guard/accounting | Guard, budget/log failure, cache/TTL, outage baseline | Pending |
-| A20 Tavily restrictions/citations | Monotonic restriction behavior and source-backed uncertainty | Pending |
-| A21 Extract | Show unavailable unless independently verified and accepted | Pending |
-| A22 Browser workflow | Detail/review/status/undo, invalidation, refresh/navigation/multi-tab | Pending |
-| A23 Honest navigation | Discoverable destinations; truthful mode/readiness/unavailable states | Pending |
-| A24 Accessibility/content safety | Keyboard, focus, responsive layout, escaped content, safe links, clean console | Pending |
-| A25 Reports/claims | Hand-counted scope, correct denominators, empty cohorts, measured cost/provenance | Pending |
-| D6 owner isolation | Every private route is scoped to verified owner grants | In progress |
-| D6 worker isolation | Dotenv-safe bootstrap, exact child env, role-owned loops/readiness | In progress |
-| D6 frontend usability | Plain language, real API, loading/error/empty states, Taste/UI UX Pro Max review | In progress |
-| D6 replay durability | Versioned commands and durable receipts with restart-safe state projection | In progress |
-| D6 budget | Cumulative $1 Nebius / 20 Tavily credits including prior accounting | Pending final reconciliation |
+| A09 Derived permission parity | API, Examiner, Executor agree at same cutoff; no explicit-approval promotion | Offline tests pass (OFFLINE; `test_gmail_evidence_provenance.py`, `test_wp6_followup_evidence.py`). Cross-surface agreement at one cutoff has not been re-asserted through the HTTP API in this run — **Pending** |
+| A10 Response race | Concurrent accept/edit/reject, idempotent same request, typed conflict, truthful 202 | **Offline passed** (OFFLINE; `test_wp6_response_api.py`) |
+| A11 Draft/edit/forward | Immutable bindings, address/content validation, separate forward recipient | Draft/edit/bind **offline passed**; forward **Blocked** — `PROBATION_GMAIL_FORWARD_ALLOWLIST` is unset and `.env` carries the stale key name `PROBATION_FORWARD_ALLOWLIST`, so forward is refused fail-closed |
+| A12 Archive/trash/undo | Real before-state, duplicate/conflict/expired undo behavior | Conflict/expired-undo rules **offline passed**; physical archive/trash and undo against Gmail — **Pending (LIVE)** |
+| A13 Holds and consent | No early autonomous send, fresh restriction check, cancellation has no effect | **Offline passed** (OFFLINE; gate, restriction and hold paths, plus new webfacts fail-closed cap 0 test) |
+| A14 Crash after effect | Durable attempt and reconciliation; no duplicate uncertain send | **Offline passed** (OFFLINE; `test_d6_replay_recovery.py`, spend `ambiguous` hold reporting in `test_api_endpoints.py`) |
+| A15 Correction/drift restart | Owned correction, deduped alarm/demotion before next eligible effect | **Offline passed** (OFFLINE; drift/correction suites in the gate run) |
+| A16 Gmail observation | Pagination, race/resync, MIME bounds, no body URL or attachment fetch | **Offline passed** (OFFLINE, D4-accepted plus `test_gmail_ingest.py` and `test_gmail_runtime.py` in this run); real provider enumeration — **Pending (LIVE)** |
+| A17 Gmail auth/revoke | Account/scope/state/revoke checks and role grant isolation | **Offline passed** (OFFLINE; `test_gmail_live_wiring.py`, new `test_non_loopback_bind_host_is_rejected_not_substituted`, new per-role env allowlist tests) |
+| A18 Authorized real Gmail flow | Approved incoming synthetic cohort; only owner-approved operations; sanitized outcome | **Blocked — requires approved manifest.** Two hard prerequisites found: `PROBATION_GMAIL_LABEL` currently holds the label *name* while `gmail_sync.py:363` compares the native `labelId`, so the cohort resolves empty; and the six existing test emails are self-sent, so a separately authorized incoming sender is still needed |
+| A19 Tavily guard/accounting | Guard, budget/log failure, cache/TTL, outage baseline | **Offline passed** (OFFLINE; guard/TTL tests plus new IPC timeout and no-auto-retry tests). Cumulative reconciliation against `data/d5/live/accounting.db` scope `d5-nemotron-tavily` — **Pending final reconciliation** |
+| A20 Tavily restrictions/citations | Monotonic restriction behavior and source-backed uncertainty | **Offline passed** (OFFLINE; D5 pipeline rewritten to `test_web_failure_fails_closed`, plus citation rendering in `VerificationCard`) |
+| A21 Extract | Show unavailable unless independently verified and accepted | **Offline passed as unavailable** — Extract is not claimed; the card reports unverified fields as not checked/unavailable rather than supported |
+| A22 Browser workflow | Detail/review/status/undo, invalidation, refresh/navigation/multi-tab | **Authored, not executed (BROWSER)** — specs exist for durable request, conflict→fresh review, undo only when offered, routes/Back, refresh; needs the browser binary |
+| A23 Honest navigation | Discoverable destinations; truthful mode/readiness/unavailable states | **Authored, not executed (BROWSER)**; backend half is evidenced (OFFLINE: `test_wp6_api_readiness.py` proves absence/staleness ⇒ unavailable) |
+| A24 Accessibility/content safety | Keyboard, focus, responsive layout, escaped content, safe links, clean console | **Authored, not executed (BROWSER)**; static guarantees hold (OFFLINE: `tsc --noEmit` clean, `node --test` 9/9 incl. "no production source imports fixture data", no remote font import in the bundle) |
+| A25 Reports/claims | Hand-counted scope, correct denominators, empty cohorts, measured cost/provenance | **Offline passed** (OFFLINE; new tests that unmatched class/action/cutoff change the answer, `agreement` exposes numerator/denominator, `intended_actions` ≠ `confirmed_effects`, spend unavailable ⇒ not zero) |
+| D6 owner isolation | Every private route is scoped to verified owner grants | **Offline passed** (OFFLINE; 401 off-loopback, 401 wrong token, 403 authenticated-without-grant, 503 when unconfigured) |
+| D6 worker isolation | Dotenv-safe bootstrap, exact child env, role-owned loops/readiness | **Offline passed** (OFFLINE; real Windows children with a synthetic canary dotenv, per-role allowlists, tick-derived readiness with never-ticked/stale/failed cases) |
+| D6 frontend usability | Plain language, real API, loading/error/empty states, Taste/UI UX Pro Max review | **In progress** — implementation complete and typechecking; the Taste browser inspection and before/after screenshot loop is **Blocked (BROWSER)** |
+| D6 replay durability | Versioned commands and durable receipts with restart-safe state projection | **Offline passed** (OFFLINE; `test_d6_replay_controls.py`, `test_d6_replay_recovery.py`, `clock_state` writer absent). Advancing replay requires `make serve --gmail-runtime`, since the plain serve path starts no Examiner |
+| D6 budget | Cumulative $1 Nebius / 20 Tavily credits including prior accounting | **No new spend.** 0 paid calls in D6 work; prior charges and unresolved holds still count and remain to be reconciled before any paid test |
 
 Do not mark an item passed without the exact command, exit status, fixture or cohort identity, and saved evidence location in `docs/reports/phase-9-d6.md`.
+
+**Live-acceptance note.** A read-only approval never authorizes send, forward, trash or archive. Those require the exact operation manifest (account, cohort, action, recipient where relevant, reviewed body hash, request identity, applicable restrictions, operation limit) and the owner's approval of each write. An ambiguous send is not retried automatically. Implementation readiness and live acceptance are reported separately and neither implies the other.
