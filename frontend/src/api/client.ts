@@ -1,12 +1,12 @@
 /**
- * Typed API Client for Probation FastAPI Backend.
- * Strict rules:
- * - Uniform error parsing { error: { code, message } }
- * - Never silently substitute mock data when live API fails or is empty.
- * - Respects preview mode explicitly toggled by user.
+ * The only browser-side network module. Owner credentials live in memory here and
+ * nowhere else: never a URL, never storage, never a query key, never a log line.
+ *
+ * Every read is cancellable and stamped with the session generation it started in,
+ * so a response that arrives after logout can never repopulate state.
  */
 
-import {
+import type {
   ActionItem,
   AdminCommand,
   BoardResponse,
@@ -14,319 +14,343 @@ import {
   ExamRunItem,
   ExposureResponse,
   HabitItem,
+  ItemDetail,
   LedgerVerifyResponse,
   LicenceItem,
   MetricsSummaryResponse,
+  QueueItem,
   QueueResponse,
   ReplayStateResponse,
   ReportCardResponse,
+  RespondReceipt,
+  ResponseStatus,
+  ReviewReceipt,
   SettingsResponse,
   WebFactsResponse,
 } from "./types";
 import {
-  MOCK_ACTIONS,
-  MOCK_CHAINS,
-  MOCK_EXAMS,
-  MOCK_HABITS,
-  MOCK_LICENCES,
-  MOCK_METRICS,
-  MOCK_QUEUE_ITEMS,
-  MOCK_REPORT_CARD,
-  MOCK_WEB_FACTS,
-} from "./fixtures";
+  ApiError,
+  decodeActionsResponse,
+  decodeAdminCommand,
+  decodeBoard,
+  decodeBootstrap,
+  decodeChainList,
+  decodeCommandEnvelope,
+  decodeExamRuns,
+  decodeExposure,
+  decodeHabitList,
+  decodeItemDetail,
+  decodeLedgerVerify,
+  decodeLicenceList,
+  decodeMetricsSummary,
+  decodeQueueResponse,
+  decodeReplayState,
+  decodeReportCard,
+  decodeRespondReceipt,
+  decodeResponseStatus,
+  decodeReviewReceipt,
+  decodeSettings,
+  decodeWatchingResponse,
+  decodeWebFacts,
+  recordValue,
+} from "./validation";
 
-const API_BASE =
-  ((import.meta as unknown as { env?: Record<string, string> }).env?.VITE_API_BASE_URL as string | undefined) || "/api";
+const API_BASE = "/api";
 
-export class ApiError extends Error {
-  code: string;
-  constructor(code: string, message: string) {
-    super(message);
-    this.code = code;
-    this.name = "ApiError";
-  }
+export { ApiError };
+
+let ownerToken: string | null = null;
+let sessionGeneration = 0;
+const inflight = new Set<AbortController>();
+
+/** Sets or clears the in-memory bearer value. Nothing is persisted anywhere. */
+export function setOwnerToken(token: string | null): void {
+  ownerToken = token?.trim() || null;
 }
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const url = `${API_BASE}${path}`;
-  const headers = {
-    "Content-Type": "application/json",
-    ...(options.headers || {}),
-  };
+/** Owner signed in: bump the generation so any earlier read is discarded. */
+export function installOwnerToken(token: string): number {
+  setOwnerToken(token);
+  sessionGeneration += 1;
+  return sessionGeneration;
+}
 
-  const response = await fetch(url, { ...options, headers });
+/**
+ * Owner signed out (or was locked out): forget the credential, bump the generation
+ * and abort every in-flight request so a late response cannot repopulate state.
+ */
+export function clearOwnerToken(): number {
+  setOwnerToken(null);
+  sessionGeneration += 1;
+  inflight.forEach((controller) => controller.abort());
+  inflight.clear();
+  return sessionGeneration;
+}
+
+export function getSessionGeneration(): number {
+  return sessionGeneration;
+}
+
+/** A stable pre-created request ID for one mutation attempt, safe to retry as-is. */
+export function newRequestId(prefix: string): string {
+  const random =
+    typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID()
+      : `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`;
+  return `${prefix}-${random}`.slice(0, 160);
+}
+
+export function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException
+    ? error.name === "AbortError"
+    : error instanceof Error && (error.name === "AbortError" || (error as ApiError).code === "aborted");
+}
+
+/** 401/403: the session is not authorised for this read. Never shown as empty data. */
+export function isLockedError(error: unknown): boolean {
+  if (!(error instanceof ApiError)) return false;
+  return error.status === 401 || error.status === 403 || error.code === "unauthorized" || error.code === "forbidden";
+}
+
+/** 409 with a decision-relevant code: the owner must review again before resending. */
+export const CONFLICT_CODES: readonly string[] = [
+  "review_binding_changed",
+  "operation_reconciled",
+  "operation_restricted",
+  "initial_decision_already_recorded",
+  "request_payload_conflict",
+  "command_id_conflict",
+  "action_not_undoable",
+  "legacy_action_binding_unavailable",
+  "review_binding_mismatch",
+  "source_grant_mismatch",
+];
+
+export function conflictCode(error: unknown): string | null {
+  if (!(error instanceof ApiError) || error.status !== 409) return null;
+  // CONTRACT.md section 9 fixes the error envelope, so the numeric status stays in `code` and
+  // the semantic conflict reason arrives in `message`. Reading only `code` would show every
+  // conflict as one vague sentence and hide why the decision was refused.
+  for (const value of [error.message, error.code]) {
+    if (CONFLICT_CODES.includes(value)) return value;
+  }
+  const descriptive = [error.message, error.code].find((value) => value && !/^\d+$/.test(value));
+  return descriptive ?? "conflict";
+}
+
+function object(value: unknown, label: string): Record<string, unknown> {
+  return recordValue(value, label);
+}
+
+async function request<T>(path: string, options: { method?: string; body?: unknown; signal?: AbortSignal } = {}): Promise<T> {
+  const startedAtGeneration = sessionGeneration;
+  const controller = new AbortController();
+  inflight.add(controller);
+  const externalSignal = options.signal;
+  const onExternalAbort = () => controller.abort();
+  if (externalSignal) {
+    if (externalSignal.aborted) controller.abort();
+    else externalSignal.addEventListener("abort", onExternalAbort, { once: true });
+  }
+
+  const headers = new Headers();
+  if (options.body !== undefined) headers.set("Content-Type", "application/json");
+  if (ownerToken) headers.set("Authorization", `Bearer ${ownerToken}`);
+
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE}${path}`, {
+      method: options.method ?? "GET",
+      headers,
+      body: options.body === undefined ? undefined : JSON.stringify(options.body),
+      signal: controller.signal,
+      credentials: "same-origin",
+    });
+  } catch (error) {
+    if (isAbortError(error)) throw new ApiError("aborted", "The request was cancelled.", 0);
+    throw new ApiError("network_error", "Could not reach Probation. Check that it is running and try again.");
+  } finally {
+    if (externalSignal) externalSignal.removeEventListener("abort", onExternalAbort);
+    inflight.delete(controller);
+  }
+
+  if (startedAtGeneration !== sessionGeneration) {
+    throw new ApiError("session_changed", "This sign-in ended before the data arrived.", 0);
+  }
+
   if (!response.ok) {
-    let errorCode = String(response.status);
-    let errorMessage = response.statusText;
+    let code = String(response.status);
+    let message =
+      response.status === 401
+        ? "Your sign-in is no longer valid. Enter your key again."
+        : response.status === 403
+          ? "Probation cannot show this account's data with the current sign-in."
+          : "Probation could not complete that request.";
     try {
-      const errorJson = await response.json();
-      if (errorJson?.error) {
-        errorCode = errorJson.error.code || errorCode;
-        errorMessage = errorJson.error.message || errorMessage;
+      const error = object(await response.json(), "error response");
+      const detail = object(error.error, "error details");
+      const detailCode = typeof detail.code === "string" ? detail.code : "";
+      const detailMessage = typeof detail.message === "string" ? detail.message : "";
+      if (detailCode === "connector_api_not_configured" || detailMessage === "connector_api_not_configured") {
+        code = "connector_api_not_configured";
+        message = "Probation's owner sign-in is not configured yet. Check the backend setup and restart the app.";
+      } else {
+        if (detailCode) code = detailCode;
+        if (detailMessage) message = detailMessage;
       }
     } catch {
-      // Non-json response
+      // Keep the safe message if the server response is not the documented error shape.
     }
-    throw new ApiError(errorCode, errorMessage);
+    if (response.status === 401) setOwnerToken(null);
+    throw new ApiError(code, message, response.status);
   }
 
-  return response.json() as Promise<T>;
+  if (response.status === 204) return undefined as T;
+  let payload: unknown;
+  try {
+    payload = await response.json();
+  } catch {
+    throw new ApiError("invalid_response", "Probation returned an unreadable response.");
+  }
+  return payload as T;
 }
 
+const query = (values: Record<string, string | number | undefined>) => {
+  const params = new URLSearchParams();
+  Object.entries(values).forEach(([key, value]) => {
+    if (value !== undefined) params.set(key, String(value));
+  });
+  const text = params.toString();
+  return text ? `?${text}` : "";
+};
+
+type Signal = AbortSignal | undefined;
+
 export const apiClient = {
-  // Mode flag: when true, user has deliberately switched to synthetic demo preview
-  previewMode: false,
-
-  setPreviewMode(enabled: boolean) {
-    this.previewMode = enabled;
+  async getBootstrap(signal?: Signal): Promise<{ version: string; profile: "private" | "synthetic"; auth_required: boolean }> {
+    return decodeBootstrap(await request<unknown>("/bootstrap", { signal }));
   },
-
-  async getHealth(): Promise<{ status: string; service: string; mode: string }> {
-    return request<{ status: string; service: string; mode: string }>("/health");
+  async getHealth(signal?: Signal): Promise<{ status: string; service: string; mode: string }> {
+    return request("/health", { signal });
   },
-
-  async getQueue(): Promise<QueueResponse> {
-    if (this.previewMode) {
-      return {
-        items: MOCK_QUEUE_ITEMS,
-        digests: [
-          {
-            class_key: "mail|recruiter|inquiry",
-            action: "PREPARE_DECLINE_DRAFT",
-            family: "email_action",
-            count: 1,
-            ask_count: 0,
-            suggest_count: 1,
-            items: ["prop-101"],
-          },
-          {
-            class_key: "calendar|early_invite",
-            action: "DECLINE",
-            family: "calendar_action",
-            count: 1,
-            ask_count: 1,
-            suggest_count: 0,
-            items: ["prop-102"],
-          },
-        ],
-        total_count: MOCK_QUEUE_ITEMS.length,
-      };
+  async getQueue(signal?: Signal): Promise<QueueResponse> {
+    return decodeQueueResponse(await request<unknown>("/queue", { signal }));
+  },
+  async getWatching(signal?: Signal): Promise<{ items: QueueItem[]; total_count: number }> {
+    return decodeWatchingResponse(await request<unknown>("/watching", { signal }));
+  },
+  async getItemDetail(id: string, signal?: Signal): Promise<ItemDetail> {
+    return decodeItemDetail(await request<unknown>(`/items/${encodeURIComponent(id)}`, { signal }));
+  },
+  async reviewQueue(id: string, body: Record<string, unknown>, signal?: Signal): Promise<ReviewReceipt> {
+    return decodeReviewReceipt(
+      await request<unknown>(`/queue/${encodeURIComponent(id)}/review`, { method: "POST", body, signal }),
+    );
+  },
+  async respondQueue(id: string, body: Record<string, unknown>, signal?: Signal): Promise<RespondReceipt> {
+    return decodeRespondReceipt(
+      await request<unknown>(`/queue/${encodeURIComponent(id)}/respond`, { method: "POST", body, signal }),
+    );
+  },
+  async getResponseStatus(id: string, signal?: Signal): Promise<ResponseStatus> {
+    return decodeResponseStatus(await request<unknown>(`/responses/${encodeURIComponent(id)}`, { signal }));
+  },
+  async getActions(signal?: Signal): Promise<{ actions: ActionItem[]; total_count: number }> {
+    return decodeActionsResponse(await request<unknown>("/actions", { signal }));
+  },
+  async undoAction(id: string, requestId: string, signal?: Signal): Promise<{ request_id: string; status: string; status_url: string }> {
+    const value = object(
+      await request<unknown>(`/actions/${encodeURIComponent(id)}/undo`, {
+        method: "POST",
+        body: { version: "v2", request_id: requestId },
+        signal,
+      }),
+      "request status",
+    );
+    if (typeof value.request_id !== "string" || value.status !== "recorded" || typeof value.status_url !== "string") {
+      throw new ApiError("invalid_response", "Probation did not confirm that the request was recorded.");
     }
-    return request<QueueResponse>("/queue");
+    return value as { request_id: string; status: string; status_url: string };
   },
-
-  async respondQueue(
-    proposalId: string,
-    response: "accept" | "reject" | "edit",
-    editedAction?: string
-  ): Promise<{ ok: boolean; id: string; response: string }> {
-    if (this.previewMode) {
-      return { ok: true, id: `preview-resp-${Date.now()}`, response };
-    }
-    return request<{ ok: boolean; id: string; response: string }>(`/queue/${proposalId}/respond`, {
-      method: "POST",
-      body: JSON.stringify({ response, edited_action: editedAction }),
-    });
+  async getLicences(signal?: Signal): Promise<{ licences: LicenceItem[]; total_count: number }> {
+    return decodeLicenceList(await request<unknown>("/permissions", { signal }));
   },
-
-  async getItemDetail(proposalId: string): Promise<Record<string, unknown>> {
-    if (this.previewMode) {
-      const found = MOCK_QUEUE_ITEMS.find((i) => i.id === proposalId) || MOCK_QUEUE_ITEMS[0];
-      return {
-        ...found,
-        proposal_id: found.id,
-        situation: {
-          sender_key: found.sender_key,
-          occurred_at: found.occurred_at,
-          summary: found.summary,
-        },
-        evidence: {
-          n_strong: 42,
-          k_strong: 41,
-          lb_strong: 0.894,
-          n_recent: 14,
-        },
-      };
-    }
-    return request<Record<string, unknown>>(`/items/${proposalId}`);
+  async getReportCard(family: string, signal?: Signal): Promise<ReportCardResponse> {
+    return decodeReportCard(await request<unknown>(`/report-card${query({ family })}`, { signal }));
   },
-
-  async getActions(): Promise<{ actions: ActionItem[]; total_count: number }> {
-    if (this.previewMode) {
-      return { actions: MOCK_ACTIONS, total_count: MOCK_ACTIONS.length };
-    }
-    return request<{ actions: ActionItem[]; total_count: number }>("/actions");
+  async getMetricsSummary(signal?: Signal): Promise<MetricsSummaryResponse> {
+    return decodeMetricsSummary(await request<unknown>("/metrics/summary", { signal }));
   },
-
-  async undoAction(actionId: string): Promise<{ ok: boolean; status: string }> {
-    if (this.previewMode) {
-      return { ok: true, status: "UNDO_REQUESTED" };
-    }
-    return request<{ ok: boolean; status: string }>(`/actions/${actionId}/undo`, {
-      method: "POST",
-    });
+  async getHabits(signal?: Signal): Promise<{ habits: HabitItem[] }> {
+    return decodeHabitList(await request<unknown>("/habits", { signal }));
   },
-
-  async getLicences(): Promise<{ licences: LicenceItem[]; total_count: number }> {
-    if (this.previewMode) {
-      return { licences: MOCK_LICENCES, total_count: MOCK_LICENCES.length };
-    }
-    return request<{ licences: LicenceItem[]; total_count: number }>("/licences");
+  async denyHabit(id: string, requestId: string, signal?: Signal): Promise<{ ok: boolean; command: AdminCommand }> {
+    return decodeCommandEnvelope(
+      await request<unknown>(`/habits/${encodeURIComponent(id)}/deny`, {
+        method: "POST",
+        body: { version: "v2", request_id: requestId },
+        signal,
+      }),
+    );
   },
-
-  async getReportCard(family: string): Promise<ReportCardResponse> {
-    if (this.previewMode) {
-      return MOCK_REPORT_CARD;
-    }
-    return request<ReportCardResponse>(`/report-card?family=${encodeURIComponent(family)}`);
+  async getChains(signal?: Signal): Promise<{ chains: ChainItem[] }> {
+    return decodeChainList(await request<unknown>("/chains", { signal }));
   },
-
-  async getMetricsSummary(): Promise<MetricsSummaryResponse> {
-    if (this.previewMode) {
-      return MOCK_METRICS;
-    }
-    return request<MetricsSummaryResponse>("/metrics/summary");
+  async getExams(signal?: Signal): Promise<{ runs: ExamRunItem[] }> {
+    return decodeExamRuns(await request<unknown>("/exams", { signal }));
   },
-
-  async getHabits(): Promise<{ habits: HabitItem[] }> {
-    if (this.previewMode) {
-      return { habits: MOCK_HABITS };
-    }
-    return request<{ habits: HabitItem[] }>("/habits");
+  /**
+   * The exam command model is `extra="forbid"` and has no request_id field, so the ID
+   * stays client-side for de-duplication only; the API assigns the durable command ID.
+   */
+  async runExam(
+    classKey: string,
+    action: string,
+    attemptOrdinal = 0,
+    signal?: Signal,
+  ): Promise<{ ok: boolean; command: AdminCommand }> {
+    return decodeCommandEnvelope(
+      await request<unknown>("/exams/run", {
+        method: "POST",
+        body: { kind: "run_exam", class_key: classKey, action, attempt_ordinal: attemptOrdinal },
+        signal,
+      }),
+    );
   },
-
-  async denyHabit(habitId: string): Promise<{ ok: boolean; command: AdminCommand }> {
-    if (this.previewMode) {
-      return { ok: true, command: { id: `preview-deny-${habitId}`, kind: "deny_habit", status: "SUCCEEDED",
-        requested_at: "2026-03-01T00:00:00Z", updated_at: "2026-03-01T00:00:00Z",
-        result: { habit_id: habitId, denied: true } } };
-    }
-    return request<{ ok: boolean; command: AdminCommand }>(`/habits/${encodeURIComponent(habitId)}/deny`, {
-      method: "POST",
-    });
+  async getCommand(id: string, signal?: Signal): Promise<{ command: AdminCommand }> {
+    const value = object(await request<unknown>(`/commands/${encodeURIComponent(id)}`, { signal }), "request");
+    return { command: decodeAdminCommand("command" in value ? value.command : value) };
   },
-
-  async getChains(): Promise<{ chains: ChainItem[] }> {
-    if (this.previewMode) {
-      return { chains: MOCK_CHAINS };
-    }
-    return request<{ chains: ChainItem[] }>("/chains");
+  async getExposure(signal?: Signal): Promise<ExposureResponse> {
+    return decodeExposure(await request<unknown>("/exposure", { signal }));
   },
-
-  async getExams(): Promise<{ runs: ExamRunItem[] }> {
-    if (this.previewMode) {
-      return { runs: MOCK_EXAMS };
-    }
-    return request<{ runs: ExamRunItem[] }>("/exams");
+  async getWebFacts(signal?: Signal): Promise<WebFactsResponse> {
+    return decodeWebFacts(await request<unknown>("/web-facts", { signal }));
   },
-
-  async runExam(classKey: string, action: string, attemptOrdinal = 0): Promise<{ ok: boolean; command: AdminCommand }> {
-    if (this.previewMode) {
-      return { ok: true, command: { id: "preview-exam", kind: "run_exam", status: "SUCCEEDED",
-        requested_at: "2026-03-01T00:00:00Z", updated_at: "2026-03-01T00:00:00Z",
-        result: { run_id: "preview-exam" } } };
-    }
-    return request<{ ok: boolean; command: AdminCommand }>("/exams/run", {
-      method: "POST",
-      body: JSON.stringify({ class_key: classKey, action, attempt_ordinal: attemptOrdinal }),
-    });
+  async verifyLedger(signal?: Signal): Promise<LedgerVerifyResponse> {
+    return decodeLedgerVerify(await request<unknown>("/ledger/verify", { signal }));
   },
-
-  async getCommand(id: string): Promise<{ command: AdminCommand }> {
-    if (this.previewMode) throw new Error("Preview commands do not use the live service");
-    return request<{ command: AdminCommand }>(`/commands/${encodeURIComponent(id)}`);
+  async getSettings(signal?: Signal): Promise<SettingsResponse> {
+    return decodeSettings(await request<unknown>("/settings", { signal }));
   },
-
-  async getExposure(): Promise<ExposureResponse> {
-    if (this.previewMode) {
-      return {
-        calls: 24,
-        total_cost_usd: 0.048,
-        breakdown: [
-          {
-            call_kind: "reader",
-            model_id: "nvidia/nemotron-mini-4b-instruct",
-            calls: 20,
-            tokens_in: 4800,
-            tokens_out: 1200,
-            cost_usd: 0.04,
-          },
-        ],
-      };
-    }
-    return request<ExposureResponse>("/exposure");
+  async getReplayState(signal?: Signal): Promise<ReplayStateResponse> {
+    return decodeReplayState(await request<unknown>("/replay/state", { signal }));
   },
-
-  async getWebFacts(): Promise<WebFactsResponse> {
-    if (this.previewMode) {
-      return MOCK_WEB_FACTS;
-    }
-    return request<WebFactsResponse>("/web-facts");
+  // Frozen replay wire contract: the body carries request_id (and speed) only.
+  async startReplay(requestId: string, signal?: Signal): Promise<Record<string, unknown>> {
+    return object(await request<unknown>("/replay/start", { method: "POST", body: { request_id: requestId }, signal }), "replay request");
   },
-
-  async verifyLedger(): Promise<LedgerVerifyResponse> {
-    if (this.previewMode) {
-      return {
-        ok: true,
-        seq: null,
-        length: 482,
-        head_hash: "a4c28e81f9b34208a5cb72837f40192df78923a1029487b320984ef1928374a2",
-      };
-    }
-    return request<LedgerVerifyResponse>("/ledger/verify");
+  async pauseReplay(requestId: string, signal?: Signal): Promise<Record<string, unknown>> {
+    return object(await request<unknown>("/replay/pause", { method: "POST", body: { request_id: requestId }, signal }), "replay request");
   },
-
-  async getSettings(): Promise<SettingsResponse> {
-    return request<SettingsResponse>("/settings");
+  async setReplaySpeed(speed: 1 | 10 | 100, requestId: string, signal?: Signal): Promise<Record<string, unknown>> {
+    if (![1, 10, 100].includes(speed)) throw new ApiError("invalid_speed", "Probation can only replay at 1x, 10x or 100x.");
+    return object(
+      await request<unknown>("/replay/speed", { method: "POST", body: { request_id: requestId, speed }, signal }),
+      "replay request",
+    );
   },
-
-  async getReplayState(): Promise<ReplayStateResponse> {
-    if (this.previewMode) {
-      return {
-        running: false,
-        speed: 1.0,
-        simulated_date: "2026-03-01T12:00:00Z",
-        mode: "replay",
-      };
-    }
-    return request<ReplayStateResponse>("/replay/state");
-  },
-
-  async startReplay(): Promise<{ ok: boolean }> {
-    return request<{ ok: boolean }>("/replay/start", { method: "POST" });
-  },
-
-  async pauseReplay(): Promise<{ ok: boolean }> {
-    return request<{ ok: boolean }>("/replay/pause", { method: "POST" });
-  },
-
-  async setReplaySpeed(speed: number): Promise<{ ok: boolean }> {
-    return request<{ ok: boolean }>("/replay/speed", {
-      method: "POST",
-      body: JSON.stringify({ speed }),
-    });
-  },
-
-  async getBoard(pack: string): Promise<BoardResponse> {
-    if (this.previewMode) {
-      if (pack === "radar") {
-        return {
-          pack: "radar",
-          active: true,
-          entries: [
-            {
-              id: "radar-1",
-              pack: "radar",
-              entity: "Anthropic API update",
-              status: "WATCHING",
-              sources: [{ title: "Anthropic docs", url: "https://docs.anthropic.com" }],
-              updated_at: new Date().toISOString(),
-            },
-          ],
-        };
-      }
-      return { pack, active: false, entries: [] };
-    }
-    return request<BoardResponse>(`/boards/${encodeURIComponent(pack)}`);
+  async getBoard(pack: string, signal?: Signal): Promise<BoardResponse> {
+    return decodeBoard(await request<unknown>(`/boards/${encodeURIComponent(pack)}`, { signal }));
   },
 };

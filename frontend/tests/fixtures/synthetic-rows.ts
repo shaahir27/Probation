@@ -1,6 +1,6 @@
 /**
- * Synthetic demonstration data for explicit Preview Mode (Persona: Meena).
- * Invariant: Never silently substituted for live API responses.
+ * Test-only synthetic rows for unit tests. Production code must not import this file.
+ * A failed service call renders as unavailable; these rows are never substituted for it.
  */
 
 import {
@@ -13,7 +13,7 @@ import {
   QueueItem,
   ReportCardResponse,
   WebFactsResponse,
-} from "./types";
+} from "../../src/api/types";
 
 export const MOCK_QUEUE_ITEMS: QueueItem[] = [
   {

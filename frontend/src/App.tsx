@@ -1,298 +1,323 @@
-import { useEffect, useState, useCallback } from "react";
-import { Sparkles } from "lucide-react";
-import { apiClient } from "./api/client";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
-  ActionItem,
-  AdminCommand,
-  ChainItem,
-  ExamRunItem,
-  HabitItem,
-  LicenceItem,
-  MetricsSummaryResponse,
-  QueueItem,
-  ReportCardResponse,
-} from "./api/types";
+  useActionsRead,
+  usePermissionsRead,
+  useQueueRead,
+  useReplayStateRead,
+  useWatchingRead,
+  panelStatus,
+  queryKeys,
+} from "./api/queries";
+import { useAdminCommandFlow, useReviewFlow, useUndoFlow } from "./api/mutations";
+import type { QueueItem } from "./api/types";
+import { OwnerSessionProvider, useOwnerSession } from "./auth/OwnerSession";
 import { DesktopSidebar } from "./components/layout/DesktopSidebar";
 import { MobileNav } from "./components/layout/MobileNav";
 import { Header } from "./components/layout/Header";
-import { ErrorBanner } from "./components/common/ErrorBanner";
+import { StatePanel } from "./components/common/StatePanel";
+import { CommandStatus } from "./components/common/CommandStatus";
 import { HomeView } from "./views/HomeView";
 import { QueueView } from "./views/QueueView";
 import { ActionsView } from "./views/ActionsView";
 import { PermissionsView } from "./views/PermissionsView";
 import { MoreView } from "./views/MoreView";
+import { SignInView } from "./views/SignInView";
+import { ItemDetailView } from "./views/ItemDetailView";
+import { WatchingView } from "./views/WatchingView";
+import { RequestStatusView } from "./views/RequestStatusView";
+import { navigate, parseRoute, primaryPage, queueGate, setQueryFilter, Route, QueueGate } from "./navigation";
+
+const TITLES: Record<string, string> = {
+  home: "Home",
+  queue: "Review",
+  item: "Review",
+  watching: "Watching",
+  "watching-item": "Watching",
+  actions: "Actions",
+  permissions: "Permissions",
+  more: "More",
+  request: "Request status",
+  "not-found": "Page not found",
+};
 
 export default function App() {
-  const [currentTab, setCurrentTab] = useState<string>("home");
-  const [previewMode, setPreviewMode] = useState<boolean>(false);
-  const [radarActive, setRadarActive] = useState<boolean>(false);
-  const [clockMode, setClockMode] = useState<string>("live");
-  const [simulatedDate, setSimulatedDate] = useState<string | undefined>(undefined);
+  return (
+    <OwnerSessionProvider>
+      <Workspace />
+    </OwnerSessionProvider>
+  );
+}
 
-  // Core Data
-  const [queueItems, setQueueItems] = useState<QueueItem[]>([]);
-  const [actions, setActions] = useState<ActionItem[]>([]);
-  const [licences, setLicences] = useState<LicenceItem[]>([]);
-  const [reportCard, setReportCard] = useState<ReportCardResponse | null>(null);
-  const [metrics, setMetrics] = useState<MetricsSummaryResponse | null>(null);
-  const [habits, setHabits] = useState<HabitItem[]>([]);
-  const [chains, setChains] = useState<ChainItem[]>([]);
-  const [exams, setExams] = useState<ExamRunItem[]>([]);
+function Workspace() {
+  const session = useOwnerSession();
+  const client = useQueryClient();
+  const authenticated = session.status === "signed-in";
+  const [route, setRoute] = useState<Route>(() => parseRoute(window.location.hash));
+  // Declared with the other hooks: the auth gate below returns early, and a hook after it would
+  // change the hook count between renders.
+  const seenRows = useRef(new Map<string, QueueItem>());
+  const [adminCommands, setAdminCommands] = useState<string[]>([]);
+  const admin = useAdminCommandFlow();
 
-  // Loading & Error States
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
-  const [adminCommands, setAdminCommands] = useState<AdminCommand[]>([]);
+  const queue = useQueueRead(authenticated);
+  const watching = useWatchingRead(authenticated);
+  const actions = useActionsRead(authenticated);
+  const permissions = usePermissionsRead(authenticated);
+  const replay = useReplayStateRead(authenticated);
+  const reads = useMemo(
+    () => [queue, watching, actions, permissions, replay],
+    [queue, watching, actions, permissions, replay],
+  );
+  const status = panelStatus(reads);
+  const coreStatus = panelStatus([queue, watching, actions, permissions]);
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      // 1. Fetch replay / health state
-      try {
-        const replay = await apiClient.getReplayState();
-        setClockMode(replay.mode || "live");
-        setSimulatedDate(replay.simulated_date);
-      } catch {
-        // Fallback to live health check if replay endpoint fails
-        try {
-          const health = await apiClient.getHealth();
-          setClockMode(health.mode || "live");
-        } catch {
-          // If backend is entirely down and not in preview mode, let error bubble
-          if (!previewMode) {
-            throw new Error(
-              "Unable to connect to Probation backend at http://localhost:8000. Start backend with `make serve` or enable Preview Mode."
-            );
-          }
-        }
-      }
+  // Route changes drive the view; the browser keeps the history entries.
+  useEffect(() => {
+    const onHashChange = () => setRoute(parseRoute(window.location.hash));
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, []);
 
-      // 2. Fetch Board Radar state (fail-closed check for conditional visibility)
-      try {
-        const radarRes = await apiClient.getBoard("radar");
-        setRadarActive(Boolean(radarRes?.active));
-      } catch {
-        setRadarActive(false);
-      }
-
-      // 3. Fetch Core Data concurrently
-      const [
-        queueRes,
-        actionsRes,
-        licencesRes,
-        reportRes,
-        metricsRes,
-        habitsRes,
-        chainsRes,
-        examsRes,
-      ] = await Promise.all([
-        apiClient.getQueue(),
-        apiClient.getActions(),
-        apiClient.getLicences(),
-        apiClient.getReportCard("email_action").catch(() => null),
-        apiClient.getMetricsSummary().catch(() => null),
-        apiClient.getHabits().catch(() => ({ habits: [] })),
-        apiClient.getChains().catch(() => ({ chains: [] })),
-        apiClient.getExams().catch(() => ({ runs: [] })),
-      ]);
-
-      setQueueItems(queueRes.items || []);
-      setActions(actionsRes.actions || []);
-      setLicences(licencesRes.licences || []);
-      setReportCard(reportRes);
-      setMetrics(metricsRes);
-      setHabits(habitsRes.habits || []);
-      setChains(chainsRes.chains || []);
-      setExams(examsRes.runs || []);
-    } catch (err: unknown) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "An unexpected error occurred while communicating with the API."
+  // A 401/403 fails closed: the session ends, cached private rows are dropped and no
+  // placeholder data is shown.
+  const lastLockedGeneration = useRef(-1);
+  useEffect(() => {
+    if (status.isLocked && lastLockedGeneration.current !== session.generation) {
+      lastLockedGeneration.current = session.generation;
+      session.lock(
+        status.errorMessage ?? "Probation cannot show this account's data with the current sign-in.",
       );
-    } finally {
-      setLoading(false);
     }
-  }, [previewMode]);
+  }, [session, status.isLocked, status.errorMessage]);
 
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    // Any response from a previous generation is already rejected by the client; this
+    // keeps the UI honest about which session the numbers belong to.
+    if (!authenticated) setAdminCommands([]);
+  }, [authenticated, session.generation]);
+
+  const onRecorded = useCallback((requestId: string) => {
+    navigate({ page: "request", id: requestId });
+  }, []);
+
+  const review = useReviewFlow(onRecorded);
+  const undo = useUndoFlow(onRecorded);
+
+  const onCommandSettled = useCallback(() => {
+    client.invalidateQueries({ queryKey: queryKeys.habits });
+    client.invalidateQueries({ queryKey: queryKeys.exams });
+    client.invalidateQueries({ queryKey: queryKeys.queue });
+  }, [client]);
 
   useEffect(() => {
-    const pending = adminCommands.filter((command) => command.status === "PENDING");
-    if (previewMode || pending.length === 0) return;
-    let active = true;
-    let busy = false;
-    const timer = window.setInterval(async () => {
-      if (busy) return;
-      busy = true;
-      try {
-        const results = await Promise.all(pending.map((command) => apiClient.getCommand(command.id)));
-        if (!active) return;
-        if (results.some((result) => result.command.status !== "PENDING")) {
-          const [habitData, examData] = await Promise.all([apiClient.getHabits(), apiClient.getExams()]);
-          if (active) { setHabits(habitData.habits); setExams(examData.runs); }
-        }
-        if (active) setAdminCommands((current) => current.map((command) => results.find((result) => result.command.id === command.id)?.command || command));
-      } catch {
-        if (active) setError("Could not check the request status. The request may still be pending.");
-      } finally {
-        busy = false;
-      }
-    }, 2000);
-    return () => { active = false; window.clearInterval(timer); };
-  }, [adminCommands, previewMode]);
+    const ids = admin.submitted.map((entry) => entry.commandId);
+    if (ids.length > 0) setAdminCommands((current) => Array.from(new Set([...current, ...ids])));
+  }, [admin.submitted]);
 
-  const handleTogglePreview = () => {
-    const next = !previewMode;
-    setAdminCommands([]);
-    setPreviewMode(next);
-    apiClient.setPreviewMode(next);
-  };
+  if (session.profile === null) {
+    return (
+      <main className="min-h-screen bg-canvas p-6 text-ink">
+        {session.bootstrapError !== null ? (
+          <StatePanel
+            state="error"
+            title="Probation is not reachable"
+            description={session.bootstrapError}
+            onRetry={() => void session.loadBootstrap()}
+            retryLabel="Try again"
+          />
+        ) : (
+          <p role="status" className="text-sm">Connecting to Probation…</p>
+        )}
+      </main>
+    );
+  }
 
-  const handleRespond = async (
-    id: string,
-    response: "accept" | "reject" | "edit",
-    editedAction?: string
-  ) => {
-    await apiClient.respondQueue(id, response, editedAction);
-    // Optimistically update queue view
-    setQueueItems((prev) => prev.filter((item) => item.id !== id));
-  };
+  if (session.profile === "private" && !authenticated) {
+    return (
+      <SignInView
+        onSubmit={async (token) => {
+          const ok = await session.signIn(token);
+          if (!ok) return;
+          // The owner key is memory-only, so a refresh always comes back here. Only a bare URL
+          // normalises to Home: a deep-linked route must survive re-authentication, not be
+          // overwritten by it.
+          const hash = window.location.hash;
+          if (hash === "" || hash === "#" || hash === "#/") navigate({ page: "home" });
+        }}
+        error={session.errorMessage}
+        busy={session.status === "checking"}
+      />
+    );
+  }
 
-  const handleUndo = async (actionId: string) => {
-    await apiClient.undoAction(actionId);
-    // Refresh actions to show updated status
-    const updated = await apiClient.getActions();
-    setActions(updated.actions || []);
-  };
-
-  const handleDenyHabit = async (habitId: string) => {
-    const response = await apiClient.denyHabit(habitId);
-    setAdminCommands((current) => [...current.filter((command) => command.id !== response.command.id), response.command]);
-    if (response.command.status === "SUCCEEDED") {
-      setHabits((prev) => prev.map((h) => h.id === habitId ? { ...h, status: "denied", denied: true } : h));
-    }
-  };
-
-  const handleRunExam = async (classKey: string, action: string) => {
-    const response = await apiClient.runExam(classKey, action);
-    setAdminCommands((current) => [...current.filter((command) => command.id !== response.command.id), response.command]);
-    const updated = await apiClient.getExams();
-    setExams(updated.runs || []);
-  };
-
-  const getPageTitle = (tab: string) => {
-    switch (tab) {
-      case "home":
-        return "Home";
-      case "queue":
-        return "Queue";
-      case "actions":
-        return "Actions";
-      case "permissions":
-        return "Permissions";
-      case "more":
-        return "More";
-      default:
-        return "Probation";
-    }
-  };
+  const tab = primaryPage(route);
+  const items = queue.data?.items ?? [];
+  for (const row of items) seenRows.current.set(row.id, row);
+  const openRow = (id: string): QueueItem | undefined =>
+    items.find((row) => row.id === id) ?? seenRows.current.get(id);
+  const watchingItems = watching.data?.items ?? [];
+  const gate = queueGate(route);
+  const setGate = (next: QueueGate) => navigate(setQueryFilter({ page: "queue" }, "gate", next === "all" ? null : next));
 
   return (
-    <div className="min-h-screen bg-canvas text-ink flex flex-col md:flex-row font-sans selection:bg-brand selection:text-brand-on">
-      {/* Desktop Sidebar (Persistent 5 Destinations) */}
-      <div className="hidden md:block">
-        <DesktopSidebar
-          currentTab={currentTab}
-          onTabChange={setCurrentTab}
-          queueCount={queueItems.length}
-          previewMode={previewMode}
-          onTogglePreview={handleTogglePreview}
-        />
-      </div>
+    <div className="flex min-h-screen flex-col bg-canvas font-sans text-ink selection:bg-brand selection:text-brand-on md:flex-row">
+      <DesktopSidebar currentTab={tab} queueCount={items.length} />
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-h-screen pb-20 md:pb-6">
+      <div className="flex min-h-screen flex-1 flex-col pb-20 md:pb-6">
         <Header
-          title={getPageTitle(currentTab)}
-          mode={clockMode}
-          simulatedDate={simulatedDate}
+          title={TITLES[route.page] ?? "Probation"}
+          mode={replay.data?.mode ?? "live"}
+          simulatedDate={replay.data?.simulated_date ?? undefined}
+          profile={session.profile}
+          onSignOut={session.profile === "private" || session.authRequired ? () => session.signOut() : undefined}
         />
 
-        {/* Visible Preview Banner (Strictly labeled when enabled) */}
-        {previewMode && (
-          <div className="bg-brand/10 border-b border-brand/30 px-6 py-2.5 flex items-center justify-between text-xs text-brand">
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 flex-shrink-0" />
-              <span>
-                <strong>Preview Mode Active:</strong> Displaying synthetic demonstration fixtures
-                (Persona: Meena). Real actions will not be performed.
-              </span>
-            </div>
-            <button
-              onClick={handleTogglePreview}
-              className="text-xs font-semibold underline hover:text-ink ml-4"
-            >
-              Exit Preview
-            </button>
+        <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6 sm:px-6 lg:px-8">
+          <div role="status" aria-live="polite">
+            <p className="sr-only">
+              {coreStatus.isStale
+                ? "The data on this page is out of date."
+                : coreStatus.updatedAt !== null
+                  ? `Data refreshed at ${new Date(coreStatus.updatedAt).toISOString()}.`
+                  : ""}
+            </p>
           </div>
-        )}
 
-        {/* Core View Container */}
-        <main className="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          {adminCommands.length > 0 && (
-            <div role="status" aria-live="polite" className="mb-4 rounded-xl border border-line bg-surface p-4 text-sm">
-              {adminCommands.some((command) => command.status === "PENDING") ? "Your request is queued. Waiting for review."
-                : adminCommands.some((command) => command.status === "FAILED") ? "A request failed. Its changes were not confirmed."
-                : "Your request completed."}
+          {coreStatus.isStale && !coreStatus.isLoading && (
+            <StatePanel
+              state="stale"
+              title="This data is out of date"
+              description={`Probation last read this successfully at ${
+                coreStatus.updatedAt === null ? "an unknown time" : new Date(coreStatus.updatedAt).toLocaleString()
+              }. The list may no longer match what is recorded. Nothing on this page has changed because of it.`}
+              onRetry={() => {
+                void queue.refetch();
+                void actions.refetch();
+                void permissions.refetch();
+              }}
+              retryLabel="Refresh now"
+            />
+          )}
+
+          {coreStatus.errorMessage !== null && !coreStatus.isStale && !coreStatus.isLocked && (
+            <StatePanel
+              state="error"
+              title="Probation could not read this"
+              description={coreStatus.errorMessage}
+              onRetry={() => {
+                void queue.refetch();
+                void watching.refetch();
+                void actions.refetch();
+                void permissions.refetch();
+              }}
+            />
+          )}
+
+          <CommandStatus commandIds={adminCommands} onSettled={onCommandSettled} />
+
+          {coreStatus.isLoading && (
+            <div className="space-y-4" aria-hidden="true">
+              <div className="h-28 rounded-2xl border border-line bg-surface" />
+              <div className="h-64 rounded-2xl border border-line bg-surface" />
             </div>
           )}
-          {error && (
-            <div className="mb-6">
-              <ErrorBanner message={error} onRetry={loadData} />
-            </div>
-          )}
 
-          {loading ? (
-            <div className="space-y-4 animate-pulse">
-              <div className="h-28 bg-surface rounded-2xl border border-line" />
-              <div className="h-64 bg-surface rounded-2xl border border-line" />
-            </div>
-          ) : (
+          {!coreStatus.isLoading && (
             <>
-              {currentTab === "home" && (
+              {route.page === "home" && (
                 <HomeView
-                  queueItems={queueItems}
-                  licences={licences}
-                  onNavigate={setCurrentTab}
+                  queueItems={items}
+                  licences={permissions.data?.licences ?? []}
+                  profile={session.profile ?? "synthetic"}
+                  replay={replay.data ?? null}
+                  replayError={replay.error instanceof Error ? replay.error.message : null}
+                  onReplayRefresh={() => void replay.refetch()}
                 />
               )}
 
-              {currentTab === "queue" && (
-                <QueueView items={queueItems} onRespond={handleRespond} />
+              {route.page === "queue" && (
+                <QueueView
+                  items={items}
+                  gate={gate}
+                  onGateChange={setGate}
+                  onSelectItem={(item) => navigate({ page: "item", id: item.id })}
+                />
               )}
 
-              {currentTab === "actions" && (
-                <ActionsView actions={actions} onUndo={handleUndo} />
+              {route.page === "item" && (
+                <ItemDetailView
+                  id={route.id}
+                  // The authoritative content comes from the by-id detail read. The queue row is
+                  // only the preview, and a background list refresh must never remove it: when
+                  // another tab answers an item it leaves the queue, which would unmount the
+                  // screen (and the conflict message) the owner is still reading.
+                  item={openRow(route.id)}
+                  authenticated={authenticated}
+                  review={review}
+                  onBack={() => navigate({ page: "queue" })}
+                />
               )}
 
-              {currentTab === "permissions" && (
-                <PermissionsView licences={licences} />
+              {route.page === "watching" && (
+                <WatchingView
+                  items={watchingItems}
+                  errorMessage={watching.error instanceof Error ? watching.error.message : null}
+                  onRetry={() => void watching.refetch()}
+                />
               )}
 
-              {currentTab === "more" && (
+              {route.page === "watching-item" && (
+                <ItemDetailView
+                  id={route.id}
+                  item={watchingItems.find((item) => item.id === route.id)}
+                  authenticated={authenticated}
+                  readOnly
+                  review={{ busy: false, conflict: null, error: null, submit: async () => null, refresh: () => undefined }}
+                  onBack={() => navigate({ page: "watching" })}
+                />
+              )}
+
+              {route.page === "actions" && (
+                <ActionsView
+                  actions={actions.data?.actions ?? []}
+                  busyId={undo.busyId}
+                  conflict={undo.conflict}
+                  error={undo.error}
+                  onUndo={(actionId) => {
+                    void undo.undo(actionId);
+                  }}
+                />
+              )}
+
+              {route.page === "permissions" && (
+                <PermissionsView
+                  licences={permissions.data?.licences ?? []}
+                  errorMessage={permissions.error instanceof Error ? permissions.error.message : null}
+                  onRetry={() => void permissions.refetch()}
+                />
+              )}
+
+              {route.page === "more" && (
                 <MoreView
-                  reportCard={reportCard}
-                  metrics={metrics}
-                  habits={habits}
-                  chains={chains}
-                  exams={exams}
-                  onDenyHabit={handleDenyHabit}
-                  onRunExam={handleRunExam}
-                  radarActive={radarActive}
+                  section={route.section ?? "insights"}
+                  profile={session.profile}
+                  authenticated={authenticated}
+                />
+              )}
+
+              {route.page === "request" && <RequestStatusView id={route.id} authenticated={authenticated} />}
+
+              {route.page === "not-found" && (
+                <StatePanel
+                  state="unsupported"
+                  title="Page not found"
+                  description="This address is not part of Probation. Nothing was changed and nothing was sent."
+                  action={
+                    <a href="#/home" className="min-h-11 inline-flex items-center underline underline-offset-4 text-sm">
+                      Go to Home
+                    </a>
+                  }
                 />
               )}
             </>
@@ -300,12 +325,7 @@ export default function App() {
         </main>
       </div>
 
-      {/* Mobile Bottom Navigation (Persistent 5 Destinations) */}
-      <MobileNav
-        currentTab={currentTab}
-        onTabChange={setCurrentTab}
-        queueCount={queueItems.length}
-      />
+      <MobileNav currentTab={tab} queueCount={items.length} />
     </div>
   );
 }

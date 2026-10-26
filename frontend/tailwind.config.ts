@@ -33,7 +33,6 @@ const config: Config = {
       },
       fontFamily: {
         serif: [
-          '"Newsreader"',
           "Georgia",
           "Cambria",
           '"Times New Roman"',

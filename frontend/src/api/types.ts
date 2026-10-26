@@ -12,13 +12,98 @@ export type GateDecision =
   | "EXECUTE_UNDO"
   | "EXECUTE_SILENT";
 
+/**
+ * Lifecycle states the D6 API contract freezes for actions. `UNKNOWN` is a real
+ * state (an effect that could not be confirmed) and renders as
+ * "Result not confirmed" — see `actionStatusLabel`.
+ */
 export type ActionStatus =
   | "PENDING"
   | "HELD"
   | "DONE"
   | "UNDONE"
   | "CANCELLED"
-  | "FAILED";
+  | "FAILED"
+  | "UNKNOWN";
+
+export interface Citation {
+  title: string;
+  url: string;
+}
+
+/**
+ * The server-validated D5 verification card. `fee_status` stays `unknown` until a
+ * cited page says otherwise; the UI never renders `unknown` as free.
+ */
+export interface VerificationCard {
+  version: string;
+  availability: "validated" | "partial" | "not_checked" | "unavailable";
+  fee_status: "payment_mentioned" | "explicit_free" | "unknown";
+  fields: Record<string, string | boolean | string[] | null>;
+  citations: Citation[];
+  reasons: string[];
+  fetched_at: string | null;
+  ttl_until: string | null;
+  extraction_id: string | null;
+}
+
+export interface ItemDetail {
+  proposal_id: string;
+  review_version: string;
+  supported_actions: string[];
+  readiness: {
+    reply_draft_available: boolean;
+    reply_needs_user_input: boolean;
+    forward_requires_controlled_recipient: boolean;
+  };
+  action: string;
+  gate: string;
+  class_key: string;
+  family: string;
+  proposed_at: string;
+  summary: string;
+  occurred_at: string;
+  sender_key: string | null;
+  explanation: {
+    top_clues: string[];
+    similar_cases: Array<{ situation_id: string; similarity: number; action_taken: string; summary: string }>;
+    summary_reason: string;
+  };
+  verification_card: VerificationCard | null;
+  verification_as_of: string | null;
+  web_status: Record<string, unknown>;
+  draft: { body_text: string; needs_user_input: boolean; model_id: string | null } | null;
+  evidence: Record<string, unknown>;
+  licence: Record<string, unknown>;
+  user_response: { response: string; edited_action: string | null; responded_at: string } | null;
+}
+
+/** POST /queue/{id}/review: the exact payload the owner is about to approve. */
+export interface ReviewReceipt {
+  version: "v2";
+  proposal_id: string;
+  reviewed_payload: Record<string, unknown>;
+  reviewed_payload_hash: string;
+}
+
+/** POST /queue/{id}/respond answers 202: accepted for processing, never complete. */
+export interface RespondReceipt {
+  ok: true;
+  response: string;
+  request_id: string;
+  id: string;
+  status: "recorded";
+  status_url: string;
+}
+
+export interface ResponseStatus {
+  request_id: string;
+  proposal_id: string;
+  response: string;
+  decision_status: string;
+  execution_status: string;
+  action_id: string | null;
+}
 
 export interface QueueItem {
   id: string;
@@ -27,8 +112,8 @@ export interface QueueItem {
   class_key: string;
   action: string;
   probs: Record<string, number>;
-  p_max: number;
-  novelty: number;
+  p_max: number | null;
+  novelty: number | null;
   licence_level: number;
   cap: number;
   gate: GateDecision;
@@ -46,7 +131,7 @@ export interface QueueItem {
   };
   web: {
     status?: string;
-    cap?: number;
+    cap?: number | null;
     source_ids?: string[];
   };
   audit_holdout: boolean;
@@ -95,9 +180,12 @@ export interface ActionItem {
   created_at: string;
   updated_at: string;
   executed_at: string | null;
-  class_key?: string;
-  family?: string;
-  summary?: string;
+  class_key?: string | null;
+  family?: string | null;
+  summary?: string | null;
+  execution_status?: string | null;
+  undo_available?: boolean;
+  undo_deadline?: string | null;
 }
 
 export interface LicenceChangeHistory {
@@ -185,8 +273,15 @@ export interface MetricWeek {
   week: string;
   asks: number;
   suggestions: number;
-  auto_actions: number;
+  intended_actions: number;
   total: number;
+}
+
+/** A measured rate with its denominator; an empty denominator is unavailable, not zero. */
+export interface MetricRate {
+  numerator: number;
+  denominator: number;
+  rate: number | null;
 }
 
 export interface AlarmRecord {
@@ -201,10 +296,23 @@ export interface MetricsSummaryResponse {
   proposals_total: number;
   asks: number;
   suggestions: number;
-  automatic_actions: number;
-  agreement_rate: number | null;
+  /** Proposals the engine wanted to act on. Never an effect that happened. */
+  intended_actions: number;
+  confirmed_effects: number;
+  unconfirmed_effects: number;
+  agreement: MetricRate;
   weekly_series: MetricWeek[];
   alarms: AlarmRecord[];
+  scope: MetricsScope;
+}
+
+export interface MetricsScope {
+  family: string | null;
+  class_key: string | null;
+  action: string | null;
+  as_of?: string;
+  sources: number;
+  evaluated_pairs?: number;
 }
 
 export interface HabitItem {
@@ -276,7 +384,21 @@ export interface ExposureResponse {
   calls: number;
   total_cost_usd: number;
   breakdown: ExposureBreakdown[];
+  budget: BudgetSummary;
 }
+
+/** Durable spend audit: a hold that may already have been charged is never shown as free. */
+export type BudgetSummary =
+  | { available: false; reason: string }
+  | {
+      available: true;
+      confirmed_usd: number;
+      estimated_usd: number;
+      unresolved_holds: number;
+      holds_by_state: Record<string, { attempts: number; usd_estimate: number }>;
+      never_dispatched: number;
+      unit: "usd";
+    };
 
 export interface WebFactsCall {
   id: string;
@@ -330,8 +452,10 @@ export interface SettingsResponse {
 export interface ReplayStateResponse {
   running: boolean;
   speed: number;
-  simulated_date: string;
+  simulated_date: string | null;
   mode: string;
+  available: boolean;
+  last_request_id?: string | null;
 }
 
 export interface BoardEntry {
@@ -339,8 +463,8 @@ export interface BoardEntry {
   pack: string;
   entity: string;
   status: string;
-  sources: Array<{ title?: string; url: string }>;
-  item_id?: string;
+  sources: Array<{ title: string | null; url: string }>;
+  item_id?: string | null;
   updated_at: string;
 }
 
@@ -348,7 +472,7 @@ export interface BoardResponse {
   pack: string;
   active: boolean;
   entries: BoardEntry[];
-  note?: string;
+  note?: string | null;
 }
 export interface AdminCommand {
   id: string;
