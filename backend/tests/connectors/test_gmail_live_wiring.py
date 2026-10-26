@@ -23,6 +23,7 @@ from probation.config import settings
 from probation.connectors.credentials import RoleCredentialProvider
 from probation.connectors.credentials_state import (
     ProvisionedGrant,
+    RefreshTokenStore,
     apply_owner_only,
 )
 from probation.connectors.types import (
@@ -212,6 +213,47 @@ def test_initial_bundle_installed_and_refresh_lazy(clock: Clock) -> None:
             token_transport=FakeTokenTransport(),  # type: ignore[arg-type]
         )
     assert exc_info.value.safe_code == "account_binding_mismatch"
+
+
+def test_initial_refresh_is_persisted_to_the_acl_token_store(tmp_path: Path, clock: Clock) -> None:
+    grant = ProvisionedGrant("read", "conn-1", "user@example.com", "cred-ref-1")
+    env = {
+        grant.env_name: json.dumps(
+            {"client_id": "client-id-123", "client_secret": "csec", "refresh_token": "rtok"}
+        )
+    }
+
+    class FakeApiTransport:
+        def get(
+            self, url: str, *, params: dict[str, object] | None = None, access_token: str
+        ) -> HttpResult:
+            return HttpResult(200, json.dumps({"emailAddress": "user@example.com"}).encode(), {})
+
+    class FakeTokenTransport:
+        def post_form(self, url: str, form: Mapping[str, str]) -> TokenHttpResponse:
+            return TokenHttpResponse(
+                200,
+                {
+                    "access_token": "live-tok-1",
+                    "expires_in": 3600,
+                    "token_type": "Bearer",
+                    "refresh_token": "rotated-refresh",
+                    "scope": "https://www.googleapis.com/auth/gmail.readonly",
+                },
+            )
+
+    token_store = RefreshTokenStore(tmp_path / "readonly_tokens", enforce_acl=False)
+    provider = build_live_provider(
+        grant=grant,
+        env=env,
+        clock=clock,
+        api_transport=FakeApiTransport(),  # type: ignore[arg-type]
+        token_transport=FakeTokenTransport(),  # type: ignore[arg-type]
+        token_store=token_store,
+    )
+    assert provider.resolve_access("read").reveal() == "live-tok-1"
+    persisted = tmp_path / "readonly_tokens" / f"{grant.credential_ref}.refresh"
+    assert persisted.read_text(encoding="utf-8") == "rotated-refresh"
 
 
 def test_executor_live_effects_provisioned(

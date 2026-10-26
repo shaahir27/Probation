@@ -17,12 +17,12 @@ interface ActionsViewProps {
  */
 export function ActionsView({ actions, busyId, conflict, error, onUndo }: ActionsViewProps) {
   return (
-    <section aria-labelledby="actions-title" className="space-y-4">
+    <section aria-labelledby="actions-title" className="space-y-6">
       <header>
-        <h1 id="actions-title" className="font-serif text-2xl">
-          Actions
+        <h1 id="actions-title" className="font-serif text-[28px]">
+          Activity
         </h1>
-        <p className="mt-1 text-sm text-ink-secondary">
+        <p className="mt-2 text-sm text-ink-secondary">
           What Probation has done, what is still waiting, and what can be undone or cancelled now.
         </p>
       </header>
@@ -40,7 +40,7 @@ export function ActionsView({ actions, busyId, conflict, error, onUndo }: Action
           description="Actions Probation takes will appear here with their current status."
         />
       ) : (
-        <ul className="divide-y border-y border-line">
+        <ul className="work-panel divide-y divide-line">
           {actions.map((action) => {
             const unconfirmed = isUnconfirmedResult(action.status) || isUnconfirmedResult(action.execution_status);
             const confirmed = isConfirmedComplete(action.status) && !unconfirmed;
@@ -49,7 +49,7 @@ export function ActionsView({ actions, busyId, conflict, error, onUndo }: Action
             const label = unconfirmed ? RESULT_NOT_CONFIRMED : actionStatusLabel(action.status);
             const canUndo = Boolean(action.undo_available);
             return (
-              <li key={action.id} className="flex flex-wrap items-start justify-between gap-3 py-4">
+              <li key={action.id} className="flex flex-wrap items-start justify-between gap-4 py-5 first:pt-0 last:pb-0">
                 <div className="min-w-0 space-y-1">
                   <p className="text-sm font-medium break-words">{action.summary || action.type.replace(/_/g, " ").toLowerCase()}</p>
                   <p className="text-sm text-ink-secondary">

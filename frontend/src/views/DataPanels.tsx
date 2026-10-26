@@ -1,8 +1,9 @@
 import { useExposureRead, useLedgerRead, useSettingsRead, useWebFactsRead } from "../api/queries";
 import { ExternalLink } from "../components/common/ExternalLink";
 import { Button } from "../components/common/Button";
-import { StatePanel, UnavailablePanel } from "../components/common/StatePanel";
+import { StatePanel } from "../components/common/StatePanel";
 import { ApiError } from "../api/client";
+import { ConnectAppsPanel } from "./ConnectAppsPanel";
 
 function money(value: number): string {
   return `$${value.toFixed(4)}`;
@@ -44,8 +45,59 @@ export function UsagePanel({ authenticated }: { authenticated: boolean }) {
           <dd className="mt-1 text-2xl">{usage.calls}</dd>
         </div>
       </dl>
+      <section
+        className="space-y-3 rounded-2xl border border-line bg-surface p-4"
+        aria-labelledby="budget-authority-title"
+      >
+        <h2 id="budget-authority-title" className="text-base font-medium">
+          Spend authority
+        </h2>
+        {usage.budget.available ? (
+          <>
+            <dl className="grid gap-3 text-sm sm:grid-cols-2">
+              <div>
+                <dt className="text-xs text-ink-tertiary">Confirmed charged</dt>
+                <dd className="mt-1 text-xl tabular-nums">{money(usage.budget.confirmed_usd)}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-ink-tertiary">Estimated / reserved</dt>
+                <dd className="mt-1 text-xl tabular-nums">{money(usage.budget.estimated_usd)}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-ink-tertiary">Unresolved holds</dt>
+                <dd className="mt-1 text-xl tabular-nums">{usage.budget.unresolved_holds}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-ink-tertiary">Priced but never dispatched</dt>
+                <dd className="mt-1 text-xl tabular-nums">{usage.budget.never_dispatched}</dd>
+              </div>
+            </dl>
+            {Object.keys(usage.budget.holds_by_state).length > 0 && (
+              <ul className="divide-y divide-line text-sm">
+                {Object.entries(usage.budget.holds_by_state).map(([state, entry]) => (
+                  <li key={state} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                    <span>{state.replace(/_/g, " ")}</span>
+                    <span className="text-ink-secondary">
+                      {entry.attempts} attempts · {money(entry.usd_estimate)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <p className="text-xs leading-5 text-ink-secondary">
+              An unresolved hold may already be a charge. It stays counted and is never retried
+              automatically.
+            </p>
+          </>
+        ) : (
+          <p className="text-sm text-ink-secondary">
+            Spend authority is unavailable: {usage.budget.reason}.
+          </p>
+        )}
+      </section>
       <p className="text-sm text-ink-secondary">
-        Only requests Probation recorded are counted. An unrecorded cost is not a free one.
+        The app's recorded cost and the provider's spend authority are separate records. Only
+        requests Probation recorded are counted; an unrecorded cost is not a free one.
       </p>
       {usage.breakdown.length === 0 ? (
         <p className="rounded-xl border border-line bg-surface p-4 text-sm text-ink-secondary">No per-task breakdown is available.</p>
@@ -214,32 +266,54 @@ export function SettingsPanel({ authenticated }: { authenticated: boolean }) {
 
 export function HelpPanel({ profile }: { profile: "private" | "synthetic" | null }) {
   return (
-    <div className="space-y-4 text-sm">
+    <div className="space-y-5 text-sm">
       <section className="space-y-2 rounded-2xl border border-line bg-surface p-4">
         <h2 className="text-base font-medium">
-          {profile === "synthetic" ? "You are looking at synthetic data" : "You are looking at your own account"}
+          {profile === "synthetic" ? "You are looking at synthetic data" : "You are looking at the private test account"}
         </h2>
         <p className="text-ink-secondary">
           {profile === "synthetic"
             ? "Every email, name, address and result on this screen was generated for a demonstration. It is not a real person's mailbox, and nothing shown here was sent anywhere."
-            : "Probation reads only the account you connected, through the owner key held in memory for this session."}
+            : "Probation reads only the account you connected, through your local owner session. Google consent is separate and stays read-only."}
         </p>
       </section>
       <section className="space-y-2">
-        <h2 className="text-base font-medium">Limits of this build</h2>
+        <h2 className="text-base font-medium">What this build demonstrates</h2>
         <ul className="list-disc space-y-1 pl-5 text-ink-secondary">
-          <li>Only email actions are wired end to end. Calendar, files, documents, notes and contacts are not.</li>
-          <li>Radar and the Reading library are not accepted destinations; they show why instead of fake boards.</li>
-          <li>Sending, archiving and trashing require your explicit decision every time.</li>
-          <li>An action whose result could not be confirmed is shown as "Result not confirmed", never as done.</li>
+          <li>Read-only Gmail observation, an explained suggestion and an owner decision in this browser.</li>
+          <li>Google Calendar and Google Drive are planned in Connect apps; they are not connected in this build.</li>
+          <li>This build does not send, archive or trash mail. No write operation is provisioned for the demo.</li>
+          <li>Permission is derived from evidence, never granted by a click. A new account starts by watching and asking.</li>
+          <li>An unconfirmed result is shown as "Result not confirmed" and is never retried automatically.</li>
           <li>Settings, caps and hands-off lists cannot be edited here.</li>
         </ul>
       </section>
+      {profile !== "synthetic" && (
+        <section className="space-y-2 rounded-2xl border border-line bg-surface p-4">
+          <h2 className="text-base font-medium">Connecting Gmail</h2>
+          <p className="text-ink-secondary">
+            Open <a href="#/more/connections" className="text-ink underline underline-offset-4">Connect apps</a> and
+            choose Connect Gmail. Your owner key signs you into Probation; Google consent is a separate
+            read-only step.
+          </p>
+          <p className="text-ink-secondary">
+            If the connection does not complete, run the local preflight in the project terminal:
+          </p>
+          <code className="block rounded-lg bg-surface-recessed p-3 font-mono text-xs text-ink-secondary">
+            python -B scripts/d6_gmail_setup.py --check
+          </code>
+          <p className="text-xs leading-5 text-ink-secondary">
+            It prints configuration booleans and the exact loopback redirect URI. It never prints a
+            token or secret. For a Web OAuth client, register
+            <span className="font-mono"> http://127.0.0.1:8765/ </span> as an authorized redirect URI.
+          </p>
+        </section>
+      )}
       <section className="space-y-1 text-ink-secondary">
         <h2 className="text-base font-medium text-ink">Using your own data</h2>
         <p>
-          Import happens outside the dashboard with the command line (<code className="font-mono text-xs">probation import …</code>).
-          There is no upload button in this version.
+          The command-line import remains for other approved local data (<code className="font-mono text-xs">probation import …</code>).
+          There is no browser upload button in this version.
         </p>
       </section>
     </div>
@@ -247,26 +321,5 @@ export function HelpPanel({ profile }: { profile: "private" | "synthetic" | null
 }
 
 export function ConnectionsPanel({ profile }: { profile: "private" | "synthetic" | null }) {
-  if (profile === "synthetic") {
-    return (
-      <UnavailablePanel
-        title="Connections"
-        reason="This is the public synthetic replay. There is no real mailbox connected, so there is nothing to connect, backfill or revoke. The simulated account exists only inside this demonstration workspace."
-        scope="The email screens show how a connected account would behave; they are labelled as synthetic data everywhere."
-      />
-    );
-  }
-  return (
-    <div className="space-y-3 text-sm">
-      <p className="text-ink-secondary">
-        Your mailbox is connected by the local setup, not from this page. Probation never shows a token, cookie or key
-        here, and connecting another source is not available in the dashboard yet.
-      </p>
-      <UnavailablePanel
-        title="Adding a source"
-        reason="Calendar, files, IMAP, iCal and MCP sources are not supported in this build."
-        scope="Email is the only source with a reviewed read and action path."
-      />
-    </div>
-  );
+  return <ConnectAppsPanel profile={profile} />;
 }

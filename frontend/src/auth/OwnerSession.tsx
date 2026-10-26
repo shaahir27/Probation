@@ -1,16 +1,16 @@
 /**
- * Owner session: the memory-only credential boundary for the private workspace.
+ * Owner session: the credential boundary for the private workspace.
  *
- * The key exists only as React state plus the in-memory bearer value inside
- * `api/client.ts`. It is never written to a URL, browser storage, a query key, a
- * log line or an env var. Logout is safe by construction: it bumps a monotonic
- * session generation, aborts every in-flight request, clears the cached private
- * data, and asks every registered panel to drop drafts and review bindings.
+ * The key is handed to `POST /api/session` once and immediately dropped. The server
+ * returns an opaque, short-lived HttpOnly cookie, so a page refresh restores the session
+ * without the key ever touching browser storage or JavaScript-readable memory. Logout
+ * bumps a monotonic session generation, aborts every in-flight request, clears the cached
+ * private data, and asks every registered panel to drop drafts and review bindings.
  */
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { ApiError, apiClient, clearOwnerToken, getSessionGeneration, installOwnerToken } from "../api/client";
+import { ApiError, apiClient, beginOwnerSession, clearOwnerSession, getSessionGeneration } from "../api/client";
 import { clearPrivateCache } from "../api/queries";
 
 export type SessionStatus = "unknown" | "signed-out" | "checking" | "signed-in" | "locked";
@@ -49,7 +49,6 @@ export function OwnerSessionProvider({ children }: { children: ReactNode }) {
   const [generation, setGeneration] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [bootstrapError, setBootstrapError] = useState<string | null>(null);
-  const tokenRef = useRef<string | null>(null);
 
   const resetEverywhere = useCallback(() => {
     resetCallbacks.forEach((callback) => {
@@ -67,7 +66,33 @@ export function OwnerSessionProvider({ children }: { children: ReactNode }) {
       const value = await apiClient.getBootstrap();
       setProfile(value.profile);
       setAuthRequired(value.auth_required);
-      setStatus(value.auth_required ? "signed-out" : "signed-in");
+      if (!value.auth_required) {
+        beginOwnerSession();
+        setGeneration(getSessionGeneration());
+        setStatus("signed-in");
+        return;
+      }
+      try {
+        // A refresh keeps the existing HttpOnly session; without one the owner signs in.
+        const restored = await apiClient.getSession();
+        if (!restored.authenticated) {
+          const next = clearOwnerSession();
+          setGeneration(next);
+          setStatus("signed-out");
+          return;
+        }
+        beginOwnerSession();
+        setGeneration(getSessionGeneration());
+        setStatus("signed-in");
+      } catch (error) {
+        if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
+          const next = clearOwnerSession();
+          setGeneration(next);
+          setStatus("signed-out");
+          return;
+        }
+        throw error;
+      }
     } catch (error) {
       setBootstrapError(
         error instanceof Error ? error.message : "Probation setup could not be loaded.",
@@ -81,13 +106,15 @@ export function OwnerSessionProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(
     (reason?: string) => {
-      tokenRef.current = null;
-      const next = clearOwnerToken();
+      const next = clearOwnerSession();
       setGeneration(next);
       clearPrivateCache(queryClient);
       resetEverywhere();
       setErrorMessage(reason ?? null);
       setStatus(profile === "private" || authRequired ? "signed-out" : "signed-in");
+      // The local session is already closed; a missing or expired server session is
+      // equivalent to logout, so its failure must not reopen anything.
+      void apiClient.endSession().catch(() => undefined);
     },
     [authRequired, profile, queryClient, resetEverywhere],
   );
@@ -105,17 +132,16 @@ export function OwnerSessionProvider({ children }: { children: ReactNode }) {
       if (trimmed.length === 0) return false;
       setErrorMessage(null);
       setStatus("checking");
-      installOwnerToken(trimmed);
-      tokenRef.current = trimmed;
       try {
-        // A real read proves the credential; nothing is marked signed-in on a form submit alone.
-        await apiClient.getQueue();
+        // The key is verified once and exchanged for an HttpOnly session cookie. It is
+        // not retained here after this call returns.
+        await apiClient.startSession(trimmed);
         setGeneration(getSessionGeneration());
         setStatus("signed-in");
         return true;
       } catch (error) {
-        clearOwnerToken();
-        tokenRef.current = null;
+        const next = clearOwnerSession();
+        setGeneration(next);
         setStatus("signed-out");
         setErrorMessage(
           error instanceof ApiError && error.status === 503

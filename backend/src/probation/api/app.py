@@ -7,8 +7,10 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from probation.api import gmail_setup
 from probation.api.authority import OwnerContext, require_owner
 from probation.api.db import connect_api as get_connection
+from probation.api.owner_session import OwnerSessionManager
 from probation.api.routes import (
     actions,
     boards,
@@ -22,10 +24,11 @@ from probation.api.routes import (
     replay,
     report,
     responses,
+    session,
     webfacts,
 )
 from probation.config import settings
-from probation.core.clock import get_clock, use_clock
+from probation.core.clock import get_clock, operational_clock, use_clock
 from probation.db.ledger import ledger_snapshot
 
 Owner = Annotated[OwnerContext, Depends(require_owner)]
@@ -51,6 +54,8 @@ app = FastAPI(
     lifespan=lifespan,
 )
 app.state.clock = get_clock()
+# Session lifetime is operational wall time, never a frozen replay scenario clock.
+app.state.owner_sessions = OwnerSessionManager(clock=operational_clock())
 
 
 @app.middleware("http")
@@ -96,6 +101,8 @@ app.include_router(webfacts.router)
 app.include_router(readiness.router)
 app.include_router(replay.router)
 app.include_router(gmail_connector.router)
+app.include_router(gmail_setup.router)
+app.include_router(session.router)
 
 
 @app.get("/health")
@@ -119,7 +126,8 @@ def api_bootstrap() -> dict[str, Any]:
     return {
         "version": "d6.v1",
         "profile": settings.app_profile,
-        "auth_required": True,
+        # The selected synthetic profile is a server-owned workspace and needs no owner key.
+        "auth_required": settings.app_profile == "private",
     }
 
 

@@ -58,10 +58,11 @@ NOW = "2026-10-24T09:00:00Z"
 APPROVED_AT = "2026-10-01T01:00:01Z"
 _LIFECYCLE_BASELINE = {
     "probation/packs/mail/executor.py": "d19261606b300b08",
-    # D5 adds a restriction-only web-cap recheck before the existing effect boundary.
-    "probation/workers/mail_execution.py": "5765f1c4081f958b",
-    "probation/packs/mail/lifecycle_io.py": "13c469aa5bdb12bd",
-    "probation/packs/mail/lifecycle_operations.py": "4909239ead0be4b2",
+    # Live undo persists the effect anchor in the durable proof and restores it before the
+    # label-version equality check; snapshots carry the provider history point it needs.
+    "probation/workers/mail_execution.py": "fc75187e69bf2d6d",
+    "probation/packs/mail/lifecycle_io.py": "92f811471e72f68f",
+    "probation/packs/mail/lifecycle_operations.py": "a141c68899117e86",
 }
 
 

@@ -224,9 +224,14 @@ def parse_callback_query(query: str, *, expected_state: str) -> SecretMaterial:
         raise AuthorizationFlowError("callback_missing_params")
     if states[0] != expected_state:
         raise AuthorizationFlowError("callback_state_mismatch")
-    if not _B64URL_RE.match(codes[0]):
+    code = codes[0]
+    if (
+        not 20 <= len(code) <= 4096
+        or not code.isprintable()
+        or any(char.isspace() for char in code)
+    ):
         raise AuthorizationFlowError("callback_code_invalid")
-    return SecretMaterial(codes[0], "code")
+    return SecretMaterial(code, "code")
 
 
 @dataclass(frozen=True, repr=False)
@@ -449,12 +454,17 @@ class _CallbackHandler(BaseHTTPRequestHandler):
 class LoopbackCallback:
     """Single-shot loopback listener owned by the credential boundary, not the dashboard API."""
 
-    def __init__(self) -> None:
+    def __init__(self, port: int = 0) -> None:
+        if not 0 <= port <= 65535:
+            raise AuthorizationFlowError("loopback_port_invalid")
         self._holder: dict[str, object] = {"expected": "", "outcome": None}
         self._done = threading.Event()
         self._holder["done"] = self._done
         handler = type("_BoundCallbackHandler", (_CallbackHandler,), {"holder": self._holder})
-        self._server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+        try:
+            self._server = ThreadingHTTPServer(("127.0.0.1", port), handler)
+        except OSError as exc:
+            raise AuthorizationFlowError("loopback_bind_failed") from exc
         self._thread = threading.Thread(target=self._server.serve_forever, daemon=True)
         self._thread.start()
 

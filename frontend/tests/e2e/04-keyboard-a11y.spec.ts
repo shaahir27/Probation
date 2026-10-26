@@ -39,7 +39,7 @@ test("tab order reaches every primary control and focus is visible", async ({ pa
   const names = trail.map((entry) => entry.split("|")[1] ?? "");
   const joined = names.join(" ~ ");
 
-  for (const required of ["Review", "Needs your decision", "Review email", "Actions", "More"]) {
+  for (const required of ["Review", "Needs your decision", "Review email", "Activity", "More"]) {
     expect(joined, `tab order never reached "${required}"`).toContain(required);
   }
   const focusables = trail.filter((entry) => entry.startsWith("a|") || entry.startsWith("button|"));

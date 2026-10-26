@@ -363,6 +363,9 @@ class GmailSync(SyncStateMixin):
             if self._owner_label is not None and str(record.get("labelId", "")) == self._owner_label
             for message in _messages(record)
         }
+        # The owner-label event itself proves these ids are inside the selection before any body
+        # is fetched, exactly as `_apply_entry` will treat them.
+        self._connector.prove(grown)
         observations: dict[str, SourceObservation] = {}
         for message in _records(entry, "messagesAdded"):
             mid = str(message.get("id", ""))
@@ -371,6 +374,16 @@ class GmailSync(SyncStateMixin):
                 observations[mid] = self._connector.observe(
                     ref, observed_at=now, payloads=self._payloads
                 )
+        # Labelling a message that arrived before the cohort label is its first admission.
+        # Without this fetch the id would be in the cohort but have no observation, so the
+        # engine would never see the email at all.
+        for mid in grown:
+            if mid in cohort or mid in observations:
+                continue
+            ref = NativeRef(self._connection_id, self._account_id, mid)
+            observations[mid] = self._connector.observe(
+                ref, observed_at=now, payloads=self._payloads
+            )
         return observations
 
     def _apply_entry(
@@ -408,10 +421,8 @@ class GmailSync(SyncStateMixin):
                     if is_owner and not added:
                         shrunk.add(mid)
         self._connector.prove(grown)
-        for message in _records(entry, "messagesAdded"):
-            mid = str(message.get("id", ""))
-            observation = observations.get(mid)
-            if observation is not None:
+        for mid, observation in observations.items():
+            if mid in cohort:
                 written += self._write_observation(tx, observation)
         for message in _records(entry, "messagesDeleted"):
             mid = str(message.get("id", ""))

@@ -16,6 +16,9 @@ class MailSnapshot:
     labels: tuple[str, ...]
     revision: str
     label_versions: dict[str, int] = field(default_factory=dict)
+    # The provider history point before the effect. Persisted with the undo proof so a later
+    # undo can prove label versions even after the cursor has moved past the effect.
+    message_history_id: int = 0
 
 
 @dataclass(frozen=True)

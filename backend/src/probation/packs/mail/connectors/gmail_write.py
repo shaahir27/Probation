@@ -150,6 +150,25 @@ class GmailMailExecutionIO:
             state.labels,
             state.revision,
             self._versioning.label_versions(native_id, state.message_history_id),
+            state.message_history_id,
+        )
+
+    def restore_effect_anchor(
+        self,
+        *,
+        native_message_id: str,
+        anchor_history_id: int,
+        before_revision: str,
+        baseline: Mapping[str, int],
+    ) -> None:
+        """Reinstall the undo proof's own anchor before proving a later undo."""
+        self._anchors.save(
+            EffectAnchor(
+                native_message_id,
+                int(anchor_history_id),
+                before_revision,
+                {str(key): int(value) for key, value in baseline.items()},
+            )
         )
 
     def current_labels(self, resource_id: str) -> frozenset[str]:

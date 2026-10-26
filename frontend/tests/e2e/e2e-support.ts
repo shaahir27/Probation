@@ -79,6 +79,8 @@ export async function expectReachable(page: Page, locator: Locator): Promise<voi
   const box = await locator.boundingBox();
   expect(box, "the control has a measured box").not.toBeNull();
   if (box === null) return;
+  expect(box.width, "the primary touch target is at least 44px wide").toBeGreaterThanOrEqual(44);
+  expect(box.height, "the primary touch target is at least 44px tall").toBeGreaterThanOrEqual(44);
   const viewport = await page.evaluate(() => ({ width: window.innerWidth, height: window.innerHeight }));
   expect(box.x, "left edge").toBeGreaterThanOrEqual(-0.5);
   expect(box.y, "top edge").toBeGreaterThanOrEqual(-0.5);

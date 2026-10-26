@@ -13,11 +13,11 @@ test("the golden read path logs no console errors and asks nothing off-origin", 
   await page.goto("/#/watching");
   await expect(page.getByText(ITEM.shadow)).toBeVisible();
   await page.goto("/#/actions");
-  await expect(page.getByRole("heading", { name: "Actions" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Activity" })).toBeVisible();
   await page.goto("/#/permissions");
   await expect(page.getByRole("heading", { name: "Permissions" })).toBeVisible();
   await page.goto("/#/more/insights");
-  await expect(page.getByRole("heading", { name: "More" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "More", exact: true })).toBeVisible();
   await page.waitForTimeout(500);
 
   expect(guards.pageErrors, `page errors: ${guards.pageErrors.join("\n")}`).toEqual([]);
@@ -36,7 +36,7 @@ test("the run serves the production bundle, not the dev server", async ({ page, 
   const assets = requested.filter((url) => url.startsWith(`${origin}/assets/`));
   expect(assets.length, "no hashed production assets were requested").toBeGreaterThan(1);
   expect(requested.some((url) => url.includes("/src/main.tsx")), "the dev server served the page").toBe(false);
-  expect(requested.some((url) => url.includes("vite/@plugins/react") || url.includes("@react-refresh")), false);
+  expect(requested.some((url) => url.includes("vite/@plugins/react") || url.includes("@react-refresh"))).toBe(false);
   expect(assets.some((url) => /-[A-Za-z0-9_-]{6,}\.js$/.test(url)), `not a hashed bundle: ${assets.join(", ")}`).toBe(true);
 });
 

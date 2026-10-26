@@ -6,7 +6,7 @@ PYTHON := python
 PIP := pip
 NPM := npm
 
-.PHONY: help setup check test synth backtest serve web eval ledger-verify budget clean gmail-live
+.PHONY: help setup check test synth backtest serve serve-live web eval ledger-verify budget clean gmail-live
 
 help:
 	@echo "Probation - Development Commands"
@@ -16,6 +16,7 @@ help:
 	@echo "  make synth PERSONA=1      Generate synthetic persona"
 	@echo "  make backtest FAMILY=...  Run backtest replay for family"
 	@echo "  make serve                Run FastAPI backend"
+	@echo "  make serve-live           Run the supervised live Gmail runtime and API"
 	@echo "  make web                  Run Vite frontend dev server"
 	@echo "  make eval SUITE=main      Run evaluation suite"
 	@echo "  make ledger-verify        Verify ledger hash chain"
@@ -41,6 +42,9 @@ backtest:
 
 serve:
 	$(PYTHON) -m probation.cli serve --reload
+
+serve-live:
+	$(PYTHON) -m probation.cli serve --gmail-runtime
 
 web:
 	cd frontend && $(NPM) run dev

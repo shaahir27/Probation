@@ -1,6 +1,7 @@
 """Executor-owned durable mail dispatch; no model/provider or API dependencies."""
 
 import json
+import logging
 from dataclasses import asdict
 from datetime import timedelta
 from typing import TYPE_CHECKING, Any, Literal
@@ -23,6 +24,8 @@ from probation.workers.restrictions import current_restrictions, current_web_cap
 
 if TYPE_CHECKING:
     from probation.workers.executor import Executor
+
+logger = logging.getLogger(__name__)
 
 
 class MailLifecycle:
@@ -103,7 +106,14 @@ class MailLifecycle:
         action = self.actions.get(action_id)
         if action is None:
             return ExecResult(success=False, action_id=action_id, error="action_missing")
-        return self._run(action, "execute", now)
+        result = self._run(action, "execute", now)
+        if not result.success:
+            logger.warning(
+                "mail_action_not_applied action_id=%s operation=execute safe_code=%s",
+                action_id,
+                result.error,
+            )
+        return result
 
     def undo(self, action_id: str, now: str) -> ExecResult:
         action = self.actions.get(action_id)
@@ -127,7 +137,14 @@ class MailLifecycle:
                 return ExecResult(
                     success=False, action_id=action_id, error="cancellation_unconfirmed"
                 )
-        return self._run(action, "undo", now)
+        result = self._run(action, "undo", now)
+        if not result.success:
+            logger.warning(
+                "mail_action_not_applied action_id=%s operation=undo safe_code=%s",
+                action_id,
+                result.error,
+            )
+        return result
 
     def _run(self, action: Action, operation: Literal["execute", "undo"], now: str) -> ExecResult:
         io = self.worker.world
@@ -174,6 +191,7 @@ class MailLifecycle:
                         authority.undo_deadline
                     ):
                         return ExecResult(success=False, action_id=action.id, error="undo_expired")
+                    self._restore_undo_anchor(io, action, binding)
                 snap = io.snapshot_mail(binding.resource_id)
                 if (
                     binding.native_message_id
@@ -241,10 +259,51 @@ class MailLifecycle:
                         success=False, action_id=action.id, error="needs_reconciliation"
                     )
             return self._complete(action, claim, prepared, receipt, self._now(now))
-        except (LifecycleError, ValueError, KeyError, TypeError):
+        except (LifecycleError, ValueError, KeyError, TypeError) as exc:
+            safe_code = (
+                getattr(exc, "safe_code", None)
+                or getattr(exc, "code", None)
+                or (str(exc) if str(exc) else None)
+                or type(exc).__name__
+            )
+            logger.warning(
+                "mail_state_invalid action_id=%s operation=%s safe_code=%s",
+                action.id,
+                operation,
+                safe_code,
+            )
             return ExecResult(
                 success=False, action_id=action.id, error="mail_authority_or_state_invalid"
             )
+
+    @staticmethod
+    def _restore_undo_anchor(
+        io: Any, action: Action, binding: Any
+    ) -> None:
+        """Reinstall the durable effect anchor stored with a label undo proof.
+
+        Without it, a cursor that moved past the effect would compare absolute label versions
+        from different windows and refuse a truthful undo. Legacy proofs without the anchor
+        keep the old fail-closed behavior.
+        """
+        restore = getattr(io, "restore_effect_anchor", None)
+        if restore is None or not isinstance(action.undo, dict):
+            return
+        anchor = action.undo.get("anchor_history_id")
+        before = action.undo.get("before_revision")
+        baseline = action.undo.get("baseline")
+        if (
+            not isinstance(anchor, int)
+            or not isinstance(before, str)
+            or not isinstance(baseline, dict)
+        ):
+            return
+        restore(
+            native_message_id=binding.native_message_id,
+            anchor_history_id=anchor,
+            before_revision=before,
+            baseline=baseline,
+        )
 
     def _complete(
         self,

@@ -93,22 +93,27 @@ test("licence levels read as plain words and permission stays read-only", async 
   await signIn(page);
   await page.goto("/#/permissions");
   const main = page.getByRole("main");
-  await expect(main.getByText("These are read-only").first()).toBeVisible();
+  await expect(main.getByText("Your approval of one action never unlocks the next.", { exact: false })).toBeVisible();
   await expect(main.getByText(/^(Watching|Suggests|Acts with undo|Acts automatically|No permissions yet)/).first()).toBeVisible();
   await expect(main.getByText(/\bL[0-3]\b/)).toHaveCount(0);
   await expect(main.getByRole("textbox")).toHaveCount(0);
+  await expect(main.getByRole("combobox")).toHaveCount(0);
+  await expect(main.getByRole("checkbox")).toHaveCount(0);
+  await expect(main.getByRole("switch")).toHaveCount(0);
 });
 
-test("a destination that is not accepted says so and shows no invented rows", async ({ page }) => {
+test("legacy pack links remain honest without appearing in the email demo navigation", async ({ page }) => {
   await signIn(page);
+  const navigation = page.getByRole("navigation", { name: "Main navigation" });
+  await expect(navigation.getByRole("link", { name: /Radar|Reading library|Habits|Chains/ })).toHaveCount(0);
   await page.goto("/#/more/library");
-  await expect(page.getByText("Reading library is unavailable")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Outside this email demo is unavailable" })).toBeVisible();
   await expect(page.getByRole("main").getByRole("listitem")).toHaveCount(0);
 
   await page.goto("/#/more/radar");
   // Either genuinely unavailable, or active-but-empty and stated as not accepted for release.
   // What must never happen is a board that looks like a finished feature.
-  await expect(page.getByText(/Radar is unavailable|not accepted for release/)).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Outside this email demo is unavailable" })).toBeVisible();
   const radarList = page.getByRole("main").getByRole("list");
   await expect(radarList).toHaveCount(0);
 });
@@ -116,6 +121,6 @@ test("a destination that is not accepted says so and shows no invented rows", as
 test("an unanswered item never claims an action happened", async ({ page }) => {
   await signIn(page);
   await page.goto("/#/queue");
-  await expect(page.getByText("Probation has not acted on any of them")).toBeVisible();
+  await expect(page.getByText("Probation has not acted on any email in this list.")).toBeVisible();
   await expect(page.getByText("Probation confirmed this action.")).toHaveCount(0);
 });

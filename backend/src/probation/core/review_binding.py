@@ -19,6 +19,7 @@ from probation.llm.draft_validation import DraftInvalid, body_hash, validate_dra
 FORWARD_SEPARATOR = "\n\n--- Forwarded message ---\n"
 MAIL_ACTIONS = frozenset({"ARCHIVE", "TRASH", "LEAVE", "REPLY", "FORWARD"})
 MESSAGE_ID = re.compile(r"<[^<>\s@]+@[^<>\s@]+>")
+NATIVE_MESSAGE_ID = re.compile(r"[^\s<>]{1,512}")
 
 
 def _address(value: str) -> str:
@@ -105,8 +106,26 @@ def build_review_binding(
         ):
             if action == "FORWARD":
                 raise DraftInvalid("forward_attachment_policy")
-        native_message = str(payload.get("message_id", ""))
-        if not MESSAGE_ID.fullmatch(native_message):
+        # Two identities are deliberately distinct: the Gmail native id addresses this exact
+        # message at the provider and must match the Executor's snapshot; the RFC Message-ID is
+        # only a header and can never address a Gmail resource.
+        native_value = payload.get("native_message_id")
+        if native_value is not None:
+            native_message = str(native_value)
+            if not NATIVE_MESSAGE_ID.fullmatch(native_message):
+                raise DraftInvalid("original_message_id_required")
+        else:
+            # Legacy/synthetic sources store the resource ref itself as the message identity.
+            native_message = str(raw["source_ref"] or "")
+            if not (
+                NATIVE_MESSAGE_ID.fullmatch(native_message)
+                or MESSAGE_ID.fullmatch(native_message)
+            ):
+                raise DraftInvalid("original_message_id_required")
+        rfc_message = str(payload.get("rfc_message_id") or payload.get("message_id") or "")
+        if not MESSAGE_ID.fullmatch(rfc_message):
+            raise DraftInvalid("original_message_id_required")
+        if not MESSAGE_ID.fullmatch(rfc_message):
             raise DraftInvalid("original_message_id_required")
         native_thread = str(payload.get("thread_id") or "") or None
         if native_thread and any(c in native_thread for c in "\r\n"):

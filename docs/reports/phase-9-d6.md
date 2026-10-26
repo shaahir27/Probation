@@ -1,9 +1,9 @@
 # Phase 9 handoff — D6: API and complete frontend surface
 
-**Branch:** `phase-9-d6-api-frontend`
-**Worktree:** `data/d6/worktree`
+**Earlier D6 branch:** `phase-9-d6-api-frontend` / `data/d6/worktree`
+**Final completion tree:** `main` at the repository root, based on `00a1570`; the Connect apps, live read-only Gmail and More/Performance completion is the final work recorded in this report.
 **Base commit:** `29f1f6616cdb08ee769a4f2bbad95b35e50f902d` (`phase-6c: fix Gmail cohort filtering`, verified equal to accepted `main`)
-**D6 commits:** `6a3eb99` (backend, contracts, readiness), `ec0a30b` + `a574c99` (acceptance matrix, handoff, budget reconciliation), `4884e7b` (dashboard, harness, browser evidence). Final branch tip: `4884e7b`. Nothing pushed.
+**D6 commits:** `6a3eb99` (backend, contracts, readiness), `ec0a30b` + `a574c99` (acceptance matrix, handoff, budget reconciliation), `4884e7b` (dashboard, harness, browser evidence), `00a1570` (final D6 identities and second gate). Nothing pushed.
 **Milestone name:** D6 (the `phase-9` prefix is the API/dashboard implementation phase)
 
 ## Done
@@ -29,9 +29,9 @@ Frontend and harness (second commit): `frontend/src/{App.tsx,index.css,api/{clie
 
 - `python scripts/check.py` (isolated snapshot gate, the `make check` equivalent on this host — GNU make is absent) on `29f1f66` first: **10 failed, 1329 passed** → after this work: **1403 passed, 2 deselected, 0 failed**, `ruff check`, `ruff format --check` (430 files), project mypy and `mypy --strict` on `core/`+`engine/` all clean, **protected fixture and published-result hashes unchanged in source and snapshot** (`+74` tests, none weakened). The gate was run a second time at the final tree (`4884e7b`) after the readiness and dashboard work: **1403 passed, 2 deselected, 0 failed**, hashes unchanged again.
 - Focused suites used during development: `backend/tests/connectors/test_d6_worker_runtime.py`, `test_d6_worker_isolation.py`, `test_gmail_runtime.py`, `test_gmail_ingest.py`, `test_gmail_evidence_provenance.py`, `test_gmail_live_wiring.py`, `backend/tests/integration/test_d5_pipeline.py`, `test_wp6_response_api.py`, `backend/tests/unit/test_d6_replay_controls.py`, `test_d6_replay_recovery.py`, `test_wp6_api_readiness.py`, `test_wp1_context.py`, `test_wp1_ledger_views.py`, `test_wp6_followup_evidence.py`, `backend/tests/api/test_api_endpoints.py`.
-- Frontend: `tsc --noEmit` clean; `node --test tests/*.test.mjs` **9 passed / 0 failed**, including a new assertion that no production source imports or embeds fixture data.
-- Browser harness: **37 passed, 0 failed** (`node node_modules/@playwright/test/cli.js test --reporter=list`, exit 0, 1.3m). Run against the built bundle on loopback with the system Chrome (`channel: "chrome"` — no browser download was needed), one isolated port pair and throwaway synthetic workspace per journey, `workers: 1`, traces and video off. Coverage: plain-language copy and no gate tokens on screen; technical detail hidden inside a collapsed `<details>`; four-way verification availability with citations and an unknown fee never reading as free; unavailable destinations stating a reason with no invented rows; all 14 `#/more/*` destinations marked current; deep link surviving refresh plus re-auth; Back/forward and filters; 360/390/768/1440 with no horizontal overflow and *measured* reachable >=44px actions; 200% zoom; keyboard-only review with visible focus; accessible names and announced errors; reduced motion; zero console errors; no off-origin request; production bundle verified rather than the dev server; memory-only key; sign-out DOM clearing; an in-flight response unable to repopulate a closed session; second identity seeing nothing; durable request never claiming completion; conflict demanding fresh review; undo only where the server offers it.
-- Frontend: `tsc --noEmit` clean and `node --test tests/*.test.mjs` **10/10**, including a test that no production source imports or embeds fixture data and a test that a 409 keeps the server's semantic reason rather than the numeric status.
+- Frontend at `4884e7b`: `tsc --noEmit` clean; `node --test tests/*.test.mjs` **10 passed / 0 failed**, including a new assertion that no production source imports or embeds fixture data.
+- Browser harness at `4884e7b`: **37 passed, 0 failed** (`node node_modules/@playwright/test/cli.js test --reporter=list`, exit 0, 1.3m). Run against the built bundle on loopback with the system Chrome (`channel: "chrome"` — no browser download was needed), one isolated port pair and throwaway synthetic workspace per journey, `workers: 1`, traces and video off. Coverage: plain-language copy and no gate tokens on screen; technical detail hidden inside a collapsed `<details>`; four-way verification availability with citations and an unknown fee never reading as free; unavailable destinations stating a reason with no invented rows; all 14 `#/more/*` destinations marked current; deep link surviving refresh plus re-auth; Back/forward and filters; 360/390/768/1440 with no horizontal overflow and *measured* reachable >=44px actions; 200% zoom; keyboard-only review with visible focus; accessible names and announced errors; reduced motion; zero console errors; no off-origin request; production bundle verified rather than the dev server; memory-only key; sign-out DOM clearing; an in-flight response unable to repopulate a closed session; second identity seeing nothing; durable request never claiming completion; conflict demanding fresh review; undo only where the server offers it.
+- Frontend at the final completion tree: `tsc --noEmit` clean; `npm run build` passed; `node --test tests/*.test.mjs` **11/11**; `npx playwright test --reporter=list` **40/40 passed** (including the Connect apps chooser and the server-selected synthetic workspace). The final More navigation has nine visible destinations plus the honest legacy deep-link fallbacks.
 
 - Test-plan ids satisfied offline: T-LEDGER (append-only chain asserted around provenance refusal), T-ID and T-CANONICAL (`test_canonical_source_identity_links_ingestion_grants_and_execution`), no-peeking (cutoff and future-cutoff refusal in the new provenance and Brain tests), T-AUTH (`test_configured_owner_auth_rejects_outside_and_ungranted_clients`), T-RACE (conflict/duplicate command tests), T-IPC (malformed/oversized/mismatch/timeout), T-RESTART (replay recovery suite).
 
@@ -55,12 +55,12 @@ Frontend and harness (second commit): `frontend/src/{App.tsx,index.css,api/{clie
 4. **`gmail_runtime.py` is ~880 lines**, over the ~400-line guidance. It already exceeded the limit before D6 and was not restructured inside a safety commit.
 5. **Strict Pydantic response models cover `readiness` and `review` only.** `queue`, `items`, `actions` and `boards` still hand-build dictionaries; §7 asked for a broader `api/read_models.py`. Splitting them changes every response surface at once and was deliberately deferred to its own change so it cannot hide the safety content of this commit.
 6. **`api/routes/gmail_connector.py` still holds configuration in a module global.** The plan called this out; making it application-scoped touches every test that constructs an app.
-7. **Live credential env names are not what `.env` contains.** `PROBATION_GMAIL_CLIENT_ID`/`_SECRET`/`_REFRESH_TOKEN`/`_ACCOUNT` are read by the opt-in live tests directly from `os.environ`, which nothing populates from `.env`, and `PROBATION_GMAIL_LABEL` currently holds the label *name* while `gmail_sync.py:363` compares against the native `labelId`. Until the owner sets the ID and exports the credential bundle, live read tests skip and the live cohort would be empty. This is reported, not worked around.
+7. **Resolved in the final completion.** The historical note about live credential env names and the label display name is superseded by the Connect apps read-only flow: the safe preflight now reports the OAuth client, test account, owner and native `Label_1` configured; the fixed Web redirect `http://127.0.0.1:8765/` completed consent; the private store contains a verified read-only refresh token. The opt-in D4 live tests still read exported environment variables directly; that separate test path is unchanged.
 8. The forward and deny admin commands accept an ignored `request_id` in the UI body; server-side determinism (`det_id` over the canonical payload) is what actually makes them idempotent. Undo does use the client request id via `UndoBody`.
 
 ## Contract change requests
 
-**None.** No contract rule needed changing, no new authority or credential was introduced, and no new ledger kind or unapproved table writer was created. Two items would require one if pursued: persisting supervision state in the ledger (today it is a document beside the database, deliberately not durable history), and giving the API role an Examiner-authorized advance path for replay (today advancing stays Examiner-owned and the API only submits intents).
+**None.** No contract rule needed changing and no new ledger kind or unapproved table writer was created. The approved Connect apps extension creates one **read-only observation grant** (SHADOW, exact `gmail.readonly`, private token ACL); it creates no write credential or new authority. Two items would require a change request if pursued: persisting supervision state in the ledger (today it is a document beside the database, deliberately not durable history), and giving the API role an Examiner-authorized advance path for replay (today advancing stays Examiner-owned and the API only submits intents).
 
 ## New dependencies
 
@@ -74,7 +74,7 @@ Frontend and harness (second commit): `frontend/src/{App.tsx,index.css,api/{clie
 |---|---|---|---|---|---|
 | Nebius (Nano `NVIDIA-Nemotron-3-Nano-30B-A3B`) | $1.00 total | $0.001109 (22 reconciled attempts) | $0.004875 | 0 | ~$0.9989 |
 | Nebius (Super `nemotron-3-super-120b-a12b`) | $1.00 total | $0.003896 (15 reconciled attempts) | $0.019298 | 0 | ~$0.9961 |
-| Tavily | 20 credits | 8.0 credits (9 recorded calls, 8 reconciled) | $0.00009 reserved | **1 call `ambiguous`** | 12 credits |
+| Tavily | 20 credits | 8.0 credits (9 recorded calls, 8 reconciled) | $0.00009 reserved | **1 call `ambiguous`** | **11 usable** (12 gross − 1 hold) |
 
 Nebius total confirmed across both scopes: **$0.005005**. 29 requests succeeded, 8 `failed_closed` — those failures consumed budget and produced no effect, which is the correct fail-closed outcome and is counted, not hidden.
 
@@ -86,10 +86,118 @@ Nebius total confirmed across both scopes: **$0.005005**. 29 requests succeeded,
 
 1. ~~Playwright browser download~~ not needed: the harness drives the installed Chrome through `channel: "chrome"` and the suite passes. Nothing outstanding here.
 2. Approve the paid-test window, if any: I will re-read the accounting authority and run sequential paid checks only inside the remaining allowance.
-3. Set `PROBATION_GMAIL_LABEL` to the native label ID and export the live credential bundle (see the D6 build-history note), then approve the read-only cohort enumeration.
-4. A separately authorized synthetic **sender** is still required: the six existing test emails are self-sent, so no genuine incoming message has ever been processed.
-5. No live effect (send, forward, trash, archive) has an approval yet; I will present the operation manifest and stop before any write.
+3. ~~Set the native label and export the live credential bundle~~ **Resolved for read-only:** the fixed Web redirect completed consent; the SHADOW grant uses exact `gmail.readonly`; the token is ACL-protected. No write bundle was created.
+4. The approved cohort contains one incoming synthetic workshop message. The live observation produced **one ASK review request** and the recorded history contributes 167 watching observations. No genuine send/archive/reply was performed; the write proof still requires the exact operation manifest.
+5. No live effect (send, forward, trash, archive) has an approval yet; the Executor is deliberately unprovisioned. The operation manifest remains a separate approval.
 
 ## Suggested next step
 
-Run the Taste screenshot-critique pass over the core screens and record before/after evidence in `docs/wp9/D6_ACCEPTANCE_MATRIX.md`; that is the last offline item. Everything else in D6 is now backed by a command and an exit status. Implementation readiness and live acceptance must stay reported separately. Then D7 (focused model-quality evaluation) and D8 (deployment and visitor isolation) remain untouched — **do not start them under this phase**, and do not push, merge or deploy as part of D6.
+The D6 read-only demo is now complete at the code and local-acceptance level: the frontend, runtime grant, live observation, More/Performance UI, budget hold display and browser suite are verified. Finish the final report/README and local commit, then stop. D7 (focused model-quality evaluation), D8 (deployment and visitor isolation), Gmail writes and Calendar/Drive remain untouched — **do not start them under this phase**, and do not push, merge or deploy as part of D6.
+
+## Local main database repair — 26 October 2026
+
+The running main checkout returned `503 Database upgrade required: probation db migrate`
+from both queue and replay state. Its existing database predated the lifecycle schema.
+The advertised CLI repair only called `migrate_wp1`, so it reported success without
+installing the later lifecycle, replay, feature-provenance and accounting migrations.
+`cli.db_migrate()` now delegates to the existing full `ensure_schema()` path and still
+refuses a missing database. API reads continue to refuse old schemas without migrating them.
+
+Before modifying the application database, a SQLite backup and successful rehearsal were
+created under `data/backups/main-schema-97373fd9bf264c24ba16ad5854e74fca/`.
+The corrected `python -m probation.cli db migrate` then completed on main. All 723 ledger
+rows were byte-for-byte equal as serialized records, the hash chain verified, and every
+pre-existing table retained its row count. Authenticated GETs to the running backend's
+queue, replay state, Watching, actions and readiness all returned HTTP 200 afterwards.
+The earlier screenshot's 500 was not reproduced: current requests reproduced the
+database-upgrade 503 before repair and 200 afterwards.
+
+Verification: 10 focused CLI/ledger/API-readiness tests passed; Ruff lint and formatting
+checks passed for both changed Python files. The new regression first failed on the old
+CLI implementation, then passed after the repair, including a repeated migration.
+The root dotenv was loaded through application settings, never displayed or edited.
+No Gmail effects, model calls or Tavily calls were performed. These results concern local
+startup and do not complete the outstanding live Gmail acceptance.
+
+## D6 final completion — Connect apps and live read-only Gmail — 26 October 2026
+
+**Final tree:** `main` at the repository root, based on `00a1570`. The final local commit
+is `FINAL_COMMIT` (nothing pushed, merged or deployed). The earlier
+`phase-9-d6-api-frontend` worktree remains the historical milestone.
+
+### Delivered after `00a1570`
+
+- **Connect apps** is a visible destination in **More** with official local Gmail,
+  Google Calendar and Google Drive icons and source attribution. Gmail is connectable;
+  Calendar and Drive are explicitly **Planned**. The API receives only connection status,
+  never a Google token, callback or authorization URL.
+- **Read-only Gmail setup** runs in an isolated local child. It verifies the OAuth client,
+  the configured test account, the fixed loopback redirect `http://127.0.0.1:8765/`, the
+  exact `gmail.readonly` scope and the approved native `Label_1` before persisting a
+  SHADOW registration and an owner-only refresh token under `data/private/connectors/`.
+- **The supervisor now consumes that setup grant.** The `serve --gmail-runtime` path loads
+  the registered grant and token store, injects exactly one read-only grant and OAuth
+  bundle into the observation child, and leaves the API without Google credentials. The
+  live flag is added only to the live-capable roles, not to the API or Resolver.
+- **The observation start is fixed for the real provider.** Gmail returns its 64-bit
+  `historyId` as a decimal string; the MIME parser now accepts that representation while
+  still rejecting missing, negative or oversized values. The live observation role
+  stays running instead of exiting at startup.
+- **The ACL setup is portable to an already-owned directory.** `apply_owner_only` replaces
+  only the protected DACL when the current user already owns the path; it no longer
+  demands an unnecessary `WRITE_OWNER` handle. The final owner-only verification is
+  unchanged, and the OAuth callback parser accepts a real Google authorization code while
+  retaining the state/PKCE checks.
+- **Frontend:** More now exposes nine working destinations — Connect apps, Performance,
+  Counts & trends, Trick tests, Privacy & web, Cost & usage, Integrity record, Settings
+  in use and Help & limits. Cost & usage shows confirmed, estimated, unresolved-hold and
+  never-dispatched spend. Help explains the owner key versus Google consent and the exact
+  local preflight. Connect apps maps safe setup failures to actionable copy. Legacy pack
+  deep links remain honest unavailable pages.
+- **Harness:** the synthetic-connections journey no longer attempts owner-key sign-in in a
+  profile that correctly auto-signs-in; the final suite is unfiltered and green.
+
+### Live evidence
+
+| Item | Evidence |
+|---|---|
+| Read-only preflight | OAuth client, test account, owner and native `Label_1` configured; fixed redirect printed; no secret printed |
+| Consent | Completed with the configured test account; exact `gmail.readonly`; SHADOW registration; owner-only token ACL verified |
+| Live observation | One incoming synthetic workshop email observed; **1 ASK**, **167 watching** proposals from recorded history |
+| Writes | **None.** The Executor is not provisioned; no write manifest was requested or used |
+| Paid calls | `llm_attempts` 0 and `tavily_calls` 0 in this D6 live session; the cold-start item is a request for approval, not a claimed model draft |
+| Runtime readiness | API, observation, Brain, Examiner and Resolver running; Executor intentionally exited without a write grant; Webfacts idle (`work_status_absent`) until a relevant request |
+| Budget | D5 cumulative `$0.005005` confirmed across per-model Nebius scopes; Tavily **11 usable** (8 confirmed + 1 ambiguous hold); no fresh allowance |
+
+The D5 six-case Super intent smoke (6/6; Nano 2/6) is separate evidence and remains a
+six-case smoke only — not general accuracy, a Gmail flow score or an autonomous permission
+result.
+
+### Final tests
+
+- **Backend full gate:** `python scripts/check.py` on the final read-only tree —
+  **1462 passed, 2 deselected, 0 failed** (427.66s). `ruff check`, `ruff format --check`,
+  project mypy and `mypy --strict` on `core/` + `engine/` pass; protected fixture and
+  published-result hashes are unchanged.
+- **Frontend:** `tsc --noEmit` clean; `npm run build` passed; `node --test tests/*.test.mjs`
+  **11/11**; `npx playwright test --reporter=list` **40/40**.
+- **Focused Gmail setup/ACL/runtime tests:** **67 passed**, including the new grant identity,
+  token ACL, supervisor loader, callback parser and live-role tests.
+- **Live Gmail:** read-only consent and observation pass; no write path was exercised.
+
+### Final limitations
+
+- No Gmail send, archive, trash, forward, reply or undo is enabled in this demo. Those require
+  the exact operation manifest and an Executor write grant.
+- Google Calendar, Google Drive, files, chains, habits, Radar and Reading are not part of this
+  focused email release.
+- No paid model/Tavily call is claimed for the cold-start live item; the D5 provider evidence is
+  separate. The six-case Super smoke is not general accuracy.
+- No deployment, public URL, multi-user account or real personal data is claimed. D7 and D8
+  remain untouched.
+
+### Final commit and preservation
+
+The final local commit is `FINAL_COMMIT`. It includes the D6 code, tests, docs and root README.
+The pre-existing staged `build_history` WP4 files and the local build-history D6 DB-repair notes
+are intentionally **not** part of it, per the D6 scope. No push, merge or deployment was performed.

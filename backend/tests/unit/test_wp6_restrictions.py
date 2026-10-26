@@ -71,6 +71,23 @@ def test_completed_resume_cannot_clear_an_inflight_pause(memory_db):
     assert state(memory_db, later).paused
 
 
+def test_completed_controls_apply_in_completion_order_when_created_at_is_equal(memory_db):
+    # Replay can stamp both intents with one created_at; the resume id sorts first on
+    # purpose, so only completion order can prove the pause was cleared.
+    submit(memory_db, "z-pause", "pause")
+    submit(memory_db, "a-resume", "resume")
+    receipts = ReceiptStore(RoleAccess(memory_db, Role.EXAMINER))
+    pause = receipts.claim_command("z-pause", now="2026-06-01T01:00:01Z", owner="examiner")
+    assert pause is not None
+    receipts.finish(pause, now="2026-06-01T01:00:01Z", status="succeeded", result={})
+    resume = receipts.claim_command("a-resume", now="2026-06-01T01:00:02Z", owner="examiner")
+    assert resume is not None
+    receipts.finish(resume, now="2026-06-01T01:00:02Z", status="succeeded", result={})
+
+    assert not state(memory_db, "2026-06-01T01:00:03Z").blocked
+    assert not state(memory_db, "2026-06-01T01:00:03Z").paused
+
+
 def test_resume_only_clears_the_exact_pause_scope(memory_db):
     submit(memory_db, "global-pause", "pause")
     process_restriction_commands(memory_db, as_of=T)

@@ -29,12 +29,12 @@ import { RequestStatusView } from "./views/RequestStatusView";
 import { navigate, parseRoute, primaryPage, queueGate, setQueryFilter, Route, QueueGate } from "./navigation";
 
 const TITLES: Record<string, string> = {
-  home: "Home",
+  home: "Overview",
   queue: "Review",
   item: "Review",
   watching: "Watching",
   "watching-item": "Watching",
-  actions: "Actions",
+  actions: "Activity",
   permissions: "Permissions",
   more: "More",
   request: "Request status",
@@ -133,15 +133,22 @@ function Workspace() {
     );
   }
 
+  if (session.profile === "private" && session.status === "unknown") {
+    return (
+      <main className="min-h-screen bg-canvas p-6 text-ink">
+        <p role="status" className="text-sm">Restoring your session…</p>
+      </main>
+    );
+  }
+
   if (session.profile === "private" && !authenticated) {
     return (
       <SignInView
         onSubmit={async (token) => {
           const ok = await session.signIn(token);
           if (!ok) return;
-          // The owner key is memory-only, so a refresh always comes back here. Only a bare URL
-          // normalises to Home: a deep-linked route must survive re-authentication, not be
-          // overwritten by it.
+          // Only a bare URL normalises to Home: a deep-linked route must survive sign-in,
+          // not be overwritten by it.
           const hash = window.location.hash;
           if (hash === "" || hash === "#" || hash === "#/") navigate({ page: "home" });
         }}
@@ -162,9 +169,9 @@ function Workspace() {
 
   return (
     <div className="flex min-h-screen flex-col bg-canvas font-sans text-ink selection:bg-brand selection:text-brand-on md:flex-row">
-      <DesktopSidebar currentTab={tab} queueCount={items.length} />
+      <DesktopSidebar currentTab={tab} currentSection={route.page === "more" ? route.section ?? "connections" : undefined} queueCount={items.length} />
 
-      <div className="flex min-h-screen flex-1 flex-col pb-20 md:pb-6">
+      <div className="flex min-h-screen min-w-0 flex-1 flex-col pb-24 md:pb-6">
         <Header
           title={TITLES[route.page] ?? "Probation"}
           mode={replay.data?.mode ?? "live"}
@@ -173,7 +180,7 @@ function Workspace() {
           onSignOut={session.profile === "private" || session.authRequired ? () => session.signOut() : undefined}
         />
 
-        <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6 sm:px-6 lg:px-8">
+        <main className="mx-auto w-full max-w-[1280px] flex-1 px-5 py-7 sm:px-6 lg:px-8">
           <div role="status" aria-live="polite">
             <p className="sr-only">
               {coreStatus.isStale
@@ -300,7 +307,7 @@ function Workspace() {
 
               {route.page === "more" && (
                 <MoreView
-                  section={route.section ?? "insights"}
+                  section={route.section ?? "connections"}
                   profile={session.profile}
                   authenticated={authenticated}
                 />

@@ -11,6 +11,7 @@ from probation.connectors.credentials import RoleCredentialProvider
 from probation.connectors.credentials_state import (
     CredentialSource,
     ProvisionedGrant,
+    RefreshTokenStore,
     SecretMaterial,
 )
 from probation.connectors.types import ConnectorError, CredentialUnavailable, HttpTransport
@@ -75,6 +76,7 @@ def build_live_provider(
     clock: Clock,
     api_transport: HttpTransport,
     token_transport: TokenTransport | None = None,
+    token_store: RefreshTokenStore | None = None,
 ) -> RoleCredentialProvider:
     """Install one verified bundle and hand back a provider that refreshes lazily."""
     raw = env.get(grant.env_name, "")
@@ -93,6 +95,7 @@ def build_live_provider(
         grant=grant,
         source=LiveCredentialSource(grant, client),
         refresher=exchange,
+        token_store=token_store,
         clock=clock,
     )
     bundle = exchange.refresh(grant.credential_ref, SecretMaterial(client.refresh_token, "refresh"))

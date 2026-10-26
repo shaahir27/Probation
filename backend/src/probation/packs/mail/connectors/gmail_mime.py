@@ -306,6 +306,19 @@ def _date_string(headers: Mapping[str, str]) -> str | None:
     return value
 
 
+def _history_id(value: object) -> int:
+    """Gmail encodes its 64-bit history id as a decimal string; accept both spellings."""
+    if isinstance(value, bool):
+        raise UnparseableHeader("missing_history_id")
+    if isinstance(value, int) and value >= 0:
+        return value
+    if isinstance(value, str) and value.isdigit() and len(value) <= 20:
+        parsed = int(value)
+        if parsed >= 0:
+            return parsed
+    raise UnparseableHeader("missing_history_id")
+
+
 def parse_message(
     message: Mapping[str, Any],
     *,
@@ -320,9 +333,7 @@ def parse_message(
     native_id = message.get("id")
     if not isinstance(native_id, str) or not native_id:
         raise UnparseableHeader("missing_native_id")
-    history_id = message.get("historyId")
-    if not isinstance(history_id, int) or history_id < 0:
-        raise UnparseableHeader("missing_history_id")
+    history_id = _history_id(message.get("historyId"))
     payload = message.get("payload")
     if not isinstance(payload, Mapping):
         raise UnparseableHeader("missing_payload")

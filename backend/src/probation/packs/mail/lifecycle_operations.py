@@ -34,6 +34,11 @@ def prepare_effect(action: Action, snapshot: MailSnapshot, now: str) -> dict[str
             "touched_versions": {
                 label: snapshot.label_versions.get(label, 0) + 1 for label in added + removed
             },
+            # The provider history point and label baselines the undo equality check was
+            # computed from. Kept in the durable proof so it survives the cursor moving on.
+            "anchor_history_id": snapshot.message_history_id,
+            "before_revision": snapshot.revision,
+            "baseline": dict(snapshot.label_versions),
         }
     elif action.type in {"REPLY", "FORWARD"}:
         params = action.params

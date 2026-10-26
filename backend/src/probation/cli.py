@@ -28,14 +28,14 @@ def db_init() -> None:
 
 @db_app.command("migrate")
 def db_migrate() -> None:
-    """Apply additive WP1 tables to an existing database; preserves ledger bytes."""
-    from probation.db.migrations import migrate_wp1
+    """Upgrade an existing database to the current schema; preserves ledger bytes."""
+    from probation.db.connection import ensure_schema
 
     if not settings.db_path.exists():
         raise typer.BadParameter("Database does not exist; initialize it first")
     with get_connection(settings.db_path) as conn:
-        migrate_wp1(conn)
-    console.print("[bold green]Additive WP1 migration complete.[/]")
+        ensure_schema(conn)
+    console.print("[bold green]Database schema migrations complete.[/]")
 
 
 @app.command("examiner-tick")
@@ -288,9 +288,15 @@ def serve(
         from pathlib import Path
         from threading import Event
 
+        from probation.connectors.credentials_state import ProvisionedGrant
+        from probation.connectors.types import ConnectorError
         from probation.core.clock import Clock
         from probation.workers.gmail_role_loops import WorkLedger
-        from probation.workers.gmail_runtime import GmailRuntime
+        from probation.workers.gmail_runtime import GmailRuntime, RuntimeRole
+        from probation.workers.gmail_setup_grant import (
+            load_setup_read_grant,
+            load_setup_write_grant,
+        )
 
         if host != "127.0.0.1":
             raise typer.BadParameter("--gmail-runtime requires host 127.0.0.1")
@@ -303,10 +309,55 @@ def serve(
                 child_source[field_name.upper()] = str(value)
         child_source["DB_PATH"] = str(settings.db_path)
         child_source["PROBATION_API_PORT"] = str(port)
+        runtime_env = dict(child_source)
+        runtime_env["PROBATION_RUNTIME_LIVE"] = "1"
+        # A live connector runtime judges freshness and review bindings against wall time.
+        # Leaving the default replay horizon would reject proposals dated after 2026-01-01.
+        runtime_env["CLOCK_MODE"] = "live"
+        grants: dict[RuntimeRole, ProvisionedGrant] = {}
+        store_path = Path(settings.probation_gmail_store)
+        try:
+            read_loaded = load_setup_read_grant(
+                store_path, settings.probation_gmail_owner_id
+            )
+        except ConnectorError as exc:
+            console.print(
+                f"[yellow]Read-only Gmail setup grant unavailable: {exc.safe_code}[/]"
+            )
+            read_loaded = None
+        try:
+            write_loaded = load_setup_write_grant(
+                store_path, settings.probation_gmail_owner_id
+            )
+        except ConnectorError as exc:
+            console.print(
+                f"[yellow]Executor write grant unavailable: {exc.safe_code}[/]"
+            )
+            write_loaded = None
+        if read_loaded is not None:
+            runtime_env[read_loaded.grant.env_name] = read_loaded.bundle_json
+            grants[RuntimeRole.OBSERVATION] = read_loaded.grant
+        else:
+            console.print(
+                "[yellow]No read-only Gmail setup grant loaded; "
+                "observation will report not provisioned.[/]"
+            )
+        if write_loaded is not None:
+            runtime_env[write_loaded.grant.env_name] = write_loaded.bundle_json
+            grants[RuntimeRole.EXECUTOR] = write_loaded.grant
+            # The approved manifest uses self-forward only; never a third-party recipient.
+            runtime_env.setdefault(
+                "PROBATION_GMAIL_FORWARD_ALLOWLIST", write_loaded.grant.account_id
+            )
+        else:
+            console.print(
+                "[yellow]No Executor write grant loaded; write actions remain unavailable.[/]"
+            )
         runtime = GmailRuntime(
             db_path=settings.db_path,
             private_store_path=Path(settings.probation_gmail_store),
-            env=child_source,
+            env=runtime_env,
+            grants=grants or None,
             clock=Clock.live(),
             # The supervisor's own ledger, fed by each child's reported status lines. Without it
             # no role can ever prove it did work, so readiness would stay unavailable forever.

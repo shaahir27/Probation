@@ -718,6 +718,24 @@ def _grant_env() -> dict[str, str]:
     }
 
 
+def test_live_child_flag_is_limited_to_live_capable_roles(tmp_path) -> None:
+    runtime = GmailRuntime(
+        db_path=Path(tmp_path) / "engine.db",
+        private_store_path=Path(tmp_path) / "private" / "gmail_metadata.db",
+        env={"PROBATION_RUNTIME_LIVE": "1"},
+        clock=Clock.replay(),
+    )
+    live_roles = {
+        RuntimeRole.OBSERVATION,
+        RuntimeRole.BRAIN,
+        RuntimeRole.EXAMINER,
+        RuntimeRole.WEBFACTS,
+        RuntimeRole.EXECUTOR,
+    }
+    for role in RuntimeRole:
+        assert ("--live" in runtime.command_for(role)) is (role in live_roles), role
+
+
 def test_api_child_holds_owner_metadata_and_no_provider_or_gmail_grant(tmp_path) -> None:
     runtime = GmailRuntime(
         db_path=Path(tmp_path) / "engine.db",

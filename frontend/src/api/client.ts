@@ -1,6 +1,8 @@
 /**
- * The only browser-side network module. Owner credentials live in memory here and
- * nowhere else: never a URL, never storage, never a query key, never a log line.
+ * The only browser-side network module. The owner key is sent once to exchange for a
+ * short-lived HttpOnly session cookie; it is never stored here, in a URL, storage, a
+ * query key or a log line. Private requests rely on that cookie plus a same-origin CSRF
+ * marker, so refreshing the page keeps the session without exposing the key to script.
  *
  * Every read is cancellable and stamped with the session generation it started in,
  * so a response that arrives after logout can never repopulate state.
@@ -56,31 +58,26 @@ import {
 } from "./validation";
 
 const API_BASE = "/api";
+const CSRF_HEADER = "X-Probation-CSRF";
+const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
 export { ApiError };
 
-let ownerToken: string | null = null;
 let sessionGeneration = 0;
 const inflight = new Set<AbortController>();
 
-/** Sets or clears the in-memory bearer value. Nothing is persisted anywhere. */
-export function setOwnerToken(token: string | null): void {
-  ownerToken = token?.trim() || null;
-}
-
 /** Owner signed in: bump the generation so any earlier read is discarded. */
-export function installOwnerToken(token: string): number {
-  setOwnerToken(token);
+export function beginOwnerSession(): number {
   sessionGeneration += 1;
   return sessionGeneration;
 }
 
 /**
- * Owner signed out (or was locked out): forget the credential, bump the generation
- * and abort every in-flight request so a late response cannot repopulate state.
+ * Owner signed out (or was locked out): bump the generation and abort every in-flight
+ * request so a late response cannot repopulate state. The server-side session is
+ * destroyed separately by `apiClient.endSession()`.
  */
-export function clearOwnerToken(): number {
-  setOwnerToken(null);
+export function clearOwnerSession(): number {
   sessionGeneration += 1;
   inflight.forEach((controller) => controller.abort());
   inflight.clear();
@@ -142,8 +139,12 @@ function object(value: unknown, label: string): Record<string, unknown> {
   return recordValue(value, label);
 }
 
-async function request<T>(path: string, options: { method?: string; body?: unknown; signal?: AbortSignal } = {}): Promise<T> {
+async function request<T>(
+  path: string,
+  options: { method?: string; body?: unknown; signal?: AbortSignal; bearer?: string } = {},
+): Promise<T> {
   const startedAtGeneration = sessionGeneration;
+  const method = (options.method ?? "GET").toUpperCase();
   const controller = new AbortController();
   inflight.add(controller);
   const externalSignal = options.signal;
@@ -155,12 +156,14 @@ async function request<T>(path: string, options: { method?: string; body?: unkno
 
   const headers = new Headers();
   if (options.body !== undefined) headers.set("Content-Type", "application/json");
-  if (ownerToken) headers.set("Authorization", `Bearer ${ownerToken}`);
+  // The key travels only on the one exchange request; every private read uses the cookie.
+  if (options.bearer) headers.set("Authorization", `Bearer ${options.bearer}`);
+  if (!SAFE_METHODS.has(method)) headers.set(CSRF_HEADER, "1");
 
   let response: Response;
   try {
     response = await fetch(`${API_BASE}${path}`, {
-      method: options.method ?? "GET",
+      method,
       headers,
       body: options.body === undefined ? undefined : JSON.stringify(options.body),
       signal: controller.signal,
@@ -201,7 +204,6 @@ async function request<T>(path: string, options: { method?: string; body?: unkno
     } catch {
       // Keep the safe message if the server response is not the documented error shape.
     }
-    if (response.status === 401) setOwnerToken(null);
     throw new ApiError(code, message, response.status);
   }
 
@@ -226,7 +228,192 @@ const query = (values: Record<string, string | number | undefined>) => {
 
 type Signal = AbortSignal | undefined;
 
+export interface GmailSetupStatus {
+  version: "v1";
+  status: "not_connected" | "connected" | "awaiting_consent" | "succeeded" | "failed" | "unknown";
+  connected: boolean;
+  request_id?: string;
+  reason?: string;
+}
+
+function decodeGmailSetup(value: unknown): GmailSetupStatus {
+  const row = object(value, "Gmail connection status");
+  const statuses = ["not_connected", "connected", "awaiting_consent", "succeeded", "failed", "unknown"];
+  if (row.version !== "v1" || typeof row.status !== "string" || !statuses.includes(row.status)
+      || typeof row.connected !== "boolean"
+      || (row.request_id !== undefined && typeof row.request_id !== "string")
+      || (row.reason !== undefined && row.reason !== null && typeof row.reason !== "string")
+      || (row.connected && !["connected", "succeeded"].includes(row.status))) {
+    throw new ApiError("invalid_response", "Probation returned an invalid connection status.");
+  }
+  return row as unknown as GmailSetupStatus;
+}
+
+export interface GmailConnectionSummary {
+  connection_id: string;
+  connection_ref: string;
+  state: string;
+}
+
+export interface GmailConnectionCommandReceipt {
+  request_id: string;
+  command: "pause" | "resume" | "disconnect";
+  status: string;
+  status_url: string;
+}
+
+export interface GmailLifecycleStatus {
+  request_id: string;
+  type?: string;
+  status: string;
+  safe_code?: string | null;
+}
+
+function decodeGmailConnections(value: unknown): { connections: GmailConnectionSummary[] } {
+  const row = object(value, "Gmail connections");
+  if (!Array.isArray(row.connections)) {
+    throw new ApiError("invalid_response", "Probation returned an invalid connection list.");
+  }
+  const connections = row.connections.map((entry) => {
+    const item = object(entry, "Gmail connection");
+    if (
+      typeof item.connection_id !== "string"
+      || item.connection_id.length === 0
+      || typeof item.connection_ref !== "string"
+      || item.connection_ref.length === 0
+      || typeof item.state !== "string"
+      || item.state.length === 0
+    ) {
+      throw new ApiError("invalid_response", "Probation returned an invalid connection list.");
+    }
+    return {
+      connection_id: item.connection_id,
+      connection_ref: item.connection_ref,
+      state: item.state,
+    };
+  });
+  return { connections };
+}
+
+function decodeGmailCommandReceipt(value: unknown): GmailConnectionCommandReceipt {
+  const row = object(value, "Gmail connection command");
+  if (
+    typeof row.request_id !== "string"
+    || !["pause", "resume", "disconnect"].includes(String(row.command))
+    || typeof row.status !== "string"
+    || typeof row.status_url !== "string"
+  ) {
+    throw new ApiError("invalid_response", "Probation returned an invalid command receipt.");
+  }
+  return row as unknown as GmailConnectionCommandReceipt;
+}
+
+function decodeGmailLifecycleStatus(value: unknown): GmailLifecycleStatus {
+  const row = object(value, "Gmail connection status");
+  if (
+    typeof row.request_id !== "string"
+    || typeof row.status !== "string"
+    || (row.type !== undefined && typeof row.type !== "string")
+    || (row.safe_code !== undefined && row.safe_code !== null && typeof row.safe_code !== "string")
+  ) {
+    throw new ApiError("invalid_response", "Probation returned an invalid command status.");
+  }
+  return row as unknown as GmailLifecycleStatus;
+}
+
+const gmailSetupPath = (kind: "read" | "write", requestId?: string): string =>
+  `/gmail/setup/${kind}${requestId === undefined ? "" : `/${encodeURIComponent(requestId)}`}`;
+
+export interface OwnerSessionInfo {
+  version: "v1";
+  authenticated: boolean;
+  owner_id?: string;
+  expires_in?: number;
+}
+
+function decodeSessionState(value: unknown): OwnerSessionInfo {
+  const row = object(value, "owner session");
+  if (row.version !== "v1" || typeof row.authenticated !== "boolean") {
+    throw new ApiError("invalid_response", "Probation returned an invalid session.");
+  }
+  if (row.authenticated) {
+    if (
+      typeof row.owner_id !== "string"
+      || row.owner_id.trim().length === 0
+      || typeof row.expires_in !== "number"
+      || !Number.isFinite(row.expires_in)
+      || row.expires_in <= 0
+    ) {
+      throw new ApiError("invalid_response", "Probation returned an invalid session.");
+    }
+  } else if (row.owner_id !== undefined || row.expires_in !== undefined) {
+    throw new ApiError("invalid_response", "Probation returned an invalid session.");
+  }
+  return row as unknown as OwnerSessionInfo;
+}
+
+function decodeAuthenticatedSession(value: unknown): OwnerSessionInfo {
+  const info = decodeSessionState(value);
+  if (!info.authenticated) {
+    throw new ApiError("invalid_response", "Probation did not start a session.");
+  }
+  return info;
+}
+
 export const apiClient = {
+  async startSession(ownerKey: string, signal?: Signal): Promise<OwnerSessionInfo> {
+    const info = decodeAuthenticatedSession(
+      await request<unknown>("/session", { method: "POST", bearer: ownerKey, signal }),
+    );
+    beginOwnerSession();
+    return info;
+  },
+  async getSession(signal?: Signal): Promise<OwnerSessionInfo> {
+    return decodeSessionState(await request<unknown>("/session", { signal }));
+  },
+  async endSession(): Promise<void> {
+    await request<unknown>("/session", { method: "DELETE" });
+  },
+  async getGmailSetup(signal?: Signal): Promise<GmailSetupStatus> {
+    return decodeGmailSetup(await request<unknown>(gmailSetupPath("read"), { signal }));
+  },
+  async startGmailSetup(requestId: string): Promise<GmailSetupStatus> {
+    return decodeGmailSetup(await request<unknown>(gmailSetupPath("read"), {
+      method: "POST", body: { version: "v1", request_id: requestId },
+    }));
+  },
+  async getGmailSetupRequest(requestId: string, signal?: Signal): Promise<GmailSetupStatus> {
+    return decodeGmailSetup(await request<unknown>(gmailSetupPath("read", requestId), { signal }));
+  },
+  async getGmailWriteSetup(signal?: Signal): Promise<GmailSetupStatus> {
+    return decodeGmailSetup(await request<unknown>(gmailSetupPath("write"), { signal }));
+  },
+  async startGmailWriteSetup(requestId: string): Promise<GmailSetupStatus> {
+    return decodeGmailSetup(await request<unknown>(gmailSetupPath("write"), {
+      method: "POST", body: { version: "v1", request_id: requestId },
+    }));
+  },
+  async getGmailWriteSetupRequest(requestId: string, signal?: Signal): Promise<GmailSetupStatus> {
+    return decodeGmailSetup(await request<unknown>(gmailSetupPath("write", requestId), { signal }));
+  },
+  async getGmailConnections(signal?: Signal): Promise<{ connections: GmailConnectionSummary[] }> {
+    return decodeGmailConnections(await request<unknown>("/gmail/connections", { signal }));
+  },
+  async submitGmailConnectionCommand(
+    connectionRef: string,
+    requestId: string,
+    command: "pause" | "resume" | "disconnect",
+  ): Promise<GmailConnectionCommandReceipt> {
+    return decodeGmailCommandReceipt(await request<unknown>(
+      `/gmail/connections/${encodeURIComponent(connectionRef)}/commands`,
+      { method: "POST", body: { version: "v1", request_id: requestId, command } },
+    ));
+  },
+  async getGmailLifecycleStatus(requestId: string, signal?: Signal): Promise<GmailLifecycleStatus> {
+    return decodeGmailLifecycleStatus(
+      await request<unknown>(`/commands/${encodeURIComponent(requestId)}`, { signal }),
+    );
+  },
   async getBootstrap(signal?: Signal): Promise<{ version: string; profile: "private" | "synthetic"; auth_required: boolean }> {
     return decodeBootstrap(await request<unknown>("/bootstrap", { signal }));
   },

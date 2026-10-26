@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { registerSessionReset } from "../../auth/OwnerSession";
 import { isValidEmailCandidate } from "../../lib/links";
 import { Button } from "../common/Button";
@@ -25,6 +25,7 @@ export const ACTION_LABELS: Record<string, string> = {
   FORWARD: "Forward email",
   LEAVE: "Leave as is",
   PREPARE_DECLINE_DRAFT: "Prepare a reply",
+  ABSTAIN: "No recommendation yet",
 };
 
 export function reviewActionLabel(action: string): string {
@@ -80,10 +81,7 @@ export function ReviewForm({
     setFieldError(null);
   }), [draftText]);
 
-  const options = useMemo(
-    () => (supportedActions.length > 0 ? supportedActions : [proposedAction]),
-    [proposedAction, supportedActions],
-  );
+  const options = supportedActions;
   const isSupported = options.includes(selected);
   const changedAction = isSupported && selected !== proposedAction;
   const forwardMode = selected === "FORWARD";
@@ -107,7 +105,7 @@ export function ReviewForm({
 
   const primary = (): ReviewDecision => {
     if (forwardMode) return { kind: "forward", forwardRecipient };
-    if (changedAction) return { kind: "edit", editedAction: selected };
+    if (changedAction) return { kind: "edit", editedAction: selected, ...(edited ? { editedBody: body } : {}) };
     if (edited) return { kind: "edit", editedAction: selected, editedBody: body };
     return { kind: "accept" };
   };
@@ -129,12 +127,13 @@ export function ReviewForm({
 
   return (
     <form
-      className="space-y-4 border-t border-line pt-5"
+      className="review-form space-y-5"
       onSubmit={(event) => {
         event.preventDefault();
         submit(primary());
       }}
     >
+      <div className="space-y-1"><h2 className="section-heading">Your decision</h2><p className="text-xs leading-5 text-ink-secondary">Confirm the exact action below. Your decision does not grant automatic permission.</p></div>
       {conflict !== null && (
         <div role="alert" aria-live="assertive" className="space-y-2 rounded-xl border border-status-warning/30 bg-status-warning/10 p-4">
           <p className="text-sm font-medium text-ink">Nothing was sent.</p>
@@ -193,7 +192,9 @@ export function ReviewForm({
       )}
 
       {options.length > 1 && (
-        <div className="space-y-1">
+        <details open={!isSupported} className="space-y-3 text-sm">
+          <summary className="min-h-11 cursor-pointer py-3 text-ink-secondary underline underline-offset-4">Choose another action</summary>
+          <div className="space-y-2">
           <label htmlFor="review-action" className="block text-sm text-ink-secondary">
             Action to take
           </label>
@@ -209,7 +210,8 @@ export function ReviewForm({
               </option>
             ))}
           </select>
-        </div>
+          </div>
+        </details>
       )}
 
       <div className="flex flex-wrap items-center gap-2">
@@ -231,7 +233,10 @@ export function ReviewForm({
         )}
       </div>
       {!isSupported && (
-        <p className="text-sm text-ink-secondary">Probation cannot do this safely yet.</p>
+        <p className="text-sm text-ink-secondary">
+          Probation has no recommendation for this email yet. Choose an action above, or leave it
+          as it is.
+        </p>
       )}
       <p aria-live="polite" className="sr-only">
         {busy ? "Sending your decision to Probation." : ""}

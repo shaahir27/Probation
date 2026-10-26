@@ -38,6 +38,7 @@ test("reviewing an item records a durable request and never claims it finished",
   // The recommendation, the reason and the only decisions the server supports.
   await expect(page.getByRole("heading", { name: "Why Probation suggested this" })).toBeVisible();
   await expect(page.getByText("You archived a very similar notice from this sender last time.")).toBeVisible();
+  await page.getByText("Choose another action", { exact: true }).click();
   await expect(page.getByLabel("Action to take")).toContainText("Archive email");
 
   const call = await captureReview(page, /^Archive email$/);
@@ -68,39 +69,43 @@ test("reviewing an item records a durable request and never claims it finished",
   expect(guards.pageErrors, guards.pageErrors.join("\n")).toEqual([]);
 });
 
-test("a changed payload after a decision conflicts and demands a fresh review", async ({ page, context, baseURL }) => {
+test("a changed payload after a decision conflicts and demands a fresh review", async ({ page, browser, baseURL }) => {
   const guards = installGuards(page, baseURL);
   await signIn(page);
   await openItem(page, ITEM.conflict);
   await expect(page.getByRole("button", { name: "Reject suggestion" })).toBeVisible();
 
-  // A second sign-in of the same owner answers the email first. First valid decision wins.
-  const other = await context.newPage();
-  await signIn(other);
-  await other.goto("/#/queue/e2e-ask-2");
-  await expect(other.getByRole("heading", { name: ITEM.conflict })).toBeVisible();
-  const firstCall = await captureReview(other, /^Reject suggestion$/);
-  expect(firstCall.status).toBe(202);
+  // A separate session of the same owner answers the email first. First valid decision wins.
+  const otherContext = await browser.newContext({ baseURL });
+  const other = await otherContext.newPage();
+  try {
+    await signIn(other);
+    await other.goto("/#/queue/e2e-ask-2");
+    await expect(other.getByRole("heading", { name: ITEM.conflict })).toBeVisible();
+    const firstCall = await captureReview(other, /^Reject suggestion$/);
+    expect(firstCall.status).toBe(202);
 
-  // The stale screen still offers a decision; sending it must conflict, not resend.
-  const conflictResponse = page.waitForResponse((response) => /\/api\/queue\/[^/]+\/respond$/.test(response.url()));
-  await page.getByRole("button", { name: "Archive email" }).click();
-  const conflicted = await conflictResponse;
-  expect(conflicted.status(), "the server did not report a conflict").toBe(409);
+    // The stale screen still offers a decision; sending it must conflict, not resend.
+    const conflictResponse = page.waitForResponse((response) => /\/api\/queue\/[^/]+\/respond$/.test(response.url()));
+    await page.getByRole("button", { name: "Archive email" }).click();
+    const conflicted = await conflictResponse;
+    expect(conflicted.status(), "the server did not report a conflict").toBe(409);
 
-  const alert = page.getByRole("alert");
-  await expect(alert.getByText("Nothing was sent.", { exact: true })).toBeVisible();
-  await expect(alert.getByText(/already been answered|no longer current/)).toBeVisible();
-  await expect(alert.getByRole("button", { name: "Review it again" })).toBeVisible();
+    const alert = page.getByRole("alert");
+    await expect(alert.getByText("Nothing was sent.", { exact: true })).toBeVisible();
+    await expect(alert.getByText(/already been answered|no longer current/)).toBeVisible();
+    await expect(alert.getByRole("button", { name: "Review it again" })).toBeVisible();
 
-  // Fresh review, not a resend: the dropped binding forces a new /review before anything else.
-  await alert.getByRole("button", { name: "Review it again" }).click();
-  await expect(page.getByText("Your decision is already recorded")).toBeVisible();
-  await expect(page.getByRole("button", { name: /Archive email|Reject suggestion|Leave as is/ })).toHaveCount(0);
-  const responds = guards.apiRequests.filter((entry) => entry.endsWith("/respond"));
-  expect(responds.length, `the UI resent a decision after the conflict: ${responds.join(", ")}`).toBe(1);
-
-  await other.close();
+    // Fresh review, not a resend: the dropped binding forces a new /review before anything else.
+    await alert.getByRole("button", { name: "Review it again" }).click();
+    await expect(page.getByText("Your decision is already recorded")).toBeVisible();
+    await expect(page.getByRole("button", { name: /Archive email|Reject suggestion|Leave as is/ })).toHaveCount(0);
+    const responds = guards.apiRequests.filter((entry) => entry.endsWith("/respond"));
+    expect(responds.length, `the UI resent a decision after the conflict: ${responds.join(", ")}`).toBe(1);
+  } finally {
+    await other.close();
+    await otherContext.close();
+  }
 });
 
 test("undo appears only where the server offers it and a cancel stays queued", async ({ page, baseURL }) => {

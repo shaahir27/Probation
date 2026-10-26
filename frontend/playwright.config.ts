@@ -30,6 +30,7 @@ interface Journey {
   name: string;
   items: number;
   files: string[];
+  profile?: "private" | "synthetic";
 }
 
 const journeys: Journey[] = [
@@ -43,10 +44,12 @@ const journeys: Journey[] = [
       "04-keyboard-a11y.spec.ts",
       "05-network-console.spec.ts",
       "06-session-isolation.spec.ts",
+      "08-connect-apps.spec.ts",
     ],
   },
   { name: "private-journey", items: 1, files: ["private-workspace.spec.ts"] },
   { name: "durable-journey", items: 2, files: ["07-golden-path.spec.ts"] },
+  { name: "synthetic-connections", items: 1, profile: "synthetic", files: ["09-synthetic-connections.spec.ts"] },
 ];
 
 const requested = process.argv.flatMap((argument, index) => {
@@ -86,7 +89,7 @@ process.env.PROBATION_D6_E2E_STOP_FILES = JSON.stringify(servers.map((server) =>
 
 export default defineConfig({
   testDir: "./tests/e2e",
-  outputDir: "../../e2e-results",
+  outputDir: join("..", "data", "checks", `d6-e2e-${servers[0]?.allocation.namespace ?? runId}`),
   globalTeardown: "./tests/e2e/stop-server.ts",
   fullyParallel: false,
   forbidOnly: Boolean(process.env.CI),
@@ -115,6 +118,7 @@ export default defineConfig({
       PROBATION_D6_E2E_API_PORT: String(server.allocation.apiPort),
       PROBATION_D6_E2E_WEB_PORT: String(server.allocation.webPort),
       PROBATION_D6_E2E_ITEMS: String(server.journey.items),
+      PROBATION_D6_E2E_PROFILE: server.journey.profile ?? "private",
       PROBATION_D6_E2E_STOP_FILE: server.stopFile,
     },
   })),

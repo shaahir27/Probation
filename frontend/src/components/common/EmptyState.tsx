@@ -1,5 +1,5 @@
 import React from "react";
-import { CheckCircle2 } from "lucide-react";
+import { Inbox } from "lucide-react";
 
 interface EmptyStateProps {
   title: string;
@@ -11,12 +11,12 @@ interface EmptyStateProps {
 export function EmptyState({
   title,
   description,
-  icon = <CheckCircle2 className="w-8 h-8 text-status-success" />,
+  icon = <Inbox aria-hidden="true" className="w-6 h-6 text-ink-tertiary" />,
   action,
 }: EmptyStateProps) {
   return (
-    <div className="py-16 px-6 text-center flex flex-col items-center justify-center rounded-2xl bg-surface border border-line my-6">
-      <div className="w-12 h-12 rounded-2xl bg-surfaceSubtle flex items-center justify-center mb-4">
+    <div className="py-10 px-6 flex flex-col items-start justify-center rounded-xl bg-surface my-4">
+      <div className="text-ink-tertiary mb-5">
         {icon}
       </div>
       <h3 className="text-base font-semibold text-ink">{title}</h3>

@@ -27,6 +27,41 @@ def test_cli_db_init(tmp_path: Path) -> None:
         assert test_db.exists()
 
 
+def test_cli_db_migrate_upgrades_legacy_database_without_changing_ledger(tmp_path: Path) -> None:
+    from probation.api.db import connect_api
+    from probation.db.ledger import verify_ledger
+
+    test_db = tmp_path / "legacy.db"
+    conn = get_connection(test_db)
+    schema = Path(__file__).parents[2] / "src/probation/db/schema.sql"
+    conn.executescript(schema.read_text(encoding="utf-8"))
+    append_ledger(conn, "action", "migration-fixture", {"synthetic": True}, "2026-03-01T10:00:00Z")
+    conn.commit()
+    original = [tuple(row) for row in conn.execute("SELECT * FROM ledger ORDER BY seq")]
+    conn.close()
+
+    with patch.object(settings, "db_path", test_db):
+        for _ in range(2):
+            result = runner.invoke(app, ["db", "migrate"])
+            assert result.exit_code == 0, result.stdout
+            current = connect_api(test_db)
+            try:
+                assert verify_ledger(current) == (True, None)
+                assert [
+                    tuple(row) for row in current.execute("SELECT * FROM ledger ORDER BY seq")
+                ] == original
+            finally:
+                current.close()
+
+
+def test_cli_db_migrate_refuses_missing_database(tmp_path: Path) -> None:
+    missing = tmp_path / "missing.db"
+    with patch.object(settings, "db_path", missing):
+        result = runner.invoke(app, ["db", "migrate"])
+    assert result.exit_code != 0
+    assert not missing.exists()
+
+
 def test_cli_ledger_verify(tmp_path: Path) -> None:
     """probation ledger verify verifies hash chain."""
     test_db = tmp_path / "cli_ledger.db"

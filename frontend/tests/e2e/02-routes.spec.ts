@@ -1,15 +1,27 @@
 import { expect, test } from "@playwright/test";
-import { ITEM, OWNER_KEY, signIn } from "./e2e-support";
+import { ITEM, signIn } from "./e2e-support";
 
-/** Route coverage for the frozen screen map, plus refresh / Back / forward honesty. */
+/** Email-demo routes and useful setup destinations, plus refresh / Back / forward honesty. */
 
 test.beforeEach(async ({ page }) => {
   await signIn(page);
 });
 
+test("the demo navigation focuses on email review and its real outcomes", async ({ page }) => {
+  const navigation = page.getByRole("navigation", { name: "Main navigation" });
+  for (const [route, label] of [["home", "Overview"], ["queue", "Review"], ["actions", "Activity"], ["permissions", "Permissions"]]) {
+    await expect(navigation.locator(`a[href="#/${route}"]`)).toContainText(label);
+  }
+  await expect(navigation.getByRole("link", { name: /Radar|Reading library|Habits|Chains|Calendar|Files/ })).toHaveCount(0);
+  await page.goto("/#/more");
+  const settings = page.getByRole("navigation", { name: "More destinations" });
+  await expect(settings.getByRole("link")).toHaveCount(9);
+  await expect(settings.getByRole("link", { name: /Radar|Reading library|Learned about you|Follow-on patterns/ })).toHaveCount(0);
+});
+
 test("every primary route renders its own screen", async ({ page }) => {
   await page.goto("/#/");
-  await expect(page.getByRole("heading", { name: /needs? your decision/i }).first()).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Email overview" })).toBeVisible();
 
   await page.goto("/#/queue");
   await expect(page.getByRole("heading", { name: "Review", exact: true })).toBeVisible();
@@ -27,18 +39,18 @@ test("every primary route renders its own screen", async ({ page }) => {
   await expect(page.getByText("Nothing here is waiting for your decision. Probation is only observing.")).toBeVisible();
 
   await page.goto("/#/actions");
-  await expect(page.getByRole("heading", { name: "Actions" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Activity" })).toBeVisible();
 
   await page.goto("/#/permissions");
   await expect(page.getByRole("heading", { name: "Permissions" })).toBeVisible();
 
   await page.goto("/#/more");
-  await expect(page.getByRole("heading", { name: "More" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "More", exact: true })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "More destinations" })).toBeVisible();
 
-  for (const section of ["insights", "metrics", "habits", "chains", "exams", "connections", "usage", "privacy", "activity", "settings", "help", "radar", "library"]) {
+  for (const section of ["connections", "insights", "metrics", "exams", "usage", "privacy", "activity", "settings", "help"]) {
     await page.goto(`/#/more/${section}`);
-    await expect(page.getByRole("main").getByRole("heading", { name: "More" })).toBeVisible();
+    await expect(page.getByRole("main").getByRole("heading", { name: "More", exact: true })).toBeVisible();
     await expect(
       page.getByRole("navigation", { name: "More destinations" }).getByRole("link", { name: sectionLabel(section) }),
     ).toHaveAttribute("aria-current", "page");
@@ -52,16 +64,16 @@ test("every primary route renders its own screen", async ({ page }) => {
 function sectionLabel(section: string): string {
   const labels: Record<string, string> = {
     insights: "Performance",
-    metrics: "Counts and trends",
+    metrics: "Counts & trends",
     habits: "Learned about you",
     chains: "Follow-on patterns",
-    exams: "Trick-question tests",
-    connections: "Connections",
-    usage: "Cost and usage",
-    privacy: "Privacy and web",
-    activity: "Activity record",
+    exams: "Trick tests",
+    connections: "Connect apps",
+    usage: "Cost & usage",
+    privacy: "Privacy & web",
+    activity: "Integrity record",
     settings: "Settings in use",
-    help: "Help and limits",
+    help: "Help & limits",
     radar: "Radar",
     library: "Reading library",
   };
@@ -81,30 +93,22 @@ test("an unknown route is a clear not-found state, never a blank screen", async 
   await expect(page.getByRole("heading", { name: "Page not found" })).toBeVisible();
 });
 
-test("a deep link survives a reload", async ({ page }) => {
+test("a deep link survives a reload inside the owner session", async ({ page }) => {
   await page.goto("/#/queue/e2e-ask-2");
   await expect(page.getByRole("heading", { name: ITEM.conflict })).toBeVisible();
   await page.reload();
-  // The owner key is memory-only by contract, so a refresh returns to the sign-in screen and
-  // shows no private data. The deep-linked route must survive that, and come back after
-  // re-authentication rather than being overwritten by Home.
-  await expect(page.getByRole("heading", { name: "Sign in to your account" })).toBeVisible();
-  await expect(page).toHaveURL(/#\/queue\/e2e-ask-2/);
-  await expect(page.getByRole("listitem")).toHaveCount(0);
-  await page.getByLabel("Owner key").fill(OWNER_KEY);
-  await page.getByRole("button", { name: "Continue" }).click();
+  // The HttpOnly session cookie survives a refresh and the key was never stored, so the
+  // deep-linked item comes back directly instead of a sign-in screen.
   await expect(page.getByRole("heading", { name: ITEM.conflict })).toBeVisible();
+  await expect(page).toHaveURL(/#\/queue\/e2e-ask-2/);
+  await expect(page.getByRole("heading", { name: "Sign in to your account" })).toHaveCount(0);
 
   await page.goto("/#/more/settings");
   await page.reload();
-  // Same contract as the reload assertion above: the route survives, the session does not.
-  await expect(page.getByRole("heading", { name: "Sign in to your account" })).toBeVisible();
-  await expect(page).toHaveURL(/#\/more\/settings/);
-  await page.getByLabel("Owner key").fill(OWNER_KEY);
-  await page.getByRole("button", { name: "Continue" }).click();
   await expect(
     page.getByRole("navigation", { name: "More destinations" }).getByRole("link", { name: "Settings in use" }),
   ).toHaveAttribute("aria-current", "page");
+  await expect(page.getByRole("heading", { name: "Sign in to your account" })).toHaveCount(0);
 });
 
 test("Back returns to the filtered list and forward returns to the item", async ({ page }) => {

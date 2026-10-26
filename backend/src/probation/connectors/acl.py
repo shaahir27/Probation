@@ -314,16 +314,30 @@ def _enumerate_aces(dacl: int) -> list[tuple[int, int, int]]:
     return aces
 
 
+def _owned_by_current_user(path: Path) -> bool:
+    """Whether the descriptor owner already matches this process, without changing anything."""
+    descriptor, owner, _ = _read_security(path)
+    try:
+        me = _process_user_sid()  # keep the SID buffer alive through EqualSid
+        return _same_sid(owner, me.address)
+    finally:
+        _apis().local_free(_P(descriptor))
+
+
 def apply_owner_only(path: Path, *, is_dir: bool) -> None:
-    """Make ``path`` owner-only: current user takes ownership, DACL becomes one allow ACE.
+    """Make ``path`` owner-only: the current user owns it and the DACL is one explicit ACE.
 
     The single ACE is built with ``EXPLICIT_ACCESS_W`` + ``SetEntriesInAclW`` (no old ACL is
     merged in) and written with ``SetSecurityInfo`` under ``PROTECTED_DACL_SECURITY_INFORMATION``
     so every inherited ACE is dropped. Inheritance flags are zero, so nothing propagates down.
-    The result is then read back: this function never reports success without proof.
+    When the path is already owned by the current user, only the DACL is replaced; asking for
+    ``WRITE_OWNER`` unnecessarily can be denied by a restricted token even though the owner can
+    still protect its own path. The result is read back: this function never reports success
+    without proof.
     """
     api = _apis()
     me = _process_user_sid()
+    owned = _owned_by_current_user(path)
     request = _ExplicitAccessW()
     request.grfAccessPermissions = _FILE_ALL_ACCESS
     request.grfAccessMode = _SET_ACCESS
@@ -336,13 +350,14 @@ def apply_owner_only(path: Path, *, is_dir: bool) -> None:
     if code or not new_dacl.value:
         raise PrivatePathRejected(f"owner_only_dacl_build_failed_{code}")
     try:
-        handle = _open_handle(path, is_dir, _WRITE_DAC | _WRITE_OWNER | _READ_CONTROL)
+        access = _WRITE_DAC | _READ_CONTROL | (0 if owned else _WRITE_OWNER)
+        handle = _open_handle(path, is_dir, access)
         try:
             written = api.set_security_info(
                 _P(handle),
                 SE_FILE_OBJECT,
-                _OWNER_SI | _DACL_SI | _PROTECTED_DACL_SI,
-                me.pointer,
+                _DACL_SI | _PROTECTED_DACL_SI | (0 if owned else _OWNER_SI),
+                None if owned else me.pointer,
                 None,
                 new_dacl,
                 None,

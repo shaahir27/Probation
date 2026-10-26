@@ -35,6 +35,7 @@ if "%TARGET%"=="help" (
     echo   make.cmd synth [PERSONA] [SEED] Generate synthetic persona
     echo   make.cmd backtest [FAMILY]    Run replay backtest
     echo   make.cmd serve                Run backend server
+    echo   make.cmd serve-live           Run supervised live Gmail runtime and API
     echo   make.cmd web                  Run frontend dev server
     echo   make.cmd eval [SUITE]         Run eval suite
     echo   make.cmd ledger-verify        Verify ledger hash chain
@@ -63,6 +64,11 @@ if "%TARGET%"=="test" (
 
 if "%TARGET%"=="serve" (
     %PYTHON% -m probation.cli serve --reload
+    exit /b %ERRORLEVEL%
+)
+
+if "%TARGET%"=="serve-live" (
+    %PYTHON% -m probation.cli serve --gmail-runtime
     exit /b %ERRORLEVEL%
 )
 

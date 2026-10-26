@@ -34,7 +34,9 @@ from probation.connectors.credentials_state import (
     BASE_CHILD_ENV,
     EnvCredentialSource,
     ProvisionedGrant,
+    RefreshTokenStore,
 )
+from probation.connectors.gmail_read_grant import token_root
 from probation.connectors.types import ConnectorError, CredentialRole
 from probation.core.clock import Clock, operational_clock
 from probation.core.runtime_status import (
@@ -126,6 +128,17 @@ _CREDENTIAL_OVERRIDES: Mapping[RuntimeRole, CredentialRole] = {
 }
 CREDENTIAL_ROLES: Mapping[RuntimeRole, CredentialRole | None] = MappingProxyType(
     {role: _CREDENTIAL_OVERRIDES.get(role) for role in RuntimeRole}
+)
+
+#: Roles whose child environment carries the live-provider flag. API and Resolver never do.
+_LIVE_ROLES: Final[frozenset[RuntimeRole]] = frozenset(
+    {
+        RuntimeRole.OBSERVATION,
+        RuntimeRole.BRAIN,
+        RuntimeRole.EXAMINER,
+        RuntimeRole.WEBFACTS,
+        RuntimeRole.EXECUTOR,
+    }
 )
 
 #: Private-store authority is separate from the engine role and is never widened by it.
@@ -281,8 +294,15 @@ def build_role_context(
     if live and grant is not None:
         live_transport = GmailHttpTransport()
         try:
+            token_store = RefreshTokenStore(
+                token_root(Path(private_store_path), role=grant.role)
+            )
             provider = build_live_provider(
-                grant=grant, env=env, clock=clock, api_transport=live_transport
+                grant=grant,
+                env=env,
+                clock=clock,
+                api_transport=live_transport,
+                token_store=token_store,
             )
         except Exception:
             live_transport.close()
@@ -657,8 +677,12 @@ class GmailRuntime:
     def command_for(self, role: RuntimeRole) -> list[str]:
         bootstrap = Path(__file__).with_name("bootstrap.py")
         module_args = ["--role", role.value]
-        if self.env.get(_LIVE_ENV) == "1":
+        if role in _LIVE_ROLES and self.env.get(_LIVE_ENV) == "1":
             module_args.append("--live")
+        if role is RuntimeRole.EXECUTOR:
+            # The command consumer and effects are useful even when follow-ups are absent;
+            # the role reports degraded instead of refusing to consume pause/resume/revoke.
+            module_args.append("--allow-degraded")
         if role in {RuntimeRole.BRAIN, RuntimeRole.WEBFACTS}:
             module_args.append("--ipc-stdio")
         module_args.extend(
@@ -747,6 +771,7 @@ class GmailRuntime:
                     "PROBATION_GMAIL_STORE",
                     "PROBATION_GMAIL_BIND_HOST",
                     "PROBATION_API_PORT",
+                    "PROBATION_GMAIL_FORWARD_ALLOWLIST",
                 }
             )
         allowed = BASE_CHILD_ENV | safe_config

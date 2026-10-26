@@ -1,81 +1,34 @@
-import {
-  Home,
-  Inbox,
-  Zap,
-  Shield,
-  MoreHorizontal,
-  Layers,
-} from "lucide-react";
+import { Home, Inbox, ArrowUpRight, Shield, MoreHorizontal, Eye, Link2 } from "lucide-react";
+import { ProbationMark } from "./ProbationMark";
 
-interface DesktopSidebarProps {
-  currentTab: string;
-  queueCount: number;
-}
-
-export function DesktopSidebar({ currentTab, queueCount }: DesktopSidebarProps) {
+interface DesktopSidebarProps { currentTab: string; currentSection?: string; queueCount: number }
+export function DesktopSidebar({ currentTab, currentSection, queueCount }: DesktopSidebarProps) {
   const destinations = [
-    { id: "home", label: "Home", icon: Home },
-    { id: "queue", label: "Review", icon: Inbox, badge: queueCount > 0 ? queueCount : undefined },
-    { id: "actions", label: "Actions", icon: Zap },
+    { id: "home", label: "Overview", icon: Home },
+    { id: "queue", label: "Review", icon: Inbox },
+    { id: "actions", label: "Activity", icon: ArrowUpRight },
     { id: "permissions", label: "Permissions", icon: Shield },
-    { id: "more", label: "More", icon: MoreHorizontal },
   ];
-
-  return (
-    <aside className="hidden md:flex w-[232px] h-screen sticky top-0 border-r border-line nav-glass flex-col justify-between p-4 z-40 select-none">
-      <div>
-        {/* Brand Header */}
-        <div className="flex items-center gap-3 px-3 py-4 mb-3">
-          <div className="w-8 h-8 rounded-lg bg-surfaceSubtle border border-line flex items-center justify-center text-brand">
-            <Layers className="w-4 h-4 text-brand" />
-          </div>
-          <div>
-            <span className="font-serif text-xl tracking-tight text-ink font-normal">
-              Probation
-            </span>
-            <div className="text-[10px] text-ink-tertiary">Earned Autonomy</div>
-          </div>
-        </div>
-
-        {/* Navigation Links */}
-        <nav aria-label="Main navigation" className="space-y-1.5">
-          {destinations.map((dest) => {
-            const Icon = dest.icon;
-            const active = currentTab === dest.id;
-            return (
-              <a
-                key={dest.id}
-                href={`#/${dest.id}`}
-                aria-current={active ? "page" : undefined}
-                aria-label={
-                  dest.id === "queue"
-                    ? queueCount > 0
-                      ? `Review Queue, ${queueCount} waiting`
-                      : "Review Queue"
-                    : undefined
-                }
-                className={`w-full min-h-11 flex items-center justify-between px-3.5 py-2.5 rounded-md text-sm transition-colors ${
-                  active
-                    ? "text-ink font-medium"
-                    : "text-ink-secondary hover:text-ink hover:bg-surfaceSubtle"
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <Icon aria-hidden="true" className="w-4 h-4 text-ink-tertiary" />
-                  <span>{dest.label}</span>
-                </div>
-                {dest.badge !== undefined && (
-                  <span className="px-1.5 py-0.5 rounded-full text-[11px] font-bold bg-brand text-brand-on">
-                    {dest.badge}
-                  </span>
-                )}
-              </a>
-            );
-          })}
-        </nav>
+  return <aside className="workspace-sidebar hidden md:flex">
+    <a href="#/home" className="workspace-brand" aria-label="Probation overview">
+      <ProbationMark className="h-10 w-9 text-brand" />
+      <span><span className="block font-serif text-2xl tracking-tight">Probation</span><span className="block text-xs text-ink-tertiary mt-1">Permission, earned.</span></span>
+    </a>
+    <p className="px-3 text-xs text-ink-tertiary mb-3">Your email workspace</p>
+    <nav aria-label="Main navigation" className="space-y-1">
+      {destinations.map(({ id, label, icon: Icon }) => <a key={id} href={`#/${id}`} aria-current={currentTab === id ? "page" : undefined}
+        aria-label={id === "queue" ? `Review emails${queueCount > 0 ? `, ${queueCount} waiting` : ""}` : undefined}
+        className={`workspace-nav-link ${currentTab === id ? "is-current" : ""}`}>
+        <Icon aria-hidden="true" size={17} strokeWidth={1.6} /><span>{label}</span>
+        {id === "queue" && queueCount > 0 && <span className="ml-auto text-xs tabular-nums text-ink">{queueCount}</span>}
+      </a>)}
+    </nav>
+    <div className="mt-auto space-y-5 pt-8">
+      <div className="sidebar-principle"><Eye aria-hidden="true" size={16} /><p>It starts by watching.<br /><span className="text-ink-tertiary">You stay in control.</span></p></div>
+      <div className="space-y-1">
+        <a href="#/more/connections" aria-current={currentTab === "more" && currentSection === "connections" ? "page" : undefined} className={`workspace-nav-link ${currentTab === "more" && currentSection === "connections" ? "is-current" : ""}`}><Link2 aria-hidden="true" size={17} strokeWidth={1.6} /><span>Connect apps</span></a>
+        <a href="#/more/insights" aria-current={currentTab === "more" && currentSection !== "connections" ? "page" : undefined} className={`workspace-nav-link ${currentTab === "more" && currentSection !== "connections" ? "is-current" : ""}`}><MoreHorizontal aria-hidden="true" size={17} strokeWidth={1.6} /><span>More</span></a>
       </div>
-
-      <div className="px-3 py-2 text-xs text-ink-tertiary">Your account</div>
-    </aside>
-  );
+    </div>
+  </aside>;
 }

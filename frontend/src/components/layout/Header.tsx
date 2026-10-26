@@ -1,22 +1,12 @@
-import { Clock } from "lucide-react";
-
-interface HeaderProps {
-  title: string;
-  mode?: string;
-  simulatedDate?: string;
-  profile?: "private" | "synthetic" | null;
-  onSignOut?: () => void;
-}
-
+import { LogOut } from "lucide-react";
+import { ProbationMark } from "./ProbationMark";
+interface HeaderProps { title: string; mode?: string; simulatedDate?: string; profile?: "private" | "synthetic" | null; onSignOut?: () => void }
 export function Header({ title, mode = "live", simulatedDate, profile, onSignOut }: HeaderProps) {
-  return <header className="min-h-12 border-b border-line bg-canvas sticky top-0 z-30 px-4 sm:px-6 flex items-center justify-between gap-3">
-    <p className="font-serif text-lg text-ink font-normal tracking-tight">Probation <span className="font-sans text-sm text-ink-secondary">/ {title}</span></p>
-    <div className="flex items-center gap-3">
-      {simulatedDate && mode === "replay" ? <div className="flex items-center gap-2 text-xs text-ink-secondary">
-        <Clock aria-hidden="true" className="w-3.5 h-3.5 text-brand" />
-        <span>Demo date: <strong className="text-ink font-mono">{simulatedDate.split("T")[0]}</strong></span>
-      </div> : <span className="hidden sm:inline text-xs text-ink-secondary">{profile === "synthetic" ? "Demo data" : "Private account"}</span>}
-      {onSignOut && <button type="button" onClick={onSignOut} className="min-h-11 px-2 text-xs text-ink-secondary underline underline-offset-4">Sign out</button>}
+  return <header className="workspace-topbar">
+    <div className="flex min-w-0 items-center gap-3"><ProbationMark className="h-7 w-6 text-brand md:hidden" /><span className="text-sm text-ink-secondary truncate">Email workspace<span aria-hidden="true" className="mx-3 text-ink-tertiary">/</span><span className="text-ink">{title}</span></span></div>
+    <div className="flex shrink-0 items-center gap-3 sm:gap-5">
+      <span className="text-xs text-ink-secondary hidden sm:inline">{profile === "synthetic" ? "Synthetic demo" : "Private test account"}{mode === "replay" && simulatedDate ? ` · ${simulatedDate.split("T")[0]}` : ""}</span>
+      {onSignOut && <button type="button" onClick={onSignOut} className="min-h-11 inline-flex items-center gap-2 text-xs text-ink-secondary hover:text-ink"><LogOut size={14} aria-hidden="true" /><span>Sign out</span></button>}
     </div>
   </header>;
 }

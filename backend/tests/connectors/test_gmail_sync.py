@@ -318,6 +318,38 @@ def test_out_of_cohort_history_stores_nothing(store: Path) -> None:
         access.conn.close()
 
 
+def test_incremental_observes_a_message_that_gains_the_cohort_label_later(store: Path) -> None:
+    fake = FakeGmailTransport(expected_token=TOKEN)
+    fake.add_message(_message("m1", labels={OWNER_LABEL, "INBOX"}))
+    access = _access(store)
+    try:
+        _sync(fake, access).bootstrap(_selection(), owner="reader-a")
+        # The message arrives first without the owner label, so it is not yet in the cohort.
+        fake.add_message(_message("m-late", labels={"INBOX"}))
+        _sync(fake, access).incremental(_selection(), owner="reader-a")
+        assert access.one(
+            "SELECT 1 AS present FROM gmail_observations WHERE native_message_id='m-late'"
+        ) is None
+
+        # The owner labels it afterwards: the label event is its first admission and the body
+        # must be fetched, otherwise the email joins the cohort without ever being observed.
+        fake.modify_labels("m-late", add=(OWNER_LABEL,), remove=())
+        bodies_before = fake.body_calls
+        _sync(fake, access).incremental(_selection(), owner="reader-a")
+
+        assert fake.body_calls == bodies_before + 1
+        row = access.one(
+            "SELECT payload_ref,event_type FROM gmail_observations WHERE native_message_id='m-late'"
+        )
+        assert row is not None
+        assert row["event_type"] == "message_added"
+        payload = GmailPayloadStore(_payload_root(store)).read(str(row["payload_ref"]))
+        assert payload.native_message_id == "m-late"
+        assert payload.body_text == "hello body text"
+    finally:
+        access.conn.close()
+
+
 def test_label_evidence_counts_only_persisted_transitions(store: Path) -> None:
     fake = FakeGmailTransport(expected_token=TOKEN)
     fake.add_message(_message("m1", labels={OWNER_LABEL, "INBOX"}))

@@ -8,7 +8,7 @@ const WIDTHS = [360, 390, 768, 1440] as const;
 test("the primary screens fit and their main action stays reachable at every width", async ({ page }) => {
   await signIn(page);
   const screens: Array<[string, string | null]> = [
-    ["/#/", "Probation reads your own past decisions"],
+    ["/#/", "Email overview"],
     ["/#/queue", ITEM.first],
     ["/#/queue/proposal", "Why Probation suggested this"],
   ];

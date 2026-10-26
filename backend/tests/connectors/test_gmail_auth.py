@@ -270,6 +270,12 @@ def test_callback_rejects_cancelled_wrong_state_and_missing_params() -> None:
             parse_callback_query(query, expected_state=STATE_SEED)
         assert excinfo.value.safe_code == code
     code = parse_callback_query(f"code={CODE_CANARY}&state={STATE_SEED}", expected_state=STATE_SEED)
+    assert code.reveal() == CODE_CANARY
+    google_style = "4/0AVGzR1AbCdEfGhIjKlMnOpQrStUvWxYz-0123456789"
+    parsed = parse_callback_query(
+        f"code={google_style}&state={STATE_SEED}", expected_state=STATE_SEED
+    )
+    assert parsed.reveal() == google_style
     assert code.kind == "code"
 
 

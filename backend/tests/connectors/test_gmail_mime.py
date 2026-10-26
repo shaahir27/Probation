@@ -38,7 +38,7 @@ def _message(
     *,
     native_id: str = "msg-1",
     thread_id: str = "thread-1",
-    history_id: int = 42,
+    history_id: int | str = 42,
     headers: list[dict[str, str]] | None = None,
     labels: list[str] | None = None,
     internal_date: str = "1700000000000",
@@ -92,6 +92,18 @@ def test_html_only_is_reduced_without_scripts_or_execution() -> None:
     assert "Real text here" in parsed.text
     assert "alert" not in parsed.text
     assert "remote.test" not in parsed.text
+
+
+def test_live_gmail_decimal_string_history_id_is_accepted() -> None:
+    parsed = parse_message(_message([_text_part("hi")], history_id="9876543210"))
+    assert parsed.history_id == 9876543210
+
+
+@pytest.mark.parametrize("value", [None, True, -1, "not-a-number", "1" * 21])
+def test_invalid_history_id_still_fails_closed(value: object) -> None:
+    with pytest.raises(UnparseableHeader) as excinfo:
+        parse_message(_message([_text_part("hi")], history_id=value))  # type: ignore[arg-type]
+    assert excinfo.value.safe_code == "missing_history_id"
 
 
 def test_identifiers_stay_separate_and_never_substitute() -> None:

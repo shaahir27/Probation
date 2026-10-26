@@ -6,15 +6,15 @@
   color-scheme: dark;
 
   /* Spruce & Brass Semantic Design Tokens */
-  --canvas: #111B18;
-  --surface: #192723;
-  --surface-raised: #21322D;
-  --surface-subtle: #293B34;
-  --surface-recessed: #131F1C;
+  --canvas: #111816;
+  --surface: #1A2420;
+  --surface-raised: #24312B;
+  --surface-subtle: #2D3D35;
+  --surface-recessed: #141D19;
   --ink: #EDF2EB;
   --ink-secondary: #B7C3B8;
   --ink-tertiary: #91A096;
-  --line: #344840;
+  --line: #37483F;
   --brand: #C8B27D;
   --on-brand: #18231E;
   --brand-hover: #D8C693;
@@ -95,3 +95,52 @@ main button {
     scroll-margin-bottom: 1.5rem;
   }
 }
+
+/* Demo workspace: 224px navigation + a fluid canvas; at 1440px, 32px gutters leave 1152px of work area. */
+.workspace-sidebar { width: 224px; flex: 0 0 224px; height: 100vh; position: sticky; top: 0; flex-direction: column; padding: 32px 18px 20px; border-right: 1px solid var(--line); background: var(--canvas); }
+.workspace-brand { display: flex; gap: 12px; align-items: center; padding: 0 10px 42px; color: var(--ink); }
+.workspace-nav-link { min-height: 46px; display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 8px; color: var(--ink-secondary); font-size: 14px; transition: color 140ms ease, background-color 140ms ease; }
+.workspace-nav-link:hover, .workspace-nav-link.is-current { color: var(--ink); background: var(--surface); }
+.workspace-nav-link.is-current { font-weight: 600; }
+.sidebar-principle { display: flex; gap: 10px; margin: 0 10px; padding: 18px 0; border-top: 1px solid var(--line); color: var(--ink-secondary); font-size: 12px; line-height: 1.7; }
+.sidebar-principle svg { margin-top: 3px; flex-shrink: 0; }
+.workspace-topbar { min-height: 64px; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 0 32px; background: var(--canvas); border-bottom: 1px solid var(--line); }
+.mobile-workspace-nav { position: fixed; bottom: 0; left: 0; right: 0; z-index: 50; min-height: 72px; padding: 6px 6px max(6px,env(safe-area-inset-bottom)); border-top: 1px solid var(--line); background: var(--canvas); align-items: center; justify-content: space-around; }
+.mobile-workspace-nav a { min-height: 52px; min-width: 0; flex: 1; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 5px; font-size: 11px; color: var(--ink-secondary); border-radius: 6px; }
+.mobile-workspace-nav a.is-current { background: var(--surface); color: var(--ink); }
+.work-panel { background: var(--surface); border-radius: 12px; padding: 24px; }
+.work-panel-soft { background: var(--surface-raised); border-radius: 8px; padding: 20px; }
+.section-heading { font-size: 16px; font-weight: 600; line-height: 24px; }
+.section-caption { font-size: 13px; color: var(--ink-secondary); line-height: 1.65; }
+.overview-grid { display: grid; grid-template-columns: minmax(0,1.65fr) minmax(260px,1fr); gap: 20px; align-items: stretch; }
+.overview-main { min-width: 0; display: flex; flex-direction: column; }
+.overview-next { display: flex; flex-direction: column; gap: 20px; }
+.overview-next > .work-panel { flex: 1; display: flex; flex-direction: column; }
+.overview-next > .work-panel > a:last-child { margin-top: auto; padding-top: 12px; }
+.mail-identity { width: 36px; height: 36px; flex: 0 0 36px; border: 1px solid var(--line); border-radius: 50%; display: grid; place-items: center; color: var(--ink-secondary); font-family: Georgia,serif; font-size: 17px; }
+.mail-list-row { display: flex; gap: 16px; align-items: flex-start; padding: 20px 0; }
+.mail-list-row + .mail-list-row { border-top: 1px solid var(--line); }
+.mail-list-row:first-child { padding-top: 4px; }
+.mail-list-row:last-child { padding-bottom: 4px; }
+.decision-strip { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 0; border-top: 1px solid var(--line); padding-top: 20px; }
+.decision-strip > div { padding: 0 20px; border-left: 1px solid var(--line); }
+.decision-strip > div:first-child { padding-left: 0; border-left: 0; }
+.decision-strip span { display: block; font-size: 12px; color: var(--ink-secondary); margin-bottom: 7px; }
+.decision-strip strong { font-size: 25px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.review-workspace { display: grid; grid-template-columns: minmax(0,1fr) 280px; gap: 24px; align-items: start; }
+.review-workspace > * { min-width: 0; }
+.review-tab { min-height: 44px; padding: 10px 0; color: var(--ink-secondary); border-bottom: 2px solid transparent; font-size: 13px; }
+.review-tab[aria-pressed="true"] { color: var(--ink); border-bottom-color: var(--ink); }
+.review-email { padding: 24px; background: var(--surface); border-radius: 12px; }
+.review-form { padding: 24px; background: var(--surface-raised); border-radius: 12px; }
+.review-form textarea { line-height: 1.8; background: var(--surface); min-height: 220px; }
+.review-body { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; line-height: 1.8; color: var(--ink-secondary); }
+.review-meta { display: flex; align-items: center; gap: 10px; padding-bottom: 20px; margin-bottom: 20px; border-bottom: 1px solid var(--line); }
+.sign-in-workspace { min-height: 100vh; display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); max-width: 1440px; margin: 0 auto; }
+.sign-in-intro { display: flex; flex-direction: column; justify-content: space-between; gap: 64px; padding: clamp(32px,6vw,88px); background: var(--surface); }
+.sign-in-access { display: grid; place-items: center; padding: clamp(24px,6vw,88px); }
+.sign-in-method { display: flex; flex-wrap: wrap; align-items: center; gap: 18px; color: var(--ink-secondary); font-size: 13px; }
+.sign-in-method span:nth-child(even) { color: var(--ink-tertiary); }
+@media (max-width: 1100px) { .overview-grid { grid-template-columns: minmax(0,1fr); } .overview-next { display: grid; grid-template-columns: 1fr 1fr; } .review-workspace { grid-template-columns: minmax(0,1fr); } }
+@media (max-width: 767px) { .workspace-topbar { min-height: 56px; padding: 0 20px; } .mobile-workspace-nav { display: flex; } .work-panel, .review-email, .review-form { padding: 20px; } .overview-next { display: flex; } .decision-strip > div { padding: 0 12px; } .mail-list-row { gap: 12px; } .sign-in-workspace { display: flex; flex-direction: column; } .sign-in-intro { padding: 28px 24px 32px; gap: 32px; } .sign-in-intro h2 { font-size: 26px; } .sign-in-access { padding: 40px 24px 56px; } .sign-in-method { display: none; } }
+@media (max-width: 767px) { .decision-strip span { min-height: 32px; } .overview-main .decision-strip { margin-block: 20px; } }

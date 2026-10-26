@@ -45,6 +45,9 @@ def _required_int(name: str) -> int:
 
 def _minimal_environment(temp_root: Path, api_port: int, namespace: str, items: int) -> dict[str, str]:
     """Pass only runtime necessities and synthetic test configuration to child processes."""
+    profile = os.environ.get("PROBATION_D6_E2E_PROFILE", "private")
+    if profile not in {"private", "synthetic"}:
+        raise RuntimeError("The D6 E2E profile must be private or synthetic.")
     environment = {
         key: os.environ[key]
         for key in ("PATH", "SYSTEMROOT", "WINDIR", "TEMP", "TMP", "PATHEXT", "COMSPEC", "USERPROFILE", "LOCALAPPDATA")
@@ -56,6 +59,7 @@ def _minimal_environment(temp_root: Path, api_port: int, namespace: str, items: 
             "DB_PATH": str(temp_root / "engine.db"),
             "WORLD_DB_PATH": str(temp_root / "world.db"),
             "CLOCK_MODE": "live",
+            "APP_PROFILE": profile,
             "LLM_API_KEY": "",
             "TAVILY_API_KEY": "",
             "PROBATION_GMAIL_OWNER_API_KEY": OWNER_KEY,
