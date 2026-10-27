@@ -61,6 +61,38 @@ def test_revocation_cannot_be_cleared_by_resume_and_other_scopes_do_not_leak(mem
     assert state(memory_db, "2026-06-01T01:01:00Z").revoked
 
 
+def test_fresh_oauth_generation_supersedes_older_controls_but_not_newer_ones(memory_db):
+    submit(memory_db, "revoke", "revoke")
+    submit(memory_db, "old-pause", "pause", "2026-06-01T01:00:01Z")
+    process_restriction_commands(memory_db, as_of="2026-06-01T01:00:02Z")
+    reauthorized = "2026-06-01T01:00:03Z"
+    assert not restrictions_for(
+        memory_db,
+        owner_id="owner",
+        connection_id="connection",
+        account_id="account",
+        resource_id="message",
+        class_key="mail|fyi|frequent",
+        action="ARCHIVE",
+        as_of="2026-06-01T01:00:04Z",
+        authorized_at=reauthorized,
+    ).blocked
+    submit(memory_db, "new-pause", "pause", "2026-06-01T01:00:05Z")
+    process_restriction_commands(memory_db, as_of="2026-06-01T01:00:06Z")
+    current = restrictions_for(
+        memory_db,
+        owner_id="owner",
+        connection_id="connection",
+        account_id="account",
+        resource_id="message",
+        class_key="mail|fyi|frequent",
+        action="ARCHIVE",
+        as_of="2026-06-01T01:00:07Z",
+        authorized_at=reauthorized,
+    )
+    assert current.paused and current.revision == "new-pause"
+
+
 def test_completed_resume_cannot_clear_an_inflight_pause(memory_db):
     submit(memory_db, "pause", "pause")
     receipts = ReceiptStore(RoleAccess(memory_db, Role.EXAMINER))

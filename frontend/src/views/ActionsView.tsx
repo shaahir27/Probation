@@ -1,4 +1,4 @@
-import { RESULT_NOT_CONFIRMED, actionStatusLabel, isConfirmedComplete, isUnconfirmedResult } from "../api/action_status";
+import { RESULT_NOT_CONFIRMED, actionStatusLabel, isSettledStatus, isUnconfirmedResult } from "../api/action_status";
 import { ActionItem } from "../api/types";
 import { Button } from "../components/common/Button";
 import { EmptyState } from "../components/common/EmptyState";
@@ -47,7 +47,7 @@ export function ActionsView({ actions, busyId, conflict, error, onUndo }: Action
         <ul className="border-t border-line divide-y divide-line">
           {actions.map((action) => {
             const unconfirmed = isUnconfirmedResult(action.status) || isUnconfirmedResult(action.execution_status);
-            const confirmed = isConfirmedComplete(action.status) && !unconfirmed;
+            const settled = isSettledStatus(action.status) && !unconfirmed;
             // An effect the server could not confirm never reads as completed: the frozen
             // copy for it is "Result not confirmed".
             const label = unconfirmed ? RESULT_NOT_CONFIRMED : actionStatusLabel(action.status);
@@ -61,14 +61,14 @@ export function ActionsView({ actions, busyId, conflict, error, onUndo }: Action
                   <p className="text-sm text-ink-secondary">
                     {label}
                     {action.hold_until !== null ? ` · Held until ${formatWhen(action.hold_until)}` : ""}
-                    {!confirmed && !unconfirmed ? " · Not completed yet" : ""}
+                    {!settled && !unconfirmed ? " · Not completed yet" : ""}
                   </p>
                   {unconfirmed && (
                     <p className="text-sm text-status-warning">
                       Probation could not confirm whether this happened. Check the email before trying again.
                     </p>
                   )}
-                  {action.undo_deadline !== null && action.undo_deadline !== undefined && (
+                  {action.status === "DONE" && action.undo_deadline !== null && action.undo_deadline !== undefined && (
                     <p className="text-xs text-ink-tertiary">Undo window until {formatWhen(action.undo_deadline)}.</p>
                   )}
                 </div>
@@ -83,7 +83,15 @@ export function ActionsView({ actions, busyId, conflict, error, onUndo }: Action
                       {busyId === action.id ? "Sending…" : action.status === "HELD" ? "Cancel action" : "Undo action"}
                     </Button>
                   ) : (
-                    <p className="text-xs text-ink-tertiary">Undo is not available for this action.</p>
+                    <p className="text-xs text-ink-tertiary">
+                      {action.status === "UNDONE"
+                        ? "This change was undone."
+                        : action.status === "CANCELLED"
+                          ? "This action was cancelled."
+                          : action.status === "FAILED"
+                            ? "No effect was applied."
+                            : "Undo is not available for this action."}
+                    </p>
                   )}
                 </div>
               </li>

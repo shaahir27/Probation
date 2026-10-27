@@ -4,7 +4,7 @@ import json
 import sqlite3
 from dataclasses import dataclass
 
-from probation.core.clock import format_timestamp
+from probation.core.clock import format_timestamp, parse_timestamp
 from probation.core.history import HistoryView
 from probation.core.lifecycle import ApprovalBinding, CommandScope, LifecycleError
 from probation.db.access import Role, RoleAccess
@@ -35,6 +35,7 @@ def restrictions_for(
     class_key: str | None,
     action: str,
     as_of: str,
+    authorized_at: str | None = None,
 ) -> ExecutionRestrictions:
     paused, revoked, revision = False, False, "0"
     paused_scopes: set[tuple[str | None, ...]] = set()
@@ -44,6 +45,12 @@ def restrictions_for(
         if not all((owner_id, connection_id, account_id, resource_id, action)):
             raise ValueError("missing_execution_scope")
         for record in HistoryView(conn, as_of).control_records():
+            # A fresh OAuth grant is newer authority than any control completed before it.
+            record_at = str(record["completed_at"] or record["created_at"])
+            if authorized_at is not None and parse_timestamp(record_at) < parse_timestamp(
+                authorized_at
+            ):
+                continue
             scope = CommandScope.model_validate(json.loads(record["scope_json"]))
             if (
                 record["owner_id"] != owner_id
@@ -89,6 +96,7 @@ def current_restrictions(
     as_of: str,
     *,
     class_key: str | None = None,
+    authorized_at: str | None = None,
 ) -> ExecutionRestrictions:
     return restrictions_for(
         conn,
@@ -99,6 +107,7 @@ def current_restrictions(
         class_key=class_key,
         action=binding.action,
         as_of=as_of,
+        authorized_at=authorized_at,
     )
 
 

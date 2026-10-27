@@ -175,6 +175,13 @@ class GmailMailExecutionIO:
         """The provider's label set for a cohort resource. Never a cached or local guess."""
         return frozenset(self._versioning.state(self._native(resource_id)).labels)
 
+    def prove_resource(self, resource_id: str) -> None:
+        """Allow undo to re-read the exact reviewed resource after it left the label cohort."""
+        native = str(resource_id)
+        if not native or len(native) > 512 or any(char < " " for char in native):
+            raise MailConflict("invalid_resource_id")
+        self._read.prove({native})
+
     def native_ref(self, snapshot: MailSnapshot) -> str:
         return self._ref(snapshot.native_message_id)
 

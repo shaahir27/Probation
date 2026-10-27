@@ -55,6 +55,7 @@ def reviewed(
         class_key=row["class_key"],
         action=binding.action,
         as_of=get_clock().now_iso(),
+        authorized_at=grant.authorized_at,
     )
     if restriction.blocked and body.response not in {"reject", "leave"}:
         raise HTTPException(409, "operation_restricted")

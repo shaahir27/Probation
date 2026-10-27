@@ -8,7 +8,8 @@ CREATE TABLE IF NOT EXISTS gmail_connections(
  selection_revision INTEGER NOT NULL CHECK(selection_revision>=1),
  label_ids TEXT NOT NULL CHECK(json_valid(label_ids)),credential_ref TEXT NOT NULL,
  granted_scopes TEXT NOT NULL CHECK(json_valid(granted_scopes)),
- created_at TEXT NOT NULL,updated_at TEXT NOT NULL,
+ created_at TEXT NOT NULL,updated_at TEXT NOT NULL,authorized_at TEXT,
+ authorization_sequence INTEGER,authorization_sequence_at TEXT,
  UNIQUE(account_id,connection_id),CHECK(credential_ref NOT LIKE '%:%//%')
 );
 CREATE TRIGGER IF NOT EXISTS d4_connection_identity BEFORE UPDATE ON gmail_connections WHEN NEW.connection_id IS NOT OLD.connection_id OR NEW.account_id IS NOT OLD.account_id OR NEW.owner_id IS NOT OLD.owner_id OR NEW.created_at IS NOT OLD.created_at OR NEW.credential_ref IS NOT OLD.credential_ref OR NEW.granted_scopes IS NOT OLD.granted_scopes OR NEW.selection_revision<OLD.selection_revision BEGIN SELECT RAISE(ABORT,'immutable connection identity'); END;

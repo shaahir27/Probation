@@ -21,27 +21,32 @@
 :root {
   color-scheme: light;
 
-  /* Ledger & Signal: warm stone paper, forest ink, one citron permit mark. */
-  --canvas: #F4F1E8;
-  --surface: #FBFAF5;
-  --surface-raised: #EFECE1;
-  --surface-subtle: #E4E0D3;
-  --surface-recessed: #EAE6DA;
-  --ink: #16211B;
-  --ink-secondary: #4E5A52;
-  --ink-tertiary: #5F6A61;
-  --line: #D6D0C1;
-  --brand: #1F5A45;
-  --on-brand: #FBFAF5;
-  --brand-muted: #CFE0D6;
-  --brand-hover: #2A6F56;
-  --accent: #D7F36B;
-  --on-accent: #16211B;
+  /* Ledger & Signal: eucalyptus paper, deep-pine rail, one citron permit mark. */
+  --canvas: #E9EEE6;
+  --surface: #FAFBF6;
+  --surface-raised: #DEE7DD;
+  --surface-subtle: #D3DFD2;
+  --surface-recessed: #E3EBE1;
+  --ink: #14231B;
+  --ink-secondary: #46584C;
+  --ink-tertiary: #5C6D60;
+  --line: #C7D3C6;
+  --brand: #1C5A43;
+  --on-brand: #F8FBF4;
+  --brand-muted: #C7DACB;
+  --brand-hover: #267357;
+  --accent: #D8F36A;
+  --on-accent: #14231B;
   --accent-soft: #EDF7C4;
-  --focus: #1F5A45;
+  --focus: #1C5A43;
   --success: #2F6B4F;
-  --warning: #8A5F0F;
-  --danger: #983D30;
+  --warning: #7D5A10;
+  --danger: #91382C;
+  --sidebar: #14362B;
+  --sidebar-ink: #F0F6EC;
+  --sidebar-muted: #B9CBBF;
+  --sidebar-active: #245043;
+  --sidebar-line: #2C4A3D;
   --font-display: "Fraunces", Georgia, Cambria, "Times New Roman", serif;
   --font-text: "Manrope", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
@@ -109,15 +114,15 @@ main button {
 }
 
 /* Demo workspace: 224px navigation + a fluid canvas; at 1440px, 32px gutters leave 1152px of work area. */
-.workspace-sidebar { width: 232px; flex: 0 0 232px; height: 100vh; position: sticky; top: 0; flex-direction: column; padding: 30px 16px 20px; border-right: 1px solid var(--line); background: var(--surface-raised); }
-.workspace-brand { display: flex; gap: 12px; align-items: center; padding: 0 12px 40px; color: var(--ink); }
-.workspace-nav-link { min-height: 46px; display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 10px; color: var(--ink-secondary); font-size: 14px; transition: color 160ms ease, background-color 160ms ease; }
-.workspace-nav-link:hover { color: var(--ink); background: var(--surface); }
-.workspace-nav-link.is-current { color: var(--ink); background: var(--surface); font-weight: 600; box-shadow: inset 0 0 0 1px var(--line); }
-.workspace-nav-link.is-current::after { content: ''; width: 6px; height: 6px; margin-left: auto; border-radius: 999px; background: var(--accent); box-shadow: 0 0 0 1px var(--ink); }
+.workspace-sidebar { width: 232px; flex: 0 0 232px; height: 100vh; position: sticky; top: 0; flex-direction: column; padding: 30px 16px 20px; border-right: 1px solid var(--sidebar-line); background: var(--sidebar); color: var(--sidebar-ink); }
+.workspace-brand { display: flex; gap: 12px; align-items: center; padding: 0 12px 40px; color: var(--sidebar-ink); }
+.workspace-nav-link { min-height: 46px; display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 10px; color: var(--sidebar-muted); font-size: 14px; transition: color 160ms ease, background-color 160ms ease; }
+.workspace-nav-link:hover { color: var(--sidebar-ink); background: var(--sidebar-active); }
+.workspace-nav-link.is-current { color: var(--sidebar-ink); background: var(--sidebar-active); font-weight: 600; }
+.workspace-nav-link.is-current::after { content: ''; width: 6px; height: 6px; margin-left: auto; border-radius: 999px; background: var(--accent); }
 .workspace-nav-link.is-current span.ml-auto { margin-left: 0; }
-.sidebar-principle { display: flex; gap: 10px; margin: 0 12px; padding: 18px 0; border-top: 1px solid var(--line); color: var(--ink-secondary); font-size: 12px; line-height: 1.7; }
-.sidebar-principle svg { margin-top: 3px; flex-shrink: 0; color: var(--brand); }
+.sidebar-principle { display: flex; gap: 10px; margin: 0 12px; padding: 18px 0; border-top: 1px solid var(--sidebar-line); color: var(--sidebar-muted); font-size: 12px; line-height: 1.7; }
+.sidebar-principle svg { margin-top: 3px; flex-shrink: 0; color: var(--accent); }
 .workspace-topbar { min-height: 66px; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 0 32px; background: var(--canvas); border-bottom: 1px solid var(--line); }
 .mobile-workspace-nav { position: fixed; bottom: 0; left: 0; right: 0; z-index: 50; min-height: 72px; padding: 6px 6px max(6px,env(safe-area-inset-bottom)); border-top: 1px solid var(--line); background: var(--surface); align-items: center; justify-content: space-around; }
 .mobile-workspace-nav a { min-height: 52px; min-width: 0; flex: 1; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 5px; font-size: 11px; color: var(--ink-secondary); border-radius: 8px; }

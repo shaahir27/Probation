@@ -55,6 +55,7 @@ class SourceGrant:
     connection_id: str
     account_id: str
     from_addr: str
+    authorized_at: str | None = None
 
 
 class ApprovalBinding(LifecycleRecord):

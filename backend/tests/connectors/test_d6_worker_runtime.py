@@ -657,6 +657,24 @@ def test_a_stale_tick_stops_proving_readiness(tmp_path) -> None:
     assert status.detail == "work_status_stale"
 
 
+def test_a_backwards_live_clock_degrades_readiness_without_crashing_supervision(
+    tmp_path,
+) -> None:
+    from probation.core.clock import ClockError
+    from probation.core.enums import ClockMode
+    from probation.workers.gmail_role_loops import WorkLedger
+
+    class BackwardsClock(Clock):
+        def now_iso(self) -> str:
+            raise ClockError("Live clock moved backwards")
+
+    status = _supervised(tmp_path, BackwardsClock(ClockMode.LIVE), WorkLedger()).status(
+        RuntimeRole.BRAIN
+    )
+    assert status.capability_ready is False
+    assert status.detail == "clock_inconsistent"
+
+
 def test_a_failed_tick_is_reported_as_degraded(tmp_path) -> None:
     from probation.workers.gmail_role_loops import WorkLedger
 

@@ -6,7 +6,9 @@ test("the server-selected synthetic workspace cannot connect a real account", as
   await page.goto("/#/more/connections");
   const panel = page.getByRole("region", { name: "Connect apps" });
   await expect(panel).toBeVisible();
-  await expect(panel.getByText("Real accounts are connected only in the private app.", { exact: false })).toBeVisible();
+  await expect(panel.getByText("You're exploring a synthetic workspace. Real accounts are connected only in the private app.", { exact: true })).toBeVisible();
+  const gmail = panel.getByRole("article").filter({ has: page.getByRole("heading", { name: "Gmail", exact: true }) });
+  await expect(gmail.getByText("Real accounts are connected only in the private app.", { exact: true })).toBeVisible();
   await expect(panel.getByRole("button", { name: "Connect Gmail" })).toBeDisabled();
   for (const name of ["Google Calendar", "Google Drive"]) {
     const app = panel.getByRole("article").filter({ has: page.getByRole("heading", { name, exact: true }) });

@@ -31,6 +31,12 @@ const config: Config = {
           on: "var(--on-accent)",
           soft: "var(--accent-soft)",
         },
+        sidebar: {
+          DEFAULT: "var(--sidebar)",
+          ink: "var(--sidebar-ink)",
+          muted: "var(--sidebar-muted)",
+          active: "var(--sidebar-active)",
+        },
         focus: "var(--focus)",
         status: {
           success: "var(--success)",

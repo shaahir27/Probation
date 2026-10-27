@@ -34,6 +34,8 @@ interface OwnerSessionValue {
   bootstrapError: string | null;
   loadBootstrap(): Promise<void>;
   signIn(token: string): Promise<boolean>;
+  signInAccount(email: string, password: string): Promise<boolean>;
+  registerAccount(email: string, password: string): Promise<boolean>;
   signOut(reason?: string): void;
   /** Called by any read that returned 401/403 so the UI fails closed. */
   lock(message: string): void;
@@ -156,6 +158,55 @@ export function OwnerSessionProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  const accountAuth = useCallback(
+    async (
+      authenticate: () => Promise<unknown>,
+      email: string,
+      password: string,
+    ): Promise<boolean> => {
+      if (!email.trim() || !password) return false;
+      setErrorMessage(null);
+      setStatus("checking");
+      try {
+        await authenticate();
+        clearPrivateCache(queryClient);
+        resetEverywhere();
+        setGeneration(getSessionGeneration());
+        setStatus("signed-in");
+        return true;
+      } catch (error) {
+        const next = clearOwnerSession();
+        setGeneration(next);
+        setStatus("signed-out");
+        setErrorMessage(
+          error instanceof ApiError && error.code === "invalid_credentials"
+            ? "That email and password do not match. Try again."
+            : error instanceof ApiError && error.code === "account_exists"
+              ? "An account already uses this email. Sign in instead."
+              : error instanceof ApiError && error.code === "invalid_account_input"
+                ? "Enter a valid email and a password of at least 8 characters."
+                : error instanceof Error
+                  ? error.message
+                  : "Could not sign in.",
+        );
+        return false;
+      }
+    },
+    [queryClient, resetEverywhere],
+  );
+
+  const signInAccount = useCallback(
+    (email: string, password: string) =>
+      accountAuth(() => apiClient.loginAccount(email.trim(), password), email, password),
+    [accountAuth],
+  );
+
+  const registerAccount = useCallback(
+    (email: string, password: string) =>
+      accountAuth(() => apiClient.registerAccount(email.trim(), password), email, password),
+    [accountAuth],
+  );
+
   const value = useMemo<OwnerSessionValue>(
     () => ({
       profile,
@@ -166,10 +217,12 @@ export function OwnerSessionProvider({ children }: { children: ReactNode }) {
       bootstrapError,
       loadBootstrap,
       signIn,
+      signInAccount,
+      registerAccount,
       signOut,
       lock,
     }),
-    [authRequired, bootstrapError, errorMessage, generation, loadBootstrap, lock, profile, signIn, signOut, status],
+    [authRequired, bootstrapError, errorMessage, generation, loadBootstrap, lock, profile, registerAccount, signIn, signInAccount, signOut, status],
   );
 
   return <OwnerSessionContext.Provider value={value}>{children}</OwnerSessionContext.Provider>;

@@ -45,6 +45,7 @@ export function installGuards(page: Page, baseURL: string | undefined): Guards {
 export async function signIn(page: Page): Promise<void> {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Sign in to your account" })).toBeVisible();
+  await page.getByRole("button", { name: "Use owner key instead" }).click();
   await page.getByLabel("Owner key").fill(OWNER_KEY);
   await page.getByRole("button", { name: "Continue" }).click();
   // The app's own post-sign-in navigation lands on Home. Wait for it, otherwise a

@@ -21,7 +21,7 @@ test("the demo navigation focuses on email review and its real outcomes", async 
 
 test("every primary route renders its own screen", async ({ page }) => {
   await page.goto("/#/");
-  await expect(page.getByRole("heading", { name: "Email overview" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Workspace overview" })).toBeVisible();
 
   await page.goto("/#/queue");
   await expect(page.getByRole("heading", { name: "Review", exact: true })).toBeVisible();

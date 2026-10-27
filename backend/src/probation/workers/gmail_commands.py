@@ -17,10 +17,19 @@ Rules enforced here:
 * ``applied_at`` and ``updated_at`` come from the injected Clock; the system clock is never read.
 """
 
+import json
 import sqlite3
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Final, Literal, cast
 
+from probation.connectors.acl import verify_owner_only
+from probation.connectors.gmail_read_grant import (
+    read_grant,
+    token_path,
+    token_root,
+    write_grant,
+)
 from probation.connectors.types import ConnectorError
 from probation.core.clock import Clock
 from probation.core.lifecycle import CommandIntent
@@ -36,7 +45,7 @@ CONSUMER: Final = "connector"
 ABSENT: Final = "UNKNOWN"
 _MAX_BATCH: Final = 100
 
-_SELECT_CANDIDATES = """SELECT id,type FROM command_requests
+_SELECT_CANDIDATES = """SELECT id,type,rowid FROM command_requests
  WHERE type IN('pause','resume','revoke') AND created_at COLLATE UTC_TIMESTAMP <= ?
  ORDER BY created_at COLLATE UTC_TIMESTAMP,id"""
 
@@ -104,13 +113,13 @@ class GmailCommandConsumer:
         """
         now = self._clock.now_iso()
         outcomes: list[CommandOutcome] = []
-        for command_id, command_type in self._unapplied(now)[: self._batch_size]:
-            outcome = self._apply(command_id, command_type, now)
+        for command_id, command_type, command_sequence in self._unapplied(now)[: self._batch_size]:
+            outcome = self._apply(command_id, command_type, command_sequence, now)
             if outcome is not None:
                 outcomes.append(outcome)
         return tuple(outcomes)
 
-    def _unapplied(self, now: str) -> list[tuple[str, CommandType]]:
+    def _unapplied(self, now: str) -> list[tuple[str, CommandType, int]]:
         """Intents already visible at ``now``, excluding anything already receipted.
 
         The receipt lives in the private store and the intent in the engine database, so the
@@ -125,25 +134,67 @@ class GmailCommandConsumer:
             )
         }
         return [
-            (str(row["id"]), cast(CommandType, str(row["type"])))
+            (str(row["id"]), cast(CommandType, str(row["type"])), int(row["rowid"]))
             for row in rows
             if str(row["id"]) not in receipted
         ]
 
-    def _apply(self, command_id: str, command_type: CommandType, now: str) -> CommandOutcome | None:
+    def _authorization_cutoff(self, connection_id: str) -> int | None:
+        """Return the command sequence superseded by the current OAuth authorization.
+
+        A reconnect is a new owner authorization. Commands already queued before it must not be
+        applied to the fresh credential; commands created after it remain durable owner controls.
+        """
+        row = self._store.one(
+            "SELECT authorized_at,authorization_sequence,authorization_sequence_at "
+            "FROM gmail_connections WHERE connection_id=?",
+            (connection_id,),
+        )
+        if row is None or row["authorized_at"] is None:
+            return None
+        authorized_at = str(row["authorized_at"])
+        if str(row["authorization_sequence_at"] or "") != authorized_at:
+            engine_row = self._commands.access.conn.execute(
+                "SELECT COALESCE(MAX(rowid), 0) FROM command_requests"
+            ).fetchone()
+            sequence = int(engine_row[0] if engine_row is not None else 0)
+            self._store.write(
+                "gmail_connections",
+                "UPDATE gmail_connections SET authorization_sequence=?,authorization_sequence_at=? "
+                "WHERE connection_id=? AND authorized_at=?",
+                (sequence, authorized_at, connection_id, authorized_at),
+            )
+            return sequence
+        return int(row["authorization_sequence"] or 0)
+
+    def _apply(
+        self, command_id: str, command_type: CommandType, command_sequence: int, now: str
+    ) -> CommandOutcome | None:
         """One command, one transaction: state change and receipt commit together or not at all."""
+        try:
+            intent = self._commands.get(command_id)
+        except ValueError:
+            return self._finish(command_id, command_type, "", ABSENT, "invalid_command_scope", now)
+        if intent is None:
+            return None
+        cutoff = self._authorization_cutoff(intent.scope.connection_id)
+        if cutoff is not None and command_sequence <= cutoff:
+            row = self._store.one(
+                "SELECT state FROM gmail_connections WHERE connection_id=?",
+                (intent.scope.connection_id,),
+            )
+            observed_state = ABSENT if row is None else str(row["state"])
+            return self._finish(
+                command_id,
+                command_type,
+                intent.scope.connection_id,
+                observed_state,
+                "superseded_by_reauthorization",
+                now,
+            )
         with self._store.transaction():
             if self._receipt(command_id) is not None:
                 return None  # another consumer won the race after the candidate read
-            try:
-                intent = self._commands.get(command_id)
-            except ValueError:
-                # A stored intent that cannot be typed is refused, not guessed at.
-                return self._finish(
-                    command_id, command_type, "", ABSENT, "invalid_command_scope", now
-                )
-            if intent is None:
-                return None
             decision = self._decide(intent)
             if decision.safe_code == "connection_unknown":
                 # A command may legitimately precede its connection's registration. Leave it
@@ -165,6 +216,15 @@ class GmailCommandConsumer:
                 )
                 if changed != 1:
                     raise StoreAccessError("connection_state_changed_during_command")
+            if decision.applied_state == "DISCONNECTED" and not decision.refused:
+                # The state is the API-visible revocation; deleting both refresh tokens is the
+                # credential-visible one. If deletion cannot be proven, the transaction rolls
+                # back and the command stays pending rather than claiming a disconnect.
+                self._revoke_tokens(
+                    owner_id=intent.owner_id,
+                    account_id=intent.scope.account_id,
+                    connection_id=intent.scope.connection_id,
+                )
             return self._finish(
                 command_id,
                 command_type,
@@ -201,6 +261,35 @@ class GmailCommandConsumer:
             return _Decision(state, "ACTIVE")
         # Revoke is the terminal kill switch: it is always safe to land on DISCONNECTED.
         return _Decision(state, "DISCONNECTED")
+
+    def _revoke_tokens(self, *, owner_id: str, account_id: str, connection_id: str) -> None:
+        row = self._store.one(
+            "SELECT label_ids FROM gmail_connections WHERE connection_id=?", (connection_id,)
+        )
+        if row is None:
+            return
+        try:
+            label = str(json.loads(str(row["label_ids"]))[0])
+        except (TypeError, ValueError, IndexError, KeyError):
+            return
+        database = self._store.conn.execute("PRAGMA database_list").fetchone()
+        if database is None or not database[2]:
+            raise StoreAccessError("token_store_path_unavailable")
+        store_path = Path(str(database[2]))
+        for grant in (
+            read_grant(owner_id, account_id, label),
+            write_grant(owner_id, account_id, label),
+        ):
+            root = token_root(store_path, role=grant.role)
+            if not root.exists():
+                continue
+            verify_owner_only(root)
+            path = token_path(store_path, grant)
+            if path.is_file():
+                try:
+                    path.unlink()
+                except OSError as exc:
+                    raise StoreAccessError("token_revocation_failed") from exc
 
     def _receipt(self, command_id: str) -> sqlite3.Row | None:
         return self._store.one(_SELECT_RECEIPT, (command_id, CONSUMER))

@@ -47,5 +47,9 @@ graphify-out/
 /graphify-out/
 /.codex/hooks.json
 
-# Local construction records (existing tracked records need separate reviewed cleanup)
+# Local construction records and project documentation
 /build_history/
+/docs/
+
+# Local design-skill scratch (direction notes and browser captures)
+/.taste-skill/

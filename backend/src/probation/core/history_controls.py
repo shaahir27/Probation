@@ -16,7 +16,8 @@ def control_records(conn: sqlite3.Connection | ReadConnection, as_of: str) -> li
         FROM command_requests c LEFT JOIN command_receipts r
           ON r.command_id=c.id AND r.consumer='examiner'
           AND r.updated_at COLLATE UTC_TIMESTAMP <= ?
-        WHERE c.created_at COLLATE UTC_TIMESTAMP <= ?
+        WHERE c.type IN ('pause','resume','revoke')
+          AND c.created_at COLLATE UTC_TIMESTAMP <= ?
         ORDER BY COALESCE(r.updated_at,c.created_at) COLLATE UTC_TIMESTAMP,
                  c.created_at COLLATE UTC_TIMESTAMP,c.id""",
         (as_of, as_of),

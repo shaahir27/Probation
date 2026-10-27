@@ -227,19 +227,39 @@ def test_initial_file_acl_denial_happens_before_any_refresh_bytes(tmp_path, fake
     assert all(path.read_bytes() == b"" for path in token_root.iterdir())
 
 
-def test_revoked_registration_is_not_resurrected(tmp_path, fake_acl, monkeypatch):
+def test_disconnected_registration_reconnects_without_reviving_write_access(tmp_path, fake_acl):
     settings = config()
     grant = setup.persist_read_authorization(settings, bundle(), root=tmp_path)
-    store, _ = setup.private_paths(settings, tmp_path)
+    write = setup.persist_write_authorization(
+        settings,
+        bundle(scopes=(MODIFY_SCOPE, SEND_SCOPE), refresh_value=WRITE_REFRESH),
+        root=tmp_path,
+    )
+    store, read_tokens = setup.private_paths(settings, tmp_path)
+    write_tokens = setup.token_root(store, role="write")
     conn = open_store(store)
     conn.execute("UPDATE gmail_connections SET state='DISCONNECTED'")
     conn.close()
-    monkeypatch.setattr(
-        setup.RefreshTokenStore, "write", lambda *args: pytest.fail("changed token")
+
+    setup.persist_read_authorization(
+        settings, bundle(refresh_value="replacement-read-refresh"), root=tmp_path
     )
-    with pytest.raises(ConnectorError, match="existing_connection_requires_owner_control"):
-        setup.persist_read_authorization(settings, bundle(), root=tmp_path)
-    assert grant.role == "read"
+
+    conn = open_store(store)
+    row = conn.execute(
+        "SELECT state FROM gmail_connections WHERE connection_id=?", (grant.connection_id,)
+    ).fetchone()
+    authorized_at = conn.execute(
+        "SELECT authorized_at FROM gmail_connections WHERE connection_id=?",
+        (grant.connection_id,),
+    ).fetchone()
+    conn.close()
+    assert row["state"] == "SHADOW"
+    assert (
+        read_tokens / f"{grant.credential_ref}.refresh"
+    ).read_text() == "replacement-read-refresh"
+    assert not (write_tokens / f"{write.credential_ref}.refresh").exists()
+    assert authorized_at["authorized_at"] is not None
 
 
 def test_oauth_requests_only_read_access_and_never_prints_credentials(

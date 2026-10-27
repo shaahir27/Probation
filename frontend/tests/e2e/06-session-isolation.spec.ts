@@ -41,7 +41,8 @@ test("after sign-out no private data survives in the DOM and the session cookie 
   await expect(page.getByText(ITEM.first)).toHaveCount(0);
   await expect(page.getByText(ITEM.conflict)).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Review email" })).toHaveCount(0);
-  await expect(page.getByLabel("Owner key")).toHaveValue("");
+  await expect(page.getByLabel("Email")).toHaveValue("");
+  await expect(page.getByLabel("Password")).toHaveValue("");
   const stored = await storageSnapshot(page);
   expect(stored.local).toEqual([]);
   expect(stored.session).toEqual([]);
@@ -91,6 +92,7 @@ test("a second identity sees nothing of the first session", async ({ browser, ba
       if (url.pathname.startsWith("/api")) statuses.push([response.status(), url.pathname]);
     });
     await page.goto("/");
+    await page.getByRole("button", { name: "Use owner key instead" }).click();
     await page.getByLabel("Owner key").fill("another-identity-not-registered-here");
     await page.getByRole("button", { name: "Continue" }).click();
     await expect(page.getByRole("alert")).toBeVisible();

@@ -1,7 +1,0 @@
-path,line,method,model_expression,prompt_expression,has_connection,has_redaction_counts,disposition
-backend/src/probation/engine/habits.py,105,complete_json,settings.model_wording,'wording.v1',False,False,replace unsupported API
-backend/src/probation/eval/baselines.py,280,chat_json,'model_reader',"{'prompt_id': 'b3_baseline', 'prompt_version': 'v1', 'content_hash': situation.content_hash}",False,False,route through validated role/job gateway
-backend/src/probation/workers/brain.py,146,chat_json,model_id,cache_parts,True,False,route through validated role/job gateway
-backend/src/probation/packs/calendar/exam_ops.py,114,complete_json,model or 'meta-llama/Meta-Llama-3.1-8B-Instruct',"{'prompt_id': 'exam.paraphrase_title', 'prompt_version': 'v1'}",False,False,replace unsupported API
-backend/src/probation/packs/mail/exam_ops.py,159,complete_json,model or 'meta-llama/Meta-Llama-3.1-8B-Instruct',"{'prompt_id': f'exam.{operator_name}', 'prompt_version': 'v1'}",False,False,replace unsupported API
-backend/src/probation/packs/radar/digest.py,108,chat_json,'writer',"{'prompt_id': 'radar.digest', 'prompt_version': 'v1'}",False,False,route through validated role/job gateway

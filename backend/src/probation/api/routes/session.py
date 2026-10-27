@@ -63,12 +63,15 @@ def _set_session_cookie(response: Response, token: str) -> None:
 
 
 def _session_body(record: OwnerSessionRecord, remaining: int) -> dict[str, Any]:
-    return {
+    body: dict[str, Any] = {
         "version": "v1",
         "authenticated": True,
         "owner_id": record.owner_id,
         "expires_in": remaining,
     }
+    if record.email is not None:
+        body["email"] = record.email
+    return body
 
 
 def _signed_out_body() -> dict[str, Any]:

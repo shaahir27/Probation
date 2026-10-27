@@ -28,12 +28,12 @@ The core promise is **earned autonomy**, not a trust score. A useful request for
 
 ### The live email path
 
-1. Sign in with the local **owner key**. The key is exchanged once for a short-lived, HttpOnly, SameSite=Strict owner session; it never enters browser storage, a URL or a response body. A refresh keeps the session; sign-out destroys it server-side.
-2. Open **More → Connect apps**. **Connect Gmail** opens a genuine Google read-only consent flow in a separate local setup process. **Grant action access** starts a second, explicit consent for the Executor-only write grant. The API receives no Google tokens, callbacks or authorization URLs.
-3. The setup verifies the exact read-only and write scopes, the configured test account and the approved native label (`Label_1`). The read and write refresh tokens live in separate owner-only directories; the write grant moves the connection from `SHADOW` to `ACTIVE`.
-4. The supervised runtime starts **API, observation, Brain, Examiner, Resolver and Executor** roles. Observation reads only the approved label; the Executor alone holds the write grant and the approved operation manifest.
+1. Sign in with a local **email and password** account, or use the **owner key** fallback. Passwords are verified against local scrypt hashes and local API clients receive a short-lived HS256 JWT; the browser itself uses only a short-lived, HttpOnly, SameSite=Strict owner session. No credential enters browser storage, a URL or a response body. A refresh keeps the session; sign-out destroys it server-side.
+2. Open **More → Connect apps**. **Connect Gmail** opens a genuine Google read-only consent flow in a separate local setup process. **Grant read, change and send** starts a second, explicit consent showing all three Gmail choices. Change and send are required for action access, while read-only remains a valid standalone choice. The API receives no Google tokens, callbacks or authorization URLs.
+3. The setup verifies the exact read-only and write scopes, the configured test account and the approved native label (`Label_1`). The read and write refresh tokens live in separate owner-only directories; the write grant moves the connection from `SHADOW` to `ACTIVE`. A fresh OAuth grant is recorded as newer authorization than any earlier pause or revoke control.
+4. The supervised runtime starts **API, observation, Brain, Webfacts, Examiner, Resolver and Executor** roles. Observation reads only the approved label; the Executor alone holds the write grant and the approved operation manifest.
 5. **Overview** is the review desk. **Review** is a Gmail-style inbox: a compact message list opens into a continuous reading pane with the email, the decision controls and the evidence. **Activity** records real effects; **Permissions** explains what is allowed for each task/action. **More** holds the connection controls, performance, counts, web privacy, cost, integrity, settings and limits.
-6. The owner can grant action access, pause/resume the connection and disconnect it. Real provider effects in this build: **archive**, **trash** and **forward/send** were executed through the Executor and confirmed by provider receipts. Live **undo** is fail-closed when the label-history evidence is incomplete; **reply** is only available when the pipeline produced a validated draft. No draft is fabricated.
+6. The owner can grant action access, pause/resume the connection and disconnect it. Real provider effects in this build: **archive**, **trash** and **forward/send** were executed through the Executor and confirmed by provider receipts. Every eligible archive and trash undo was then executed and confirmed with the original labels restored; **reply** is only available when the pipeline produced a validated draft. No draft is fabricated.
 
 The live account's first request was a cold-start **ASK** — the product asking for a decision, which is the correct outcome for an account without earned permission. The Nemotron/Tavily path is wired and has separate D5 live evidence; the live review did not incur a new paid model or Tavily call.
 
@@ -41,15 +41,15 @@ The live account's first request was a cold-start **ASK** — the product asking
 
 | Where | What it demonstrates |
 |---|---|
-| **Overview** | The next email, the review desk, permission snapshot, workspace clock and connection state. |
+| **Overview** | Real read/action access, the next email, the review desk, permission snapshot and workspace connection state. |
 | **Review / item detail** | A Gmail-style message list and continuous reading pane: subject, preview, full body, the proposed action, evidence, web verification and the owner's exact decision controls. |
-| **Activity** | What Probation actually did, pending/held/completed/unknown states, real provider results, and undo only where the server offers it. Live undo is fail-closed when the evidence is not continuous. |
+| **Activity** | What Probation actually did, pending/held/completed/undone/failed states, real provider results, and undo only where the server offers it. A completed undo reads as settled, never as “not completed yet.” |
 | **Permissions** | One task/action at a time: Watching, Suggests, Acts with undo, Acts automatically; evidence counts and caps. Level 0 is not presented as an earned permission. |
 | **More → Connect apps** | Gmail read access, separate action access, pause/resume and confirmed disconnect, plus Calendar and Drive clearly marked Planned. |
 | **More → Performance / Counts & trends / Trick tests** | The historical record, measured counts and code-graded exam history. |
 | **More → Privacy & web / Cost & usage / Integrity record / Settings / Help** | Exact web queries and sources, model/usage and spend authority, the hash-chained record, effective settings and limits. |
 
-There are honest empty states where the current live account has no data — for example no confirmed actions, no Tavily calls for this cold-start item, and no earned permission yet. Probation does not fill them with sample rows.
+There are honest empty states where the current live account has no data — for example no Tavily calls for the cold-start item and no earned permission yet. Probation does not fill them with sample rows.
 
 ---
 
@@ -99,7 +99,7 @@ flowchart LR
 - Web facts may only **restrict or inform**, never raise autonomy. Raw web text stays inside the quarantined extractor and never reaches the policy, licence code or reply writer.
 - No `.env` or secret is committed, printed or sent to an LLM.
 
-The detailed authority is [`docs/CONTRACT.md`](docs/CONTRACT.md). The D6 API and frontend contract is summarized in [`docs/wp9/D6_API_CONTRACT.md`](docs/wp9/D6_API_CONTRACT.md).
+The detailed authority is `docs/CONTRACT.md`, and the D6 API and frontend contract is summarized in `docs/wp9/D6_API_CONTRACT.md`. Both live in the local-only documentation directory described at the end of this file.
 
 ### Interface
 
@@ -129,15 +129,18 @@ The model mapping is fixed in configuration. There is no automatic model fallbac
 |---|---|
 | Frontend TypeScript | `npx tsc --noEmit` — clean |
 | Frontend production build | `npm run build` — passed |
-| Frontend unit tests | `npm run test:unit` — **16/16 passed** |
-| Full browser acceptance | `npx playwright test --reporter=list` — **40/40 passed** (system Chrome, built bundle, isolated synthetic workspaces) |
-| Focused Gmail setup/ACL/runtime tests | **67 passed** (grant identity, token ACL, setup API, callback parser, live-role allowlist) |
+| Frontend unit tests | `npm run test:unit` — **18/18 passed** |
+| Full browser acceptance | `npx playwright test --reporter=list` — **41/41 passed** (system Chrome, built bundle, isolated synthetic workspaces) |
+| Focused Gmail setup/ACL/runtime tests | granted-identity, reconnect, migration, token ACL, setup API, callback parser and live-role allowlist suites passed |
 | Gmail preflight | read and write token stores, ACLs and the fixed redirect `http://127.0.0.1:8765/` verified locally |
-| Gmail consents | read-only consent completed; separate Executor write consent completed; both token ACLs verified |
+| Gmail consents | read-only consent completed; separate read/change/send action consent completed; both token ACLs verified |
 | Live observation | four new labeled synthetic emails observed; **one demo ASK** remains unanswered; no fabricated watching rows |
-| Gmail writes | **archive**, **trash** and **forward/send** executed through the Executor and confirmed by provider receipts; live undo refused fail-closed; reply has no validated draft |
+| Gmail writes | **archive**, **trash** and **forward/send** executed through the Executor and confirmed by provider receipts |
+| Gmail undos | all **four eligible archive/trash** requests now have `confirmed` Executor attempts and restored original labels; no undo is claimed without that receipt |
+| Gmail reconnect | Real disconnect deleted both refresh tokens; fresh read and read/change/send consents restored `SHADOW` then `ACTIVE`; queued pre-reconnect disconnects are superseded by the new authorization sequence |
+| Connect/action access | live UI shows **Connected / read-only** and **Granted** action access; four live undos processed after the fresh grant |
 | Paid model/Tavily calls in this D6 live session | **0** |
-| Full backend gate | `python scripts/check.py` — **1483 passed, 2 deselected, 0 failed**; ruff/format and both mypy gates clean; protected fixture/result hashes unchanged |
+| Full backend gate | `python scripts/check.py` — **1494 passed, 2 deselected, 0 failed**; ruff/format and both mypy gates clean; protected fixture/result hashes unchanged |
 
 The browser suite covers known answer/copy truth, all primary routes, the More destinations, the Connect apps chooser, responsive layouts at 360/390/768/1440, 200% zoom, keyboard-only review, visible focus, announced errors, reduced motion, session isolation, safe links, production-bundle verification and zero console errors.
 
@@ -255,27 +258,27 @@ make.cmd serve-live
 make.cmd web
 ```
 
-Open `http://localhost:5173`, enter the **owner key** from `PROBATION_GMAIL_OWNER_API_KEY`, then open **More → Connect apps**.
+Open `http://localhost:5173` (or the alternate local port `http://localhost:5174`) and sign in with a local email/password account, or choose **Use owner key instead** and enter `PROBATION_GMAIL_OWNER_API_KEY`. Then open **More → Connect apps**. An account created in the app starts with its own empty workspace and can connect its own Gmail; the owner-key route opens the workspace already bound to the configured local owner.
 
-If port 8000 is occupied by an older server, use the documented override:
+If port 8000 is occupied by another server, keep the single runtime on 8001 and point the frontend proxy at it before starting Vite:
 
 ```powershell
 C:\Users\shaah\miniconda3\python.exe -m probation.cli serve --gmail-runtime --port 8001
 cd frontend
 $env:PROBATION_D6_E2E_API_TARGET="http://127.0.0.1:8001"
-npm run dev -- --port 5174
+npm run dev -- --port 5173
 ```
 
-Then open `http://localhost:5174`. The Vite proxy sends `/api` to the selected local API.
+Open `http://localhost:5173`. Do not run a separate plain API on 8000: access changes and undo must go to the same runtime that owns the Executor and workers.
 
 ### Connect Gmail
 
-1. Sign in with the owner key.
+1. Sign in with the local account, or use the owner-key fallback.
 2. **More → Connect apps → Connect Gmail** and approve **read-only Gmail access**.
 3. The setup child writes the read-only refresh token under the owner-only `data/private/` store and registers a `SHADOW` connection. It verifies the exact scope, account and label before persisting anything.
 4. The runtime then observes the approved label. The UI shows **Connected / read-only**; email processing and suggestions have their own separate state.
-5. **Grant action access** starts a second consent for the Executor write grant. The write token is stored in a separate owner-only directory, never exposed to the API, Brain or Webfacts, and the connection moves to `ACTIVE`.
-6. **Pause access**, **Resume access** and **Disconnect Gmail** are durable connection commands. Disconnect ends both grants and requires a new Google consent before any further email is read.
+5. **Grant read, change and send** starts a second consent that shows all three Gmail choices. Change and send are required for action access; choosing only read leaves the connection read-only. The write token is stored in a separate owner-only directory, never exposed to the API, Brain or Webfacts, and the connection moves to `ACTIVE`.
+6. **Pause access**, **Resume access** and **Disconnect Gmail** are durable connection commands. Disconnect deletes both owner-only refresh tokens and requires a new Google consent, with both read and action choices again, before any further email is read or acted on. A fresh OAuth grant supersedes controls completed before it; a revoke issued after that grant still blocks immediately.
 
 If Google blocks the request, run the safe preflight from the project root:
 
@@ -311,7 +314,7 @@ The Playwright harness builds the production bundle, starts a throwaway syntheti
 
 ## Security and privacy
 
-- The owner key is exchanged once for a short-lived, HttpOnly, SameSite=Strict session. It never enters browser storage, a URL or a response body. Logout destroys the server-side session, cached private data, drafts and in-flight responses. The browser suite verifies that no private row is left in storage or the DOM.
+- Local accounts store only salted scrypt password hashes in an owner-only SQLite file. The browser signs in with the HttpOnly, SameSite=Strict session; local API clients can receive a short-lived HS256 JWT. No password, JWT or owner key enters browser storage, a URL or a response body. Logout destroys the server-side session, cached private data, drafts and in-flight responses. The browser suite verifies that no private row is left in storage or the DOM.
 - The API holds **no Google credential** and receives no OAuth callback, authorization URL or token. The setup child runs locally; the runtime supervisor reads the owner-only refresh files and injects the read grant into the observation child and the write grant into the Executor child only.
 - The private connector store and refresh files are protected by verified Windows owner-only ACLs. A failed ACL check denies the setup instead of falling back to an unprotected path.
 - Only the Executor can perform target side-effects, and only with the approved manifest: self-forward, archive, trash, reply and their undo paths. A send or unknown result is never automatically retried; an ambiguous result is reconciled or left unknown.
@@ -325,10 +328,10 @@ The Playwright harness builds the production bundle, starts a throwaway syntheti
 
 - This is the **D6 demo release**, not the full F01–F42 product.
 - Gmail writes are limited to the approved manifest: **archive**, **trash**, **forward-to-self** and a reviewed **reply** only when a validated draft exists. There is no third-party recipient, permanent delete, settings change or automatic retry.
-- Live **undo** is fail-closed when the provider label-history evidence is incomplete. Archive, trash and forward/send have confirmed provider receipts; a refused undo is reported as refused and changes nothing.
+- Live **undo** is proven for archive and trash: all four eligible requests have confirmed Executor attempts and restored original labels. Undo still fails closed when the provider's state or history evidence is incomplete, and a forward/send cannot be recalled. A refused undo is reported as refused and changes nothing.
 - **Google Calendar and Google Drive are planned**, not implemented.
 - Files, chains, habits, Radar and Reading are not part of this focused email release. Their legacy routes state that they are unavailable; they do not render fake data.
-- No public deployment, multi-user accounts, real personal data, mobile app, push notifications or hosted URL are claimed here. Deployment is a separate step and was intentionally not performed.
+- No public deployment, hosted multi-user service, real personal data, mobile app, push notifications or hosted URL is claimed here. Local accounts exist only on this machine. Deployment is a separate step and was intentionally not performed.
 - The six-case Super smoke is not accuracy, a Gmail score or an autonomy result.
 - The live demo item is a cold-start request for approval; it does not claim that a model draft was produced for that specific email.
 - The local cost panel reflects the app's recorded spend; the cumulative D5 accounting authority is a separate record. Neither is a provider invoice.
@@ -337,16 +340,7 @@ The Playwright harness builds the production bundle, starts a throwaway syntheti
 
 ## Documentation
 
-- [`docs/CONTRACT.md`](docs/CONTRACT.md) — the highest authority and invariants.
-- [`docs/USER_FLOW.md`](docs/USER_FLOW.md) — the product journeys.
-- [`docs/TAVILY_AND_NEW_PACKS.md`](docs/TAVILY_AND_NEW_PACKS.md) — web grounding and pack boundaries.
-- [`docs/WP9_D6_IMPLEMENTATION_PLAN.md`](docs/WP9_D6_IMPLEMENTATION_PLAN.md) — D6 implementation scope.
-- [`docs/reports/phase-9-d6.md`](docs/reports/phase-9-d6.md) — the D6 handoff, exact tests and live evidence.
-- [`docs/wp9/D6_ACCEPTANCE_MATRIX.md`](docs/wp9/D6_ACCEPTANCE_MATRIX.md) — the acceptance matrix and blockers.
-- [`docs/wp9/D6_DEMO_POLISH_PLAN.md`](docs/wp9/D6_DEMO_POLISH_PLAN.md) — the approved demo completion extension.
-- [`docs/TEST_PLAN.md`](docs/TEST_PLAN.md) — the test catalogue.
-
-The local `build_history/` directory is intentionally gitignored and is used for construction notes; it is not part of the published repository.
+The product contract, plans, handoffs, acceptance matrix and test catalogue are maintained in the local `docs/` directory. Both `docs/` and `build_history/` are intentionally ignored and are not published in the GitHub repository.
 
 ## License
 

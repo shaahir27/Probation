@@ -3,8 +3,9 @@
 Two credentials are accepted, never mixed in one request:
 
 * ``Authorization: Bearer <owner key>`` — used by CLI callers and tests, verified on every call.
-* the HttpOnly owner-session cookie — issued once by ``POST /api/session`` after the key was
-  verified. Unsafe cookie-authenticated methods must carry ``X-Probation-CSRF: 1``.
+* ``Authorization: Bearer <account JWT>`` — issued by the local email/password account routes.
+* the HttpOnly owner-session cookie — issued once by ``POST /api/session`` or account login.
+  Unsafe cookie-authenticated methods must carry ``X-Probation-CSRF: 1``.
 
 A request that presents an ``Authorization`` header is authenticated by it alone: an invalid
 bearer never falls back to a cookie, so the source of authority is always unambiguous.
@@ -14,6 +15,7 @@ import os
 
 from fastapi import HTTPException, Request
 
+from probation.api.accounts import AccountError, verify_token
 from probation.api.authority import OwnerContext
 from probation.api.gmail_auth import (
     OwnerApiCredential,
@@ -49,20 +51,31 @@ def _owner_id_for_request(request: Request, owner_credential: OwnerApiCredential
     authorization = request.headers.get("Authorization")
     client_host = request.client.host if request.client is not None else None
     if authorization is not None:
-        credential = verify_owner_request(
-            authorization=authorization,
-            client_host=client_host,
-            credential=owner_credential,
-        )
-        return credential.owner_id
+        try:
+            credential = verify_owner_request(
+                authorization=authorization,
+                client_host=client_host,
+                credential=owner_credential,
+            )
+            return credential.owner_id
+        except OwnerAuthError:
+            if not authorization.startswith("Bearer ") or not is_loopback_host(client_host):
+                raise
+            token = authorization.removeprefix("Bearer ").strip()
+            if token.count(".") != 2:
+                raise
+            try:
+                return verify_token(token).owner_id
+            except AccountError as exc:
+                raise OwnerAuthError() from exc
 
     if not is_loopback_host(client_host):
         raise OwnerAuthError()
-    token = request.cookies.get(SESSION_COOKIE)
+    session_token = request.cookies.get(SESSION_COOKIE)
     manager = getattr(request.app.state, "owner_sessions", None)
-    if not token or not isinstance(manager, OwnerSessionManager):
+    if not session_token or not isinstance(manager, OwnerSessionManager):
         raise OwnerAuthError()
-    record = manager.resolve(token)
+    record = manager.resolve(session_token)
     if record is None:
         raise OwnerAuthError()
     if (
@@ -70,7 +83,7 @@ def _owner_id_for_request(request: Request, owner_credential: OwnerApiCredential
         and request.headers.get(CSRF_HEADER) != CSRF_VALUE
     ):
         raise HTTPException(status_code=403, detail="csrf_header_required")
-    request.state.owner_session_token = token
+    request.state.owner_session_token = session_token
     return record.owner_id
 
 

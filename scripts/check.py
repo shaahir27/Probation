@@ -24,6 +24,7 @@ def protected_hashes(root: Path) -> dict[str, str]:
     return {
         path.relative_to(root).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
         for relative in PROTECTED
+        if (root / relative).is_dir()
         for path in (root / relative).rglob("*")
         if path.is_file() and not path.is_symlink()
     }

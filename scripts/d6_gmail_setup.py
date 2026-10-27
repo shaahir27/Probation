@@ -32,7 +32,12 @@ from probation.connectors.credentials_state import (
     ProvisionedGrant,
     RefreshTokenStore,
 )
-from probation.connectors.gmail_read_grant import read_grant, token_root, write_grant
+from probation.connectors.gmail_read_grant import (
+    read_grant,
+    token_path as grant_token_path,
+    token_root,
+    write_grant,
+)
 from probation.connectors.types import ConnectorError
 from probation.core.clock import Clock
 from probation.db.gmail_store import ConnectorAccess, open_store
@@ -191,7 +196,7 @@ def persist_read_authorization(
         raise ConnectorError("approved_owner_and_label_required")
     grant = identity(config)
     validate_bundle(config, grant, bundle)
-    store, token_root = private_paths(config, root)
+    store, token_dir = private_paths(config, root)
     verify_and_migrate_store(store)
     apply_owner_only(store, is_dir=False)
     verify_owner_only(store)
@@ -210,15 +215,32 @@ def persist_read_authorization(
             (grant.connection_id,),
         )
         if existing is not None and (
-            tuple(existing)[:5] != expected or existing["state"] != "SHADOW"
+            tuple(existing)[:5] != expected
+            or existing["state"]
+            not in {"SHADOW", "ACTIVE", "PAUSED", "DISCONNECTED", "AUTH_REQUIRED"}
         ):
             raise ConnectorError("existing_connection_requires_owner_control")
-        token_store = RefreshTokenStore(token_root)
-        if not token_root.exists():
-            token_root.mkdir(parents=True)
-            apply_owner_only(token_root, is_dir=True)
-        verify_owner_only(token_root)
-        token_path = token_root / f"{grant.credential_ref}.refresh"
+        reconnecting = existing is not None and existing["state"] in {
+            "DISCONNECTED",
+            "AUTH_REQUIRED",
+        }
+        if reconnecting:
+            # A read-only reconnect must not revive the previous action credential. Only a
+            # fresh action consent may create it again.
+            write_token = grant_token_path(
+                store, write_grant(config.owner_id, grant.account_id, config.label_id)
+            )
+            write_root = token_root(store, role="write")
+            if write_root.exists():
+                verify_owner_only(write_root)
+                if write_token.exists():
+                    write_token.unlink()
+        token_store = RefreshTokenStore(token_dir)
+        if not token_dir.exists():
+            token_dir.mkdir(parents=True)
+            apply_owner_only(token_dir, is_dir=True)
+        verify_owner_only(token_dir)
+        token_path = token_dir / f"{grant.credential_ref}.refresh"
         if not token_path.exists():
             # Establish the file ACL while it is empty, before any refresh bytes are written.
             token_path.touch(exist_ok=False)
@@ -234,10 +256,17 @@ def persist_read_authorization(
                 "gmail_connections",
                 "INSERT INTO gmail_connections "
                 "(connection_id,account_id,owner_id,state,selection_revision,label_ids,"
-                "credential_ref,granted_scopes,created_at,updated_at) "
-                "VALUES(?,?,?,'SHADOW',1,?,?,?,?,?) ON CONFLICT(connection_id) DO NOTHING",
-                (grant.connection_id, *expected[:2], *expected[2:], now, now),
+                "credential_ref,granted_scopes,created_at,updated_at,authorized_at) "
+                "VALUES(?,?,?,'SHADOW',1,?,?,?,?,?,?) ON CONFLICT(connection_id) DO NOTHING",
+                (grant.connection_id, *expected[:2], *expected[2:], now, now, now),
             )
+            if reconnecting:
+                tx.write(
+                    "gmail_connections",
+                    "UPDATE gmail_connections SET state='SHADOW',updated_at=?,authorized_at=? "
+                    "WHERE connection_id=? AND owner_id=? AND state IN ('DISCONNECTED','AUTH_REQUIRED')",
+                    (now, now, grant.connection_id, config.owner_id),
+                )
         return grant
     finally:
         admin.conn.close()
@@ -293,9 +322,9 @@ def persist_write_authorization(
             # The explicit write grant activates the connection; read-only setup alone stays SHADOW.
             tx.write(
                 "gmail_connections",
-                "UPDATE gmail_connections SET state='ACTIVE',updated_at=? "
+                "UPDATE gmail_connections SET state='ACTIVE',updated_at=?,authorized_at=? "
                 "WHERE connection_id=? AND owner_id=? AND state='SHADOW'",
-                (now, grant.connection_id, config.owner_id),
+                (now, now, grant.connection_id, config.owner_id),
             )
         return grant
     finally:
@@ -379,14 +408,22 @@ def _consent(
             if role == "read"
             else frozenset({"send", "forward", "archive", "trash", "conditional_write"})
         )
-        scopes = plan_scopes(role, capabilities)
+        required_scopes = plan_scopes(role, capabilities)
+        # The action consent shows all three Gmail choices. Read is requested for context;
+        # the write validation still requires modify+send and the read grant keeps its own
+        # read-only consent, so the observation role never receives a write token.
+        requested_scopes = (
+            tuple(dict.fromkeys((*required_scopes, READONLY_SCOPE)))
+            if role == "write"
+            else required_scopes
+        )
         state = vault.issue(
             owner_id=config.owner_id,
             role=role,
             account_id=grant.account_id,
             connection_id=grant.connection_id,
             redirect_uri=listener.redirect_uri,
-            required_scopes=scopes,
+            required_scopes=required_scopes,
             pkce=pkce,
         )
         listener.expect(state.token)
@@ -395,7 +432,7 @@ def _consent(
             redirect_uri=listener.redirect_uri,
             state_token=state.token,
             pkce=pkce,
-            scopes=scopes,
+            scopes=requested_scopes,
         )
         if not webbrowser.open(url, new=1):
             raise ConnectorError("browser_open_failed")
@@ -408,8 +445,9 @@ def _consent(
             )
         else:
             print(
-                "Approve Gmail send and modify access for the Executor only. "
-                "Each live effect still needs an explicit owner approval."
+                "Google shows read, change and send access. Choose the access you want. "
+                "Action access needs change and send; each live effect still needs an explicit "
+                "owner approval, and the observer keeps its separate read-only consent."
             )
         waited = True
         code = listener.wait(timeout_seconds=180)

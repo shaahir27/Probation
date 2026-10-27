@@ -76,6 +76,7 @@ class Settings(BaseSettings):
     probation_gmail_owner_id: str = "local-owner"
     probation_gmail_store: Path | None = Path("data/private/connectors/gmail_metadata.db")
     probation_gmail_bind_host: str = "127.0.0.1"
+    probation_accounts_db: Path = Path("data/private/accounts/accounts.db")
 
     # --- Files Pack ---
     files_watch_dirs: str = "data/synth/1/fs/Downloads,data/synth/1/fs/Desktop"

@@ -149,7 +149,21 @@ def migrate_store(conn: sqlite3.Connection) -> bool:
     script = _script_text()
     declared = _declared_objects(script)
     present = {row[0] for row in conn.execute("SELECT name FROM sqlite_master")}
-    if declared <= present:
+    connection_columns = (
+        {row[1] for row in conn.execute("PRAGMA table_info(gmail_connections)")}
+        if "gmail_connections" in present
+        else set()
+    )
+    add_authorized_at = "gmail_connections" in present and "authorized_at" not in connection_columns
+    add_authorization_sequence = (
+        "gmail_connections" in present and "authorization_sequence" not in connection_columns
+    )
+    add_authorization_sequence_at = (
+        "gmail_connections" in present and "authorization_sequence_at" not in connection_columns
+    )
+    if declared <= present and not (
+        add_authorized_at or add_authorization_sequence or add_authorization_sequence_at
+    ):
         return False
     conn.execute("BEGIN IMMEDIATE")
     try:
@@ -159,6 +173,16 @@ def migrate_store(conn: sqlite3.Connection) -> bool:
                 conn.execute(f'DROP TRIGGER IF EXISTS "{name}"')
         for statement in _split_statements(script):
             conn.execute(statement)
+        if add_authorized_at:
+            conn.execute("ALTER TABLE gmail_connections ADD COLUMN authorized_at TEXT")
+            conn.execute(
+                "UPDATE gmail_connections SET authorized_at=updated_at "
+                "WHERE authorized_at IS NULL AND state IN('SHADOW','ACTIVE','PAUSED')"
+            )
+        if add_authorization_sequence:
+            conn.execute("ALTER TABLE gmail_connections ADD COLUMN authorization_sequence INTEGER")
+        if add_authorization_sequence_at:
+            conn.execute("ALTER TABLE gmail_connections ADD COLUMN authorization_sequence_at TEXT")
         conn.execute(
             "SELECT connection_id,committed_history_id,fence,catchup_complete "
             "FROM gmail_sync_cursors LIMIT 0"
@@ -191,7 +215,14 @@ def drop_store_objects(conn: sqlite3.Connection) -> None:
 
 def store_is_current(conn: sqlite3.Connection) -> bool:
     present = {row[0] for row in conn.execute("SELECT name FROM sqlite_master")}
-    return _declared_objects(_script_text()) <= present
+    if not _declared_objects(_script_text()) <= present:
+        return False
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(gmail_connections)")}
+    return {
+        "authorized_at",
+        "authorization_sequence",
+        "authorization_sequence_at",
+    } <= columns
 
 
 class ConnectorAccess:

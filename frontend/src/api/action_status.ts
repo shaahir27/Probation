@@ -32,6 +32,13 @@ export function isConfirmedComplete(status: unknown): boolean {
   return typeof status === "string" && status.trim().toUpperCase() === "DONE";
 }
 
+const SETTLED = new Set(["DONE", "UNDONE", "CANCELLED", "FAILED"]);
+
+/** A terminal state: nothing is still being waited on, including a completed undo. */
+export function isSettledStatus(status: unknown): boolean {
+  return typeof status === "string" && SETTLED.has(status.trim().toUpperCase());
+}
+
 /** A result the owner must go and check themselves before retrying. */
 export function isUnconfirmedResult(status: unknown): boolean {
   if (typeof status !== "string") return false;

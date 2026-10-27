@@ -58,11 +58,11 @@ NOW = "2026-10-24T09:00:00Z"
 APPROVED_AT = "2026-10-01T01:00:01Z"
 _LIFECYCLE_BASELINE = {
     "probation/packs/mail/executor.py": "d19261606b300b08",
-    # Live undo persists the effect anchor in the durable proof and restores it before the
-    # label-version equality check; snapshots carry the provider history point it needs.
-    "probation/workers/mail_execution.py": "bc56786eed83ca86",
+    # A fresh OAuth grant supersedes older controls; undo still refuses any current pause or
+    # revoke. The label baseline now includes its reviewed formatting and anchor proof.
+    "probation/workers/mail_execution.py": "e9ac2fc76a6b65df",
     "probation/packs/mail/lifecycle_io.py": "92f811471e72f68f",
-    "probation/packs/mail/lifecycle_operations.py": "a141c68899117e86",
+    "probation/packs/mail/lifecycle_operations.py": "8acef881814bc4cb",
 }
 
 

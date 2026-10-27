@@ -25,6 +25,7 @@ SESSION_COOKIE_PATH: Final = "/api"
 class OwnerSessionRecord:
     owner_id: str
     expires_at: datetime
+    email: str | None = None
 
 
 class OwnerSessionManager:
@@ -38,12 +39,12 @@ class OwnerSessionManager:
         self._sessions: dict[str, OwnerSessionRecord] = {}
         self._lock = Lock()
 
-    def create(self, owner_id: str) -> tuple[str, OwnerSessionRecord]:
+    def create(self, owner_id: str, *, email: str | None = None) -> tuple[str, OwnerSessionRecord]:
         if not owner_id.strip():
             raise ValueError("owner session needs an owner id")
         now = self._clock.now(UTC)
         token = secrets.token_urlsafe(32)
-        record = OwnerSessionRecord(owner_id=owner_id, expires_at=now + self._idle)
+        record = OwnerSessionRecord(owner_id=owner_id, expires_at=now + self._idle, email=email)
         with self._lock:
             self._sessions[token] = record
         return token, record
@@ -59,7 +60,9 @@ class OwnerSessionManager:
             if record.expires_at <= now:
                 self._sessions.pop(token, None)
                 return None
-            renewed = OwnerSessionRecord(owner_id=record.owner_id, expires_at=now + self._idle)
+            renewed = OwnerSessionRecord(
+                owner_id=record.owner_id, expires_at=now + self._idle, email=record.email
+            )
             self._sessions[token] = renewed
             return renewed
 

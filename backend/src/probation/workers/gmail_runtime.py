@@ -38,7 +38,7 @@ from probation.connectors.credentials_state import (
 )
 from probation.connectors.gmail_read_grant import token_root
 from probation.connectors.types import ConnectorError, CredentialRole
-from probation.core.clock import Clock, operational_clock
+from probation.core.clock import Clock, ClockError, operational_clock
 from probation.core.runtime_status import (
     RoleReadiness,
     publish_runtime_status,
@@ -847,7 +847,12 @@ class GmailRuntime:
             return True, None
         if self._work is None:
             return False, "work_status_absent"
-        state = self._work.state(role.value, self.clock.now_iso())
+        try:
+            state = self._work.state(role.value, self.clock.now_iso())
+        except ClockError:
+            # An OS clock adjustment makes readiness unsafe, but it must not tear down healthy
+            # workers. Readiness stays degraded until the live clock advances again.
+            return False, "clock_inconsistent"
         return state.ready, state.code
 
     def run(

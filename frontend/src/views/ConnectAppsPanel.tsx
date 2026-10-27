@@ -109,13 +109,19 @@ export function ConnectAppsPanel({ profile }: { profile: "private" | "synthetic"
     (signal) => apiClient.getGmailConnections(signal),
     { enabled: isPrivate },
   );
-  const readConnected = readFlow.initial.data?.connected === true;
-  const writeFlow = useGmailSetupFlow("write", isPrivate && readConnected);
-  const writeConnected = writeFlow.initial.data?.connected === true;
   const connection = connections.data?.connections[0] ?? null;
   const connectionState = connection?.state ?? null;
+  const [accessClosed, setAccessClosed] = useState(false);
+  const readConnected =
+    !accessClosed &&
+    connectionState !== "DISCONNECTED" &&
+    connectionState !== "AUTH_REQUIRED" &&
+    readFlow.initial.data?.connected === true;
+  const writeFlow = useGmailSetupFlow("write", isPrivate && readConnected);
+  const writeConnected = writeFlow.initial.data?.connected === true;
   const accessLoading = readFlow.initial.isLoading || connections.isLoading;
   const [confirmDisconnect, setConfirmDisconnect] = useState(false);
+  const [fullConnect, setFullConnect] = useState(false);
   const [command, setCommand] = useState<{ id: string; kind: CommandKind } | null>(null);
   const [commandNotice, setCommandNotice] = useState<string | null>(null);
   const [commandError, setCommandError] = useState<string | null>(null);
@@ -135,7 +141,11 @@ export function ConnectAppsPanel({ profile }: { profile: "private" | "synthetic"
             ? "Access resumed for this connection."
             : "Gmail is disconnected. No further email will be read or acted on.",
       );
+      if (command.kind === "disconnect") setAccessClosed(true);
       setCommand(null);
+      void connections.refetch();
+      void readFlow.initial.refetch();
+      void writeFlow.initial.refetch();
       void queryClient.invalidateQueries({ queryKey: ["private", "gmail-connections"] });
       void queryClient.invalidateQueries({ queryKey: ["private", "gmail-setup"] });
       void queryClient.invalidateQueries({ queryKey: ["private", "gmail-write-setup"] });
@@ -151,6 +161,14 @@ export function ConnectAppsPanel({ profile }: { profile: "private" | "synthetic"
       setCommand(null);
     }
   }, [command, commandStatus.error]);
+
+  useEffect(() => {
+    // A combined choice asks for read first, then the action consent. Two Google prompts are
+    // deliberate: the observer keeps its own read-only credential.
+    if (!fullConnect || !readConnected || readFlow.pending || writeFlow.pending) return;
+    setFullConnect(false);
+    void writeFlow.start();
+  }, [fullConnect, readConnected, readFlow.pending, writeFlow]);
 
   async function runCommand(kind: CommandKind): Promise<void> {
     if (!connection) return;
@@ -170,17 +188,20 @@ export function ConnectAppsPanel({ profile }: { profile: "private" | "synthetic"
     }
   }
 
-  const setupFailure = (flow: ReturnType<typeof useGmailSetupFlow>) => {
+  const setupFailure = (flow: ReturnType<typeof useGmailSetupFlow>, kind: SetupKind) => {
     if (flow.error) return flow.error;
     if (flow.initial.error instanceof Error) return flow.initial.error.message;
     if (flow.outcome === "failed" || flow.outcome === "unknown") {
+      if (kind === "write" && flow.last?.reason === "readonly_setup_not_completed") {
+        return "Google did not grant both change and send access, so action access is still not granted. Read access is unchanged.";
+      }
       const reason = flow.last?.reason ? SETUP_REASON_COPY[flow.last.reason] : null;
       return reason ?? "Google connection did not complete.";
     }
     return null;
   };
-  const readFailure = setupFailure(readFlow);
-  const writeFailure = setupFailure(writeFlow);
+  const readFailure = setupFailure(readFlow, "read");
+  const writeFailure = setupFailure(writeFlow, "write");
 
   return <section aria-labelledby="connect-apps-title" className="space-y-6">
     <header className="max-w-xl space-y-2">
@@ -189,23 +210,33 @@ export function ConnectAppsPanel({ profile }: { profile: "private" | "synthetic"
     </header>
     {!isPrivate && <p className="border-t border-line pt-5 text-sm leading-6 text-ink-secondary">You're exploring a synthetic workspace. Real accounts are connected only in the private app.</p>}
     <div className="divide-y divide-line">
-      {APPS.map((app) => <article key={app.id} className="flex flex-wrap items-start gap-4 py-6 first:pt-0">
-        <img src={`/integrations/${app.id}.webp`} alt="" width="44" height="44" className="shrink-0 object-contain" />
-        <div className="min-w-0 flex-1 basis-52 space-y-1">
-          <h3 className="font-medium">{app.name}</h3>
-          <p className="text-sm leading-6 text-ink-secondary">{app.description}</p>
-          {app.available && (isPrivate
-            ? <p className="text-xs text-ink-secondary">{accessLoading ? "Checking access…" : readConnected ? `Connection ${CONNECTION_STATE_COPY[connectionState ?? ""] ?? "Connected"}` : "No account connected"}</p>
-            : <p className="text-xs text-ink-secondary">Prototype  /  selected test label  /  read-only connection  ·  Not connected</p>)}
+      {APPS.map((app) => <article key={app.id} className="grid gap-x-8 gap-y-5 py-6 first:pt-0 md:grid-cols-[minmax(200px,0.9fr)_minmax(0,1.5fr)]">
+        <div className="flex items-start gap-4">
+          <img src={`/integrations/${app.id}.webp`} alt="" width="44" height="44" className="shrink-0 object-contain" />
+          <div className="min-w-0 space-y-1">
+            <h3 className="font-medium">{app.name}</h3>
+            <p className="text-sm leading-6 text-ink-secondary">{app.description}</p>
+            {app.available && (isPrivate
+              ? <p className="text-xs text-ink-tertiary">{accessLoading ? "Checking access…" : readConnected ? `Connection ${CONNECTION_STATE_COPY[connectionState ?? ""] ?? "Connected"}` : "No account connected"}</p>
+              : <p className="text-xs text-ink-tertiary">Selected test label  ·  Not connected</p>)}
+          </div>
         </div>
-        {!app.available ? <span className="text-sm text-ink-secondary">Planned</span>
-          : !isPrivate ? <Button disabled>Connect Gmail</Button>
-          : <div className="w-full basis-full space-y-4 md:w-auto md:basis-auto">
-            {!readConnected && <Button variant="primary" onClick={() => void readFlow.start()} disabled={readFlow.pending || readFlow.initial.isLoading}>
-              {readFlow.pending ? "Waiting for Google..." : "Connect Gmail"}
-            </Button>}
-            {readConnected && <div className="space-y-4 border-t border-line pt-5 md:min-w-[420px]">
-              <div className="grid gap-4 sm:grid-cols-2">
+        <div className="min-w-0">
+          {!app.available ? <p className="text-sm text-ink-tertiary md:text-right">Planned</p>
+            : !isPrivate ? <div className="flex items-center gap-3"><Button disabled>Connect Gmail</Button><p className="text-xs text-ink-tertiary">Real accounts are connected only in the private app.</p></div>
+            : !readConnected ? <div className="space-y-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <Button variant="primary" onClick={() => { setAccessClosed(false); setFullConnect(false); void readFlow.start(); }} disabled={readFlow.pending || readFlow.initial.isLoading}>
+                  {readFlow.pending && !fullConnect ? "Waiting for Google..." : "Connect Gmail"}
+                </Button>
+                <Button onClick={() => { setAccessClosed(false); setFullConnect(true); void readFlow.start(); }} disabled={readFlow.pending || readFlow.initial.isLoading}>
+                  Connect with action access
+                </Button>
+              </div>
+              <p className="max-w-md text-xs leading-5 text-ink-tertiary">Read-only asks for mailbox reading only. Action access opens a second Google consent showing read, change and send; change and send are required for actions, and you still approve every action. You can choose either option now or add action access later.</p>
+            </div>
+            : <div className="space-y-4">
+              <div className="grid gap-5 sm:grid-cols-2">
                 <div className="space-y-1">
                   <p className="text-xs uppercase tracking-wide text-ink-tertiary">Read access</p>
                   <p role="status" className="text-sm font-medium text-brand">{accessLoading ? "Checking access…" : "Connected  /  read-only"}</p>
@@ -219,7 +250,7 @@ export function ConnectAppsPanel({ profile }: { profile: "private" | "synthetic"
               </div>
               <div className="flex flex-wrap items-center gap-2 border-t border-line pt-4">
                 {!writeConnected && connectionState !== "DISCONNECTED" && <Button onClick={() => void writeFlow.start()} disabled={writeFlow.pending || writeFlow.initial.isLoading || command !== null}>
-                  {writeFlow.pending ? "Waiting for Google..." : "Grant action access"}
+                  {writeFlow.pending ? "Waiting for Google..." : "Grant read, change and send"}
                 </Button>}
                 {connectionState === "ACTIVE" && <Button onClick={() => void runCommand("pause")} disabled={command !== null}>Pause access</Button>}
                 {connectionState === "PAUSED" && <Button variant="primary" onClick={() => void runCommand("resume")} disabled={command !== null}>Resume access</Button>}
@@ -233,7 +264,7 @@ export function ConnectAppsPanel({ profile }: { profile: "private" | "synthetic"
                 {command !== null && <span role="status" className="text-sm text-ink-secondary">Applying access change...</span>}
               </div>
             </div>}
-          </div>}
+        </div>
       </article>)}
     </div>
     <div aria-live="polite" className="space-y-3 text-sm leading-6">

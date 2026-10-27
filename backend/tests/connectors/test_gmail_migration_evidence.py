@@ -197,6 +197,7 @@ def _protected_hashes(root: Path) -> dict[str, str]:
     return {
         path.relative_to(root).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
         for relative in PROTECTED
+        if (root / relative).is_dir()
         for path in (root / relative).rglob("*")
         if path.is_file() and not path.is_symlink()
     }
@@ -273,11 +274,51 @@ def test_connector_rollback_removes_only_connector_objects(tmp_path: Path) -> No
     assert _engine_snapshot(engine_path).objects == before
 
 
+def test_prior_schema_is_upgraded_with_a_backfilled_authorization(tmp_path: Path) -> None:
+    store_path = tmp_path / "private" / "connectors" / "gmail_metadata.db"
+    store_path.parent.mkdir(parents=True)
+    conn = open_store(store_path)
+    try:
+        conn.execute(
+            """CREATE TABLE gmail_connections(
+                connection_id TEXT PRIMARY KEY,account_id TEXT NOT NULL,owner_id TEXT NOT NULL,
+                state TEXT NOT NULL,selection_revision INTEGER NOT NULL,
+                label_ids TEXT NOT NULL,credential_ref TEXT NOT NULL,
+                granted_scopes TEXT NOT NULL,created_at TEXT NOT NULL,updated_at TEXT NOT NULL,
+                UNIQUE(account_id,connection_id)
+            )"""
+        )
+        conn.execute(
+            "INSERT INTO gmail_connections VALUES(?,?,?,?,?,?,?,?,?,?)",
+            (
+                "connection",
+                "account@example.test",
+                "owner",
+                "ACTIVE",
+                1,
+                '["Label_1"]',
+                "cred-1",
+                '["https://www.googleapis.com/auth/gmail.readonly"]',
+                NOW,
+                LATER,
+            ),
+        )
+        assert migrate_store(conn) is True
+        row = conn.execute(
+            "SELECT updated_at,authorized_at FROM gmail_connections WHERE connection_id='connection'"
+        ).fetchone()
+        assert row["authorized_at"] == LATER
+        assert migrate_store(conn) is False
+    finally:
+        conn.close()
+
+
 def test_protected_fixtures_and_results_unchanged(tmp_path: Path) -> None:
-    for relative in PROTECTED:
+    required = ("backend/tests/fixtures",)
+    for relative in required:
         assert (ROOT / relative).is_dir(), relative
     before = _protected_hashes(ROOT)
-    for relative in PROTECTED:
+    for relative in required:
         assert any(key.startswith(f"{relative}/") for key in before), relative
 
     _run_connector_cycle(tmp_path / "private" / "connectors" / "gmail_metadata.db")

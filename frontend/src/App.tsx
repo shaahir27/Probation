@@ -142,16 +142,19 @@ function Workspace() {
   }
 
   if (session.profile === "private" && !authenticated) {
+    const finishSignIn = async (attempt: Promise<boolean>) => {
+      const ok = await attempt;
+      if (!ok) return;
+      // Only a bare URL normalises to Home: a deep-linked route must survive sign-in,
+      // not be overwritten by it.
+      const hash = window.location.hash;
+      if (hash === "" || hash === "#" || hash === "#/") navigate({ page: "home" });
+    };
     return (
       <SignInView
-        onSubmit={async (token) => {
-          const ok = await session.signIn(token);
-          if (!ok) return;
-          // Only a bare URL normalises to Home: a deep-linked route must survive sign-in,
-          // not be overwritten by it.
-          const hash = window.location.hash;
-          if (hash === "" || hash === "#" || hash === "#/") navigate({ page: "home" });
-        }}
+        onSubmit={(token) => finishSignIn(session.signIn(token))}
+        onSignIn={(email, password) => finishSignIn(session.signInAccount(email, password))}
+        onRegister={(email, password) => finishSignIn(session.registerAccount(email, password))}
         error={session.errorMessage}
         busy={session.status === "checking"}
       />
@@ -240,10 +243,8 @@ function Workspace() {
                 <HomeView
                   queueItems={items}
                   licences={permissions.data?.licences ?? []}
+                  actions={actions.data?.actions ?? []}
                   profile={session.profile ?? "synthetic"}
-                  replay={replay.data ?? null}
-                  replayError={replay.error instanceof Error ? replay.error.message : null}
-                  onReplayRefresh={() => void replay.refetch()}
                 />
               )}
 

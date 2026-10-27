@@ -13,6 +13,7 @@ from probation.api.db import connect_api as get_connection
 from probation.api.owner_session import OwnerSessionManager
 from probation.api.routes import (
     actions,
+    auth,
     boards,
     controls,
     gmail_connector,
@@ -103,6 +104,7 @@ app.include_router(replay.router)
 app.include_router(gmail_connector.router)
 app.include_router(gmail_setup.router)
 app.include_router(session.router)
+app.include_router(auth.router)
 
 
 @app.get("/health")

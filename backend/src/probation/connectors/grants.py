@@ -14,7 +14,7 @@ def gmail_source_id(connection_id: str) -> str:
 def source_grants_for_owner(access: ConnectorAccess, owner_id: str) -> tuple[SourceGrant, ...]:
     """Every registered connection this owner holds; the rows are the only source of grants."""
     rows = access.query(
-        "SELECT connection_id, account_id FROM gmail_connections "
+        "SELECT connection_id, account_id, authorized_at FROM gmail_connections "
         "WHERE owner_id = ? ORDER BY connection_id",
         (owner_id,),
     )
@@ -24,6 +24,7 @@ def source_grants_for_owner(access: ConnectorAccess, owner_id: str) -> tuple[Sou
             connection_id=str(row["connection_id"]),
             account_id=str(row["account_id"]),
             from_addr=str(row["account_id"]),
+            authorized_at=(str(row["authorized_at"]) if row["authorized_at"] is not None else None),
         )
         for row in rows
     )

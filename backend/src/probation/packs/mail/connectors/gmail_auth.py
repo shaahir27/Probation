@@ -430,10 +430,18 @@ class _CallbackHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         holder = type(self).holder
         assert holder is not None
+        query = urlsplit(self.path).query
+        expected_state = str(holder["expected"])
+        # A browser can replay the previous consent's callback while the next local listener is
+        # starting. Only the exact state issued for this attempt may consume the single result.
+        if parse_qs(query, keep_blank_values=False).get("state", [""])[0] != expected_state:
+            self.send_response(400)
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(b"Authorization result ignored. Return to Probation and try again.")
+            return
         try:
-            code: SecretMaterial | None = parse_callback_query(
-                urlsplit(self.path).query, expected_state=str(holder["expected"])
-            )
+            code: SecretMaterial | None = parse_callback_query(query, expected_state=expected_state)
             outcome: _Outcome = _Outcome(code=code)
         except ConnectorError as exc:
             outcome = _Outcome(error=exc)

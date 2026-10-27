@@ -266,6 +266,81 @@ def test_action_transition_and_attempt_confirmation_rollback_atomically(
     conn.close()
 
 
+def test_fresh_oauth_authorization_supersedes_an_earlier_revoke_for_undo(
+    tmp_path: Path,
+) -> None:
+    from dataclasses import replace
+
+    from probation.core.lifecycle import CommandIntent, CommandScope
+    from probation.db.lifecycle_commands import CommandStore
+    from probation.workers.restrictions import process_restriction_commands
+
+    conn, world = seed(tmp_path)
+    approve(conn)
+    executor = worker(conn, world, level=0)
+    executor.process_responses(LATER)
+    executor.process_queue(LATER)
+    action_id = conn.execute("SELECT id FROM actions").fetchone()[0]
+    CommandStore(RoleAccess(conn, Role.API)).submit(
+        CommandIntent(
+            request_id="revoke",
+            owner_id="owner",
+            type="revoke",
+            scope=CommandScope(connection_id=GRANT.connection_id, account_id=GRANT.account_id),
+            created_at="2026-10-01T01:00:02Z",
+        )
+    )
+    process_restriction_commands(conn, as_of="2026-10-01T01:00:03Z")
+    undo_request(conn, action_id, "2026-10-01T01:00:04Z")
+    blocked = executor.process_undo(action_id, "2026-10-01T01:00:05Z")
+    assert not blocked.success and blocked.error == "restriction_changed"
+
+    reauthorized = Executor(
+        conn,
+        world,
+        licence_checker=lambda *_: 0,
+        grant_resolver=lambda _: replace(GRANT, authorized_at="2026-10-01T01:00:06Z"),
+    )
+    undone = reauthorized.process_undo(action_id, "2026-10-01T01:00:07Z")
+    assert undone.success
+    assert conn.execute("SELECT status FROM actions").fetchone()[0] == "UNDONE"
+    assert "INBOX" in world.get_message("<m@test.local>")["labels"]
+    world.close()
+    conn.close()
+
+
+def test_replay_controls_do_not_poison_execution_restrictions(tmp_path: Path) -> None:
+    from probation.core.replay_controls import ReplayCommandIntent, server_replay_scope
+    from probation.db.replay_commands import ReplayCommandStore
+    from probation.workers.restrictions import current_restrictions
+
+    conn, world = seed(tmp_path)
+    binding = build_review_binding(
+        conn,
+        "proposal",
+        grant=GRANT,
+        owner_id="owner",
+        restriction_revision="0",
+        as_of=LATER,
+        response="accept",
+    )
+    ReplayCommandStore(RoleAccess(conn, Role.API)).submit(
+        ReplayCommandIntent(
+            request_id="replay-start",
+            owner_id="owner",
+            type="replay_start",
+            scope=server_replay_scope("owner", tmp_path / "engine.db"),
+            created_at=LATER,
+        )
+    )
+    restrictions = current_restrictions(conn, binding, LATER, class_key="mail|other|known")
+    assert restrictions.revision == "0"
+    assert not restrictions.blocked
+    assert restrictions.reasons == ()
+    world.close()
+    conn.close()
+
+
 def test_pending_revocation_blocks_undo_effect(tmp_path: Path) -> None:
     from probation.core.lifecycle import CommandIntent, CommandScope
     from probation.db.lifecycle_commands import CommandStore

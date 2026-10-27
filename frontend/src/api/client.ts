@@ -324,11 +324,42 @@ function decodeGmailLifecycleStatus(value: unknown): GmailLifecycleStatus {
 const gmailSetupPath = (kind: "read" | "write", requestId?: string): string =>
   `/gmail/setup/${kind}${requestId === undefined ? "" : `/${encodeURIComponent(requestId)}`}`;
 
+export interface AccountSession {
+  version: "v1";
+  access_token: string;
+  token_type: "bearer";
+  expires_in: number;
+  user: { email: string; owner_id: string };
+}
+
+function decodeAccountSession(value: unknown): AccountSession {
+  const row = object(value, "account session");
+  const user = row.user === undefined ? null : object(row.user, "account user");
+  if (
+    row.version !== "v1"
+    || typeof row.access_token !== "string"
+    || row.access_token.split(".").length !== 3
+    || row.token_type !== "bearer"
+    || typeof row.expires_in !== "number"
+    || !Number.isFinite(row.expires_in)
+    || row.expires_in <= 0
+    || user === null
+    || typeof user.email !== "string"
+    || user.email.length === 0
+    || typeof user.owner_id !== "string"
+    || user.owner_id.length === 0
+  ) {
+    throw new ApiError("invalid_response", "Probation returned an invalid account session.");
+  }
+  return row as unknown as AccountSession;
+}
+
 export interface OwnerSessionInfo {
   version: "v1";
   authenticated: boolean;
   owner_id?: string;
   expires_in?: number;
+  email?: string;
 }
 
 function decodeSessionState(value: unknown): OwnerSessionInfo {
@@ -361,6 +392,20 @@ function decodeAuthenticatedSession(value: unknown): OwnerSessionInfo {
 }
 
 export const apiClient = {
+  async loginAccount(email: string, password: string): Promise<AccountSession> {
+    const info = decodeAccountSession(
+      await request<unknown>("/auth/login", { method: "POST", body: { email, password } }),
+    );
+    beginOwnerSession();
+    return info;
+  },
+  async registerAccount(email: string, password: string): Promise<AccountSession> {
+    const info = decodeAccountSession(
+      await request<unknown>("/auth/register", { method: "POST", body: { email, password } }),
+    );
+    beginOwnerSession();
+    return info;
+  },
   async startSession(ownerKey: string, signal?: Signal): Promise<OwnerSessionInfo> {
     const info = decodeAuthenticatedSession(
       await request<unknown>("/session", { method: "POST", bearer: ownerKey, signal }),

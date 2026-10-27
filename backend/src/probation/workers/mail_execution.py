@@ -62,11 +62,19 @@ class MailLifecycle:
         if row is None:
             return "proposal_unavailable"
         restrictions = current_restrictions(
-            self.worker.conn, binding, now, class_key=str(row["class_key"])
+            self.worker.conn,
+            binding,
+            now,
+            class_key=str(row["class_key"]),
+            authorized_at=grant.authorized_at,
         )
-        if restrictions.blocked or restrictions.revision != binding.restriction_revision:
+        if restrictions.blocked or (
+            not for_undo and restrictions.revision != binding.restriction_revision
+        ):
             return "restriction_changed"
         if for_undo:
+            # A reconnect records a fresh resume revision. The immutable binding still proves the
+            # reviewed resource; only a current pause or revoke may block its correction.
             return None
         if authority.kind == "explicit_user":
             return None
@@ -192,6 +200,11 @@ class MailLifecycle:
                     ):
                         return ExecResult(success=False, action_id=action.id, error="undo_expired")
                     self._restore_undo_anchor(io, action, binding)
+                    prove = getattr(io, "prove_resource", None)
+                    if prove is not None:
+                        # The action binding is the reviewed proof that this resource may be
+                        # re-read for its own undo, even after it left the label cohort.
+                        prove(binding.resource_id)
                 snap = io.snapshot_mail(binding.resource_id)
                 if (
                     binding.native_message_id

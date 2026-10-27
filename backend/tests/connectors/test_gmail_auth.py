@@ -433,6 +433,33 @@ def test_loopback_listener_roundtrip_suppresses_callback_logging(
     assert CODE_CANARY not in capsys.readouterr().out
 
 
+def test_loopback_listener_ignores_a_stale_state_before_the_real_callback() -> None:
+    listener = LoopbackCallback()
+    vault = _vault()
+    state = _issue(vault, redirect=listener.redirect_uri)
+    listener.expect(state.token)
+    stale = f"{listener.redirect_uri}?code={CODE_CANARY}&state=wrong-state-value-0000000000"
+    valid = f"{listener.redirect_uri}?code={CODE_CANARY}&state={state.token}"
+
+    def fetch(url: str) -> None:
+        try:
+            urllib.request.urlopen(url, timeout=5)
+        except OSError:
+            pass
+
+    stale_thread = threading.Thread(target=fetch, args=(stale,))
+    stale_thread.start()
+    stale_thread.join(5)
+    valid_thread = threading.Thread(target=fetch, args=(valid,))
+    valid_thread.start()
+    try:
+        code = listener.wait(timeout_seconds=10)
+    finally:
+        valid_thread.join(5)
+
+    assert code.reveal() == CODE_CANARY
+
+
 def test_loopback_listener_surfaces_typed_denial_and_timeout() -> None:
     listener = LoopbackCallback()
     vault = _vault()

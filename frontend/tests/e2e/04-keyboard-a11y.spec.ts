@@ -102,6 +102,7 @@ test("primary controls and landmarks have accessible names", async ({ page }) =>
 
 test("errors are announced to assistive technology", async ({ page }) => {
   await page.goto("/");
+  await page.getByRole("button", { name: "Use owner key instead" }).click();
   await page.getByLabel("Owner key").fill("definitely-not-the-synthetic-key");
   await page.getByRole("button", { name: "Continue" }).click();
 

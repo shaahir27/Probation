@@ -257,7 +257,10 @@ def test_connected_requires_exact_registered_read_identity(
     digest = hashlib.sha256(f"owner\0{account}\0Label_1".encode()).hexdigest()[:24]
     ref = f"cred-d6-read-{digest}"
     conn.execute(
-        "INSERT INTO gmail_connections VALUES(?,?,?,?,?,?,?,?,?,?)",
+        "INSERT INTO gmail_connections "
+        "(connection_id,account_id,owner_id,state,selection_revision,label_ids,"
+        "credential_ref,granted_scopes,created_at,updated_at) "
+        "VALUES(?,?,?,?,?,?,?,?,?,?)",
         (
             f"d6-read-{digest}",
             account,
@@ -290,7 +293,10 @@ def test_connected_write_requires_read_connection_and_write_token(tmp_path, monk
     migrate_store(conn)
     read = read_grant("owner", "synthetic@example.test", "Label_1")
     conn.execute(
-        "INSERT INTO gmail_connections VALUES(?,?,?,?,?,?,?,?,?,?)",
+        "INSERT INTO gmail_connections "
+        "(connection_id,account_id,owner_id,state,selection_revision,label_ids,"
+        "credential_ref,granted_scopes,created_at,updated_at) "
+        "VALUES(?,?,?,?,?,?,?,?,?,?)",
         (
             read.connection_id,
             read.account_id,

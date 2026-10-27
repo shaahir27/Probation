@@ -236,6 +236,31 @@ def test_revoke_disconnects_and_stops_observation(
     assert worker.run(Event(), max_ticks=3) == 1  # disconnect ends the loop, not just one tick
 
 
+def test_commands_queued_before_a_fresh_authorization_are_superseded(
+    handles: _Handles, memory_db: sqlite3.Connection
+) -> None:
+    register(handles, "SHADOW")
+    clock = _clock()
+    _submit(memory_db, "stale-disconnect", "revoke")
+    admin = handles.access("administration")
+    admin.write(
+        "gmail_connections",
+        "UPDATE gmail_connections SET authorized_at=? WHERE connection_id=?",
+        (T_VISIBLE, CONNECTION),
+    )
+
+    (stale,) = _consumer(handles, memory_db, clock).consume()
+    assert stale.outcome == "failed"
+    assert stale.safe_code == "superseded_by_reauthorization"
+    assert _state(handles) == "SHADOW"
+
+    _submit(memory_db, "post-reauthorization-disconnect", "revoke")
+    (current,) = _consumer(handles, memory_db, clock).consume()
+    assert current.outcome == "applied"
+    assert current.applied_state == "DISCONNECTED"
+    assert _state(handles) == "DISCONNECTED"
+
+
 # -- resume ----------------------------------------------------------------------------------------
 def test_resume_from_paused_reactivates(handles: _Handles, memory_db: sqlite3.Connection) -> None:
     register(handles, "PAUSED")

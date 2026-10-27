@@ -64,6 +64,7 @@ def _minimal_environment(temp_root: Path, api_port: int, namespace: str, items: 
             "TAVILY_API_KEY": "",
             "PROBATION_GMAIL_OWNER_API_KEY": OWNER_KEY,
             "PROBATION_GMAIL_OWNER_ID": OWNER_ID,
+            "PROBATION_ACCOUNTS_DB": str(temp_root / "private" / "accounts" / "accounts.db"),
             "PROBATION_GMAIL_STORE": str(temp_root / "private" / "gmail_metadata.db"),
             "PROBATION_GMAIL_BIND_HOST": "127.0.0.1",
             "PYTHONPATH": str(WORKTREE / "backend" / "src"),
