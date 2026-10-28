@@ -337,7 +337,10 @@ class FakeGmailTransport(HttpTransport):
         if label_filter is not None:
             records = [entry for entry in records if _entry_matches_label(entry, str(label_filter))]
         page = self._paginate(records, query)
-        result: dict[str, Any] = {"history": page.items, "historyId": str(self.current_history_id)}
+        result: dict[str, Any] = {
+            "history": [_wire_history(entry) for entry in page.items],
+            "historyId": str(self.current_history_id),
+        }
         if page.next_token is not None:
             result["nextPageToken"] = page.next_token
         return _json(result)
@@ -366,6 +369,22 @@ def _entry_matches_label(entry: dict[str, Any], label_id: str) -> bool:
             if record.get("labelId") == label_id:
                 return True
     return False
+
+
+def _wire_history(entry: dict[str, Any]) -> dict[str, Any]:
+    """Gmail REST wraps message events and uses plural label-event fields."""
+    result: dict[str, Any] = {"id": str(entry["id"])}
+    for key in ("messagesAdded", "messagesDeleted"):
+        if key in entry:
+            result[key] = [{"message": message} for message in entry[key]]
+    for internal, wire in (("labelAdded", "labelsAdded"), ("labelRemoved", "labelsRemoved")):
+        if internal in entry:
+            result[wire] = [
+                {"message": message, "labelIds": [record["labelId"]]}
+                for record in entry[internal]
+                for message in record["messages"]
+            ]
+    return result
 
 
 def _json(payload: dict[str, Any]) -> HttpResult:

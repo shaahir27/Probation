@@ -5,6 +5,7 @@ fake provider the real client would use (CONTRACT I-17), so these tests exercise
 code path offline. Label versions are read from persisted ``gmail_history_events`` rows only.
 """
 
+import json
 from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
@@ -13,6 +14,7 @@ import pytest
 from fake_gmail_read import FakeGmailTransport, _Message
 
 from probation.connectors.types import (
+    HttpResult,
     NativeRef,
     ProviderUnavailable,
     SelectionViolation,
@@ -63,6 +65,49 @@ def _connector(
         owner_label=OWNER_LABEL,
         payloads=payloads,
     )
+
+
+def test_native_history_wire_shape_is_normalised(monkeypatch: pytest.MonkeyPatch) -> None:
+    fake = FakeGmailTransport(expected_token=TOKEN)
+    payload = {
+        "history": [
+            {
+                "id": "7",
+                "messagesAdded": [{"message": {"id": "m1"}}],
+                "labelsAdded": [{"message": {"id": "m1"}, "labelIds": [OWNER_LABEL, "INBOX"]}],
+            }
+        ],
+        "historyId": "7",
+    }
+    monkeypatch.setattr(
+        fake, "_list_history", lambda query: HttpResult(200, json.dumps(payload).encode())
+    )
+    page = _connector(fake).history_page({"startHistoryId": 1})
+    assert page["history"][0]["messagesAdded"] == [{"id": "m1"}]
+    assert page["history"][0]["labelAdded"] == [
+        {"labelId": OWNER_LABEL, "messages": [{"id": "m1"}]},
+        {"labelId": "INBOX", "messages": [{"id": "m1"}]},
+    ]
+
+
+@pytest.mark.parametrize(
+    "entry",
+    [
+        None,
+        {"id": "7", "messagesAdded": [{"id": "m1"}]},
+        {"id": "7", "labelsAdded": [{"message": {"id": "m1"}, "labelIds": "COHORT"}]},
+    ],
+)
+def test_malformed_native_history_fails_closed(
+    entry: object, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake = FakeGmailTransport(expected_token=TOKEN)
+    payload = {"history": [entry], "historyId": "7"}
+    monkeypatch.setattr(
+        fake, "_list_history", lambda query: HttpResult(200, json.dumps(payload).encode())
+    )
+    with pytest.raises(ProviderUnavailable, match="malformed_provider_history"):
+        _connector(fake).history_page({"startHistoryId": 1})
 
 
 @pytest.fixture

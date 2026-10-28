@@ -158,7 +158,12 @@ class GmailReadConnector:
         )
         if result.status == 404:
             self._resync_required = True
-        return self._decode(result)
+        payload = self._decode(result)
+        records = payload.get("history", [])
+        if not isinstance(records, list):
+            raise ProviderUnavailable("malformed_provider_history")
+        payload["history"] = [_normalise_history(entry) for entry in records]
+        return payload
 
     # -- cohort enumeration (ids only, never bodies) ----------------------------------------
     def enumerate_cohort(self, selection: SourceSelection) -> tuple[NativeRef, ...]:
@@ -405,6 +410,42 @@ class GmailReadConnector:
 
 def _canonical(value: Mapping[str, Any]) -> str:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+
+
+def _normalise_history(entry: Any) -> dict[str, Any]:
+    """Translate Gmail's wire shape to the existing internal event representation."""
+    if not isinstance(entry, dict) or _as_int(entry.get("id")) is None:
+        raise ProviderUnavailable("malformed_provider_history")
+    result: dict[str, Any] = {"id": entry["id"]}
+    for wire, internal in (
+        ("messagesAdded", "messagesAdded"),
+        ("messagesDeleted", "messagesDeleted"),
+        ("labelsAdded", "labelAdded"),
+        ("labelsRemoved", "labelRemoved"),
+    ):
+        records = entry.get(wire, [])
+        if not isinstance(records, list):
+            raise ProviderUnavailable("malformed_provider_history")
+        events: list[dict[str, Any]] = []
+        for record in records:
+            message = record.get("message") if isinstance(record, dict) else None
+            if (
+                not isinstance(message, dict)
+                or not isinstance(message.get("id"), str)
+                or not message["id"]
+            ):
+                raise ProviderUnavailable("malformed_provider_history")
+            if wire.startswith("messages"):
+                events.append(dict(message))
+            else:
+                labels = record.get("labelIds")
+                if not isinstance(labels, list) or any(
+                    not isinstance(label, str) or not label for label in labels
+                ):
+                    raise ProviderUnavailable("malformed_provider_history")
+                events.extend({"labelId": label, "messages": [dict(message)]} for label in labels)
+        result[internal] = events
+    return result
 
 
 def _sha(text: str) -> str:
