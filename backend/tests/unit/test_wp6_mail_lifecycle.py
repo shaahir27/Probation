@@ -1,5 +1,6 @@
 """Actual mail before-state, correlation and restart boundaries (D3)."""
 
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -35,6 +36,20 @@ def action(kind: str) -> Action:
         created_at="2026-10-01T01:00:00Z",
         updated_at="2026-10-01T01:00:00Z",
     )
+
+
+def test_undo_refuses_missing_label_version_proof(tmp_path: Path) -> None:
+    from probation.packs.mail.lifecycle_io import MailConflict
+    from probation.packs.mail.lifecycle_operations import prepare_undo
+
+    with SimWorld(tmp_path / "world.db") as world:
+        message(world, ["INBOX"])
+        act = action("ARCHIVE")
+        result = execute_mail_action(act, world)
+        assert result.success
+        current = replace(world.snapshot_mail("<m@test.local>"), label_versions={})
+        with pytest.raises(MailConflict, match="undo_label_history_conflict"):
+            prepare_undo(act.model_copy(update={"undo": result.undo_data}), current)
 
 
 @pytest.mark.parametrize(

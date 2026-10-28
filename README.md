@@ -144,6 +144,13 @@ The model mapping is fixed in configuration. There is no automatic model fallbac
 
 ## Live evidence and measured results
 
+### Local verification on 28 October 2026
+
+- The complete check gate passed **1,509 backend tests**, lint, formatting and both type checks. The dashboard passed **39 workspace browser tests**, **18 unit tests** and its production build.
+- A newly labeled fictional Gmail message was ingested and processed by Nemotron Super with validated reader output. Its owner-approved archive and undo both have confirmed Executor/provider receipts; undo restored `INBOX` and preserved unrelated labels.
+- Reconnect now completes both consent steps and refreshes the affected worker. The Gmail history adapter parses the actual Google wire format; the fake provider now emits that same format. Undo refuses missing touched-label version proof.
+- The later research message encountered an unconfirmed model transport result and stopped before Tavily. Its web verification and a live sent reply remain **unverified**. Recorded synthetic D5 Tavily results are separate historical evidence, not a fresh check of that Gmail message.
+
 ### Recorded D6 verification (before subsequent changes)
 
 | Check | Result |

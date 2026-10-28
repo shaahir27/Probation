@@ -5,6 +5,7 @@ import { QueueItem } from "../api/types";
 import { reviewActionLabel, ReviewDecision, ReviewForm } from "../components/queue/ReviewForm";
 import { VerificationCard } from "../components/queue/VerificationCard";
 import { Button } from "../components/common/Button";
+import { LinkButton } from "../components/common/LinkButton";
 import { StatePanel } from "../components/common/StatePanel";
 import { formatWhen, parseEmailText, senderDisplay } from "../lib/emailText";
 interface ItemDetailViewProps {
@@ -28,7 +29,7 @@ export function ItemDetailView({ id, item, authenticated, readOnly = false, revi
   const gateLabel = readOnly ? "Watching only" : (item?.gate ?? detail?.gate) === "SUGGEST" ? "Suggested for you" : "Needs your decision";
   const sender = detail?.sender_key || item?.sender_key;
   return <article className="space-y-5" data-ui="email-detail">
-    <a href={readOnly ? "#/watching" : "#/queue"} onClick={(event) => { event.preventDefault(); onBack(); }} className="detail-back min-h-11 inline-flex items-center gap-2 text-sm text-ink-secondary"><ArrowLeft aria-hidden="true" size={15} />Back to review</a>
+    <a href={readOnly ? "#/watching" : "#/queue"} onClick={(event) => { event.preventDefault(); onBack(); }} className="detail-back min-h-11 inline-flex items-center gap-2 text-sm text-ink-secondary"><ArrowLeft aria-hidden="true" size={15} />{readOnly ? "Back to watching" : "Back to review"}</a>
     <header className="space-y-3"><p className="text-xs text-ink-secondary">Email · {gateLabel}</p><h1 className="page-title break-words max-w-3xl">{text.subject}</h1><p className="text-sm text-ink-secondary">{action === "ABSTAIN" ? "Recommendation:" : "Requested action:"} <span className="text-ink">{reviewActionLabel(action)}</span></p></header>
     {readError !== null && <StatePanel state={readStatus === 401 || readStatus === 403 ? "locked" : "error"} title="Email details are unavailable" description={readError} onRetry={() => void read.refetch()} retryLabel="Try again" />}
     {read.isFetching && detail === null && readError === null && <p role="status" className="text-sm text-ink-secondary">Loading email details…</p>}
@@ -39,6 +40,7 @@ export function ItemDetailView({ id, item, authenticated, readOnly = false, revi
       <div className="space-y-5">
         <section className="review-email" aria-labelledby="email-text-title"><div className="review-meta"><Mail size={18} aria-hidden="true" className="text-ink-tertiary" /><div className="min-w-0"><h2 id="email-text-title" className="text-sm font-semibold">Email text</h2><p className="mt-1 max-w-[42ch] truncate text-xs text-ink-tertiary">{senderDisplay(sender)}</p></div></div><div className="review-body">{text.body || text.preview || "The email body is unavailable."}</div>{text.disclaimer && <details className="mt-5 border-t border-line pt-4 text-xs leading-6 text-ink-tertiary"><summary className="min-h-11 cursor-pointer py-2 underline underline-offset-4">Sender disclaimer</summary><p className="max-w-[75ch] whitespace-pre-wrap">{text.disclaimer}</p></details>}</section>
         <ReviewForm formKey={id} proposedAction={action} supportedActions={supported} draftText={draftText} draftNeedsInput={needsInput} readOnly={readOnly || answered !== null} readOnlyNote={answered === null ? undefined : "Your decision is already recorded, so there is nothing left to confirm for this email."} busy={review.busy} conflict={null} onReview={(decision) => { void review.submit(id, decision); }} onFreshReview={review.refresh} />
+        {readOnly && answered === null && supported.length > 0 && <div className="space-y-2"><LinkButton href={`#/queue/${encodeURIComponent(id)}`} variant="secondary" size="md">Choose an action yourself</LinkButton><p className="text-xs leading-5 text-ink-secondary">Review one exact action. This does not grant automatic permission.</p></div>}
       </div>
       <aside className="space-y-6 border-t border-line pt-6" aria-label="Suggestion evidence">
         <section aria-labelledby="why-title" className="space-y-3"><h2 id="why-title" className="section-heading">{action === "ABSTAIN" ? "About this decision" : "Why Probation suggested this"}</h2>

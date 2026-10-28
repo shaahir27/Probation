@@ -62,7 +62,8 @@ _LIFECYCLE_BASELINE = {
     # revoke. The label baseline now includes its reviewed formatting and anchor proof.
     "probation/workers/mail_execution.py": "e9ac2fc76a6b65df",
     "probation/packs/mail/lifecycle_io.py": "92f811471e72f68f",
-    "probation/packs/mail/lifecycle_operations.py": "8acef881814bc4cb",
+    # Missing touched-version proof now refuses undo; the regression test preserves this guard.
+    "probation/packs/mail/lifecycle_operations.py": "9b102500de49e00c",
 }
 
 

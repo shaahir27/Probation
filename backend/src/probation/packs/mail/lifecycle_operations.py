@@ -80,20 +80,14 @@ def prepare_undo(action: Action, snapshot: MailSnapshot) -> dict[str, Any]:
     expected = undo.get("touched_versions")
     if not isinstance(expected, dict) or set(expected) != added | removed:
         raise MailConflict("undo_label_history_conflict")
-    if snapshot.label_versions:
-        if any(
-            snapshot.label_versions.get(label, 0) != version for label, version in expected.items()
-        ):
-            raise MailConflict("undo_label_history_conflict")
-    # When the provider history window is unavailable, the exact labels and the reviewed
-    # resource are still proven above. The provider CAS in apply_mail remains the final guard
-    # against a concurrent change, so the undo can proceed on label state alone.
+    if any(snapshot.label_versions.get(label, 0) != version for label, version in expected.items()):
+        raise MailConflict("undo_label_history_conflict")
     payload = {
         "type": "labels",
         "resource_id": snapshot.resource_id,
         "add_labels": sorted(removed),
         "remove_labels": sorted(added),
-        "undo_evidence": "label_state" if not snapshot.label_versions else "label_versions",
+        "undo_evidence": "label_versions",
     }
     return {
         "snapshot": asdict(snapshot),

@@ -37,6 +37,9 @@ test("every primary route renders its own screen", async ({ page }) => {
   await page.goto("/#/watching/e2e-shadow-1");
   await expect(page.getByRole("heading", { name: ITEM.shadow })).toBeVisible();
   await expect(page.getByText("Nothing here is waiting for your decision. Probation is only observing.")).toBeVisible();
+  await page.getByRole("link", { name: "Choose an action yourself" }).click();
+  await expect(page).toHaveURL(/#\/queue\/e2e-shadow-1/);
+  await expect(page.getByRole("heading", { name: "Your decision" })).toBeVisible();
 
   await page.goto("/#/actions");
   await expect(page.getByRole("heading", { name: "Activity" })).toBeVisible();
@@ -134,7 +137,7 @@ test("the in-app Back link returns to the list it came from", async ({ page }) =
   await page.goto("/#/watching");
   await page.getByRole("link", { name: new RegExp(ITEM.shadow) }).click();
   await expect(page.getByRole("heading", { name: ITEM.shadow })).toBeVisible();
-  await page.getByRole("link", { name: /Back to review/ }).click();
+  await page.getByRole("link", { name: /Back to watching/ }).click();
   await expect(page.getByRole("heading", { name: "Watching" })).toBeVisible();
 });
 
