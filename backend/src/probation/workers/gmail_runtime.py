@@ -663,6 +663,7 @@ class GmailRuntime:
         launcher: Launcher | None = None,
         work: WorkLedger | None = None,
         work_staleness_seconds: float = WORK_STALENESS_SECONDS,
+        refresh_setup_grants: bool = False,
     ) -> None:
         self.db_path, self.private_store_path = Path(db_path), Path(private_store_path)
         self.env, self.clock = dict(env), clock
@@ -671,6 +672,7 @@ class GmailRuntime:
         self._spawn = spawn or self._default_spawn
         self._work = work
         self._work_window = work_staleness_seconds
+        self._refresh_setup_grants = refresh_setup_grants
 
     def command_for(self, role: RuntimeRole) -> list[str]:
         bootstrap = Path(__file__).with_name("bootstrap.py")
@@ -815,7 +817,7 @@ class GmailRuntime:
         looks, so supervision can never certify work it has not seen.
         """
         roles: dict[str, RoleReadiness] = {}
-        for role, (_child_env, _credential, _ready) in plans.items():
+        for role, (_child_env, _credential, configured) in plans.items():
             handle = handles.get(role)
             work_ready, work_code = self._work_state(role)
             if role in failures:
@@ -829,9 +831,9 @@ class GmailRuntime:
             evidence = None if self._work is None else self._work.evidence(role.value)
             roles[role.value] = RoleReadiness(
                 role=role.value,
-                state=state if work_ready or not process_live else "degraded",
-                ready=process_live and work_ready,
-                code=failures.get(role) or work_code,
+                state=state if (work_ready and configured) or not process_live else "degraded",
+                ready=process_live and work_ready and configured,
+                code=failures.get(role) or (work_code if configured else "role_not_provisioned"),
                 last_tick_at=None if evidence is None else evidence.at,
             )
         return publish_runtime_status(
@@ -855,6 +857,61 @@ class GmailRuntime:
             return False, "clock_inconsistent"
         return state.ready, state.code
 
+    def _refresh_setup_roles(
+        self,
+        plans: dict[RuntimeRole, tuple[dict[str, str], Capability, bool]],
+        handles: dict[RuntimeRole, RoleProcess],
+        failures: dict[RuntimeRole, str],
+        *,
+        join_timeout: float,
+    ) -> None:
+        """Reload consent inside the trusted supervisor, never inside the API or Brain."""
+        from probation.workers.gmail_setup_grant import load_setup_grant
+
+        for role, credential_role in _CREDENTIAL_OVERRIDES.items():
+            try:
+                loaded = load_setup_grant(
+                    self.private_store_path,
+                    self.env.get("PROBATION_GMAIL_OWNER_ID", "local-owner"),
+                    role=credential_role,
+                )
+            except (ConnectorError, OSError, sqlite3.Error, ValueError):
+                # A grant that cannot be verified must not remain in a running child.
+                loaded = None
+            old_grant = self._grant(role)
+            if old_grant is not None:
+                self.env.pop(old_grant.env_name, None)
+            if self._grants is None:
+                self._grants = {r: g for r in RuntimeRole if (g := self._grant(r)) is not None}
+            self._grants.pop(role, None)
+            if loaded is not None:
+                self._grants[role] = loaded.grant
+                self.env[loaded.grant.env_name] = loaded.bundle_json
+                if role is RuntimeRole.EXECUTOR:
+                    self.env.setdefault(
+                        "PROBATION_GMAIL_FORWARD_ALLOWLIST", loaded.grant.account_id
+                    )
+            next_plan = self.plan()[role]
+            if next_plan == plans[role] and (role not in failures or not next_plan[2]):
+                continue
+            handle = handles.pop(role, None)
+            if handle is not None:
+                _shutdown(handle, join_timeout)
+                for name in ("stdin", "stdout", "stderr"):
+                    stream = getattr(handle, name, None)
+                    if stream is not None:
+                        stream.close()
+            plans[role] = next_plan
+            if self._work is not None:
+                self._work.failure(role.value, self.clock.now_iso(), "consent_changed")
+            try:
+                handle = self._spawn(role, next_plan[0])
+                handles[role] = handle
+                failures.pop(role, None)
+                _pump_role_status(handle, role.value, self._work)
+            except (OSError, ConnectorError, ValueError):
+                failures[role] = "consent_worker_start_failed"
+
     def run(
         self, stop: Event, *, join_timeout: float = 5.0, poll_seconds: float = 0.1
     ) -> RuntimeReport:
@@ -871,10 +928,17 @@ class GmailRuntime:
                 failures[role] = str(getattr(exc, "safe_code", type(exc).__name__))
         _start_ipc_bridge(handles)
         self._publish_readiness(plans, handles, failures)
+        since_grant_check = 0.0
         if handles:
             try:
                 while not stop.is_set() and not all(h.poll() is not None for h in handles.values()):
                     stop.wait(poll_seconds)
+                    since_grant_check += poll_seconds
+                    if self._refresh_setup_grants and since_grant_check >= 2:
+                        self._refresh_setup_roles(
+                            plans, handles, failures, join_timeout=join_timeout
+                        )
+                        since_grant_check = 0.0
                     self._publish_readiness(plans, handles, failures)
             except KeyboardInterrupt:
                 stop.set()

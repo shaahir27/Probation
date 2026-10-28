@@ -82,3 +82,13 @@ test("200 percent zoom keeps content unclipped", async ({ page }) => {
   );
   expect(clipped, "a heading or paragraph runs past the viewport at 200% zoom").toBe(false);
 });
+
+test("opening a review uses the workspace without an empty list column", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await signIn(page);
+  await page.goto("/#/queue/proposal");
+  await expect(page.locator(".review-list-pane")).toBeHidden();
+  await expect(page.getByRole("link", { name: "Back to review" })).toBeVisible();
+  await page.getByRole("link", { name: "Back to review" }).click();
+  await expect(page.locator(".review-list-pane")).toBeVisible();
+});

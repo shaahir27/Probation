@@ -50,6 +50,7 @@ interface ReviewFormProps {
 }
 
 function initialSelection(proposedAction: string, supportedActions: string[]): string {
+  if (proposedAction === "ABSTAIN") return "";
   return supportedActions.includes(proposedAction)
     ? proposedAction
     : (supportedActions[0] ?? proposedAction);
@@ -117,6 +118,7 @@ export function ReviewForm({
   };
 
   const primaryLabel = (): string => {
+    if (!isSupported) return "Choose an action";
     if (forwardMode) return busy ? "Sending…" : "Forward email";
     if (changedAction) return busy ? "Sending…" : `Use: ${reviewActionLabel(selected)}`;
     if (edited) return busy ? "Sending…" : "Send edited reply";
@@ -197,19 +199,20 @@ export function ReviewForm({
         </div>
       )}
 
-      {options.length > 1 && (
+      {(options.length > 1 || (proposedAction === "ABSTAIN" && options.length > 0)) && (
         <details open={!options.includes(proposedAction)} className="space-y-3 text-sm">
-          <summary className="min-h-11 cursor-pointer py-3 text-ink-secondary underline underline-offset-4">Choose another action</summary>
+          <summary className="min-h-11 cursor-pointer py-3 text-ink-secondary underline underline-offset-4">{proposedAction === "ABSTAIN" ? "Choose an action" : "Choose another action"}</summary>
           <div className="space-y-2">
           <label htmlFor="review-action" className="block text-sm text-ink-secondary">
             Action to take
           </label>
           <select
             id="review-action"
-            value={isSupported ? selected : options[0]}
+            value={isSupported ? selected : ""}
             onChange={(event) => setSelected(event.target.value)}
             className="w-full min-h-11 rounded-md border border-line bg-surface px-3 text-sm text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
           >
+            {!isSupported && <option value="" disabled>Select an action</option>}
             {options.map((option) => (
               <option key={option} value={option}>
                 {reviewActionLabel(option)}
@@ -229,9 +232,9 @@ export function ReviewForm({
         >
           {primaryLabel()}
         </Button>
-        <Button type="button" variant="secondary" size="md" disabled={busy} onClick={() => submit({ kind: "reject" })}>
+        {proposedAction !== "ABSTAIN" && <Button type="button" variant="secondary" size="md" disabled={busy} onClick={() => submit({ kind: "reject" })}>
           Reject suggestion
-        </Button>
+        </Button>}
         {selected !== "LEAVE" && (
           <Button type="button" variant="ghost" size="md" disabled={busy} onClick={() => submit({ kind: "leave" })}>
             Leave as is

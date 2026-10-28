@@ -10,17 +10,38 @@ Built for the **NVIDIA Global AI Hackathon** (Personal AI Track) using **NVIDIA 
 
 ---
 
-## What this is
+## The idea: an assistant that earns permission
 
-Probation is a **permission engine**, not a generic inbox assistant. It watches what you do, predicts one proposed action, explains the evidence, and then either asks, suggests, acts with undo, or acts quietly — only for the exact kind of task and action that has earned that level.
+Probation observes examples of your decisions, predicts what it would do, and compares those predictions with what you actually did. It earns permission separately for each type of task and action. When evidence is missing, it watches or asks you.
 
-The current prototype demonstrates the idea through email:
+For example, learning how to handle one kind of notification does not grant permission over every notification. The dashboard shows the evidence, current permission, review requests and eligible actions.
 
-- **Gmail is the first end-to-end integration.** The private demo uses a real Gmail test account with two separately consented grants: read-only observation and an Executor-only write grant for archive, trash, forward-to-self and reply. The approved manifest forbids third-party recipients and permanent delete.
-- **Google Calendar and Google Drive are shown as planned integrations** in **Connect apps**. They are not connected and cannot be connected in this build.
-- The engine is designed for more than email. Calendar, files, chains, Radar and Reading have pack-level work in the repository, but they are **not part of this focused email release** and are not presented as finished workflows.
+### What works today
 
-The core promise is **earned autonomy**, not a trust score. A useful request for approval is a valid result. A new mailbox does not arrive with permission.
+- **Synthetic demo inputs:** fictional examples exercise the engine and dashboard without a personal mailbox. They do not prove performance on a real account.
+- **Gmail prototype:** a separately connected test account can be observed, and separately authorized Gmail actions can be reviewed and executed within the limits below. A new account starts with little or no history, so empty evidence and requests for a decision are normal.
+- **Future connected apps:** Calendar and Drive are displayed as planned. Files, chains, Radar and Reading have code in the wider project but are not finished end-to-end workflows in this release.
+
+### How a decision flows
+
+```mermaid
+flowchart TD
+    Input["Synthetic demo input or connected Gmail"] --> Observe["Observe a situation"]
+    Observe --> Read["Redact and extract structured clues"]
+    Read --> Model["Nemotron on Nebius Token Factory"]
+    Model --> Validate["Validate model output"]
+    Observe --> Web["Tavily: check public entity information when needed"]
+    Web --> Gate
+    Validate --> Gate["Decision engine: history, evidence, limits and tests"]
+    History["Time-bounded history and activity record"] --> Gate
+    Gate -->|"Not enough permission"| Review["Dashboard: watch, suggest or ask"]
+    Gate -->|"Permission and checks allow"| Executor["Executor: permitted action"]
+    Review -->|"Exact owner approval when applicable"| Executor
+    Executor --> Target["Connected app, within its granted scope"]
+    Executor --> History
+```
+
+Nemotron helps turn redacted text into structured data; it does not receive tools or credentials. Tavily supplies public web information that may inform or restrict a decision, never increase autonomy. Code validates model output and applies the rules. Only the Executor performs external actions. The diagram describes the architecture: verify the records before claiming that a particular demo item used a model, web lookup or external action.
 
 ---
 
@@ -28,10 +49,10 @@ The core promise is **earned autonomy**, not a trust score. A useful request for
 
 ### The live email path
 
-1. Sign in with a local **email and password** account, or use the **owner key** fallback. Passwords are verified against local scrypt hashes and local API clients receive a short-lived HS256 JWT; the browser itself uses only a short-lived, HttpOnly, SameSite=Strict owner session. No credential enters browser storage, a URL or a response body. A refresh keeps the session; sign-out destroys it server-side.
-2. Open **More → Connect apps**. **Connect Gmail** opens a genuine Google read-only consent flow in a separate local setup process. **Grant read, change and send** starts a second, explicit consent showing all three Gmail choices. Change and send are required for action access, while read-only remains a valid standalone choice. The API receives no Google tokens, callbacks or authorization URLs.
+1. Sign in with a local **email and password** account, or use the **owner key** fallback. Passwords are verified against local scrypt hashes and local API clients receive a short-lived HS256 JWT; the browser itself uses only a short-lived, HttpOnly, SameSite=Strict owner session. Account login also returns a short-lived API token in its response body. A refresh keeps the session; sign-out destroys it server-side.
+2. Open **More → Connect apps**. **Connect Gmail** requests read-only access. **Connect with action access** completes read consent first, then opens a second Google consent for action access. If reading is already connected, use **Grant read, change and send**. Change and send are required for actions. Google access is separate from earned permission: you may approve one supported action even before Probation has earned autonomous permission. The API receives no Google tokens, callbacks or authorization URLs.
 3. The setup verifies the exact read-only and write scopes, the configured test account and the approved native label (`Label_1`). The read and write refresh tokens live in separate owner-only directories; the write grant moves the connection from `SHADOW` to `ACTIVE`. A fresh OAuth grant is recorded as newer authorization than any earlier pause or revoke control.
-4. The supervised runtime starts **API, observation, Brain, Webfacts, Examiner, Resolver and Executor** roles. Observation reads only the approved label; the Executor alone holds the write grant and the approved operation manifest.
+4. The supervised runtime starts **API, observation, Brain, Webfacts, Examiner, Resolver and Executor** roles. Observation reads only the approved label; the Executor alone holds the write grant and the approved operation manifest. The trusted supervisor detects changed Google grants and replaces only the affected credential-bearing worker. No backend restart is needed after consent.
 5. **Overview** is the review desk. **Review** is a Gmail-style inbox: a compact message list opens into a continuous reading pane with the email, the decision controls and the evidence. **Activity** records real effects; **Permissions** explains what is allowed for each task/action. **More** holds the connection controls, performance, counts, web privacy, cost, integrity, settings and limits.
 6. The owner can grant action access, pause/resume the connection and disconnect it. Real provider effects in this build: **archive**, **trash** and **forward/send** were executed through the Executor and confirmed by provider receipts. Every eligible archive and trash undo was then executed and confirmed with the original labels restored; **reply** is only available when the pipeline produced a validated draft. No draft is fabricated.
 
@@ -123,7 +144,7 @@ The model mapping is fixed in configuration. There is no automatic model fallbac
 
 ## Live evidence and measured results
 
-### Verification on the final tree
+### Recorded D6 verification (before subsequent changes)
 
 | Check | Result |
 |---|---|
@@ -238,6 +259,8 @@ python -B scripts/verify_embeddings.py --model-dir data/models/all-MiniLM-L6-v2/
 
 ### Initialize the database
 
+For a fresh installation, first run `python -m probation.cli db init`. For an existing database, back it up before migrating:
+
 ```powershell
 C:\Users\shaah\miniconda3\python.exe -m probation.cli db migrate
 ```
@@ -314,7 +337,7 @@ The Playwright harness builds the production bundle, starts a throwaway syntheti
 
 ## Security and privacy
 
-- Local accounts store only salted scrypt password hashes in an owner-only SQLite file. The browser signs in with the HttpOnly, SameSite=Strict session; local API clients can receive a short-lived HS256 JWT. No password, JWT or owner key enters browser storage, a URL or a response body. Logout destroys the server-side session, cached private data, drafts and in-flight responses. The browser suite verifies that no private row is left in storage or the DOM.
+- Local accounts store only salted scrypt password hashes in an owner-only SQLite file. The browser signs in with the HttpOnly, SameSite=Strict session; local API clients can receive a short-lived HS256 JWT. The login response contains a short-lived JWT for local API clients; the browser uses the session cookie for subsequent requests. Credentials are not stored in browser storage or URLs. Logout destroys the server-side session, cached private data, drafts and in-flight responses. The browser suite verifies that no private row is left in storage or the DOM.
 - The API holds **no Google credential** and receives no OAuth callback, authorization URL or token. The setup child runs locally; the runtime supervisor reads the owner-only refresh files and injects the read grant into the observation child and the write grant into the Executor child only.
 - The private connector store and refresh files are protected by verified Windows owner-only ACLs. A failed ACL check denies the setup instead of falling back to an unprotected path.
 - Only the Executor can perform target side-effects, and only with the approved manifest: self-forward, archive, trash, reply and their undo paths. A send or unknown result is never automatically retried; an ambiguous result is reconciled or left unknown.
@@ -335,6 +358,7 @@ The Playwright harness builds the production bundle, starts a throwaway syntheti
 - The six-case Super smoke is not accuracy, a Gmail score or an autonomy result.
 - The live demo item is a cold-start request for approval; it does not claim that a model draft was produced for that specific email.
 - The local cost panel reflects the app's recorded spend; the cumulative D5 accounting authority is a separate record. Neither is a provider invoice.
+- Interactive replay is incomplete: the dashboard has no play/pause/speed controls, and the deployed Examiner does not pump the historical event stream. Use the command-line backtest for offline evaluation; do not present a changing date as a working replay.
 
 ---
 

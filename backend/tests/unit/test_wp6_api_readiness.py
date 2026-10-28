@@ -185,6 +185,18 @@ def test_supervisor_publishes_readiness_from_child_status_lines(tmp_path, monkey
     assert rows["brain"]["ready"] is True
     assert rows["api"]["ready"] is True
 
+    # A successful control tick does not prove that Gmail action access is provisioned.
+    ledger.record("executor", WorkEvidence(at=runtime.clock.now_iso(), stages=("commands",)))
+    plans[RuntimeRole.EXECUTOR] = ({}, "write", False)
+    runtime._publish_readiness(plans, {r: _Alive() for r in RuntimeRole}, {})
+    document = json.loads(
+        (tmp_path / "engine.db").with_name("probation_runtime_status.json").read_text("utf-8")
+    )
+    rows = {row["role"]: row for row in document["roles"]}
+    assert rows["executor"]["ready"] is False
+    assert rows["executor"]["state"] == "degraded"
+    assert rows["executor"]["code"] == "role_not_provisioned"
+
     # A process that exited is never reported ready, no matter what it last claimed.
     class _Dead:
         stderr = None

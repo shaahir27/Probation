@@ -137,3 +137,13 @@ test("the in-app Back link returns to the list it came from", async ({ page }) =
   await page.getByRole("link", { name: /Back to review/ }).click();
   await expect(page.getByRole("heading", { name: "Watching" })).toBeVisible();
 });
+
+test("More reports failed reads and describes separate Gmail action access", async ({ page }) => {
+  await page.route("**/api/metrics/summary", route => route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ detail: "unavailable" }) }));
+  await page.goto("/#/more/metrics");
+  await expect(page.getByRole("heading", { name: "Counts are unavailable" })).toBeVisible();
+  await expect(page.getByText("No weeks recorded yet.")).toHaveCount(0);
+  await page.goto("/#/more/help");
+  await expect(page.getByText("Gmail read access and action access require separate consent.", { exact: false })).toBeVisible();
+  await expect(page.getByText("This build does not send, archive or trash mail.", { exact: false })).toHaveCount(0);
+});

@@ -1,6 +1,57 @@
 import { expect, test } from "@playwright/test";
 import { installGuards, signIn } from "./e2e-support";
 
+for (const readResult of ["succeeded", "failed"] as const) {
+test(`action reconnect after read consent ${readResult}`, async ({ page }) => {
+  let state = "DISCONNECTED";
+  let readGranted = false;
+  let readRequest = "";
+  let writeStarts = 0;
+  await page.route("**/api/gmail/connections", (route) => route.fulfill({ json: {
+    connections: [{ connection_id: "synthetic", connection_ref: "synthetic", state }],
+  } }));
+  await page.route("**/api/gmail/setup/read", async (route) => {
+    if (route.request().method() === "POST") {
+      readRequest = route.request().postDataJSON().request_id;
+      await route.fulfill({ json: { version: "v1", request_id: readRequest, status: "awaiting_consent", connected: false } });
+    } else {
+      await route.fulfill({ json: { version: "v1", status: readGranted ? "connected" : "not_connected", connected: readGranted } });
+    }
+  });
+  await page.route("**/api/gmail/setup/read/*", async (route) => {
+    readGranted = readResult === "succeeded";
+    if (readGranted) state = "SHADOW";
+    await route.fulfill({ json: { version: "v1", request_id: readRequest, status: readResult, connected: readGranted } });
+  });
+  await page.route("**/api/gmail/setup/write", async (route) => {
+    if (route.request().method() === "POST") {
+      writeStarts += 1;
+      await route.fulfill({ json: { version: "v1", request_id: route.request().postDataJSON().request_id, status: "awaiting_consent", connected: false } });
+    } else {
+      await route.fulfill({ json: { version: "v1", status: "not_connected", connected: false } });
+    }
+  });
+  await page.route("**/api/gmail/setup/write/*", (route) => route.fulfill({ json: {
+    version: "v1", request_id: "synthetic-write", status: "awaiting_consent", connected: false,
+  } }));
+  await signIn(page);
+  await page.getByRole("link", { name: "Connect apps", exact: true }).click();
+  await page.getByRole("button", { name: "Connect with action access" }).click();
+  await expect.poll(() => readRequest, { message: "read setup starts" }).not.toBe("");
+  if (readResult === "failed") {
+    await expect(page.getByRole("alert").filter({ hasText: "Google connection did not complete." })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Connect with action access" })).toBeEnabled();
+    expect(writeStarts).toBe(0);
+    return;
+  }
+  await expect.poll(() => readGranted, { message: "read consent completes" }).toBe(true);
+  await expect.poll(() => writeStarts).toBe(1);
+  await expect(page.getByText("Finish sign-in in the Google window and approve action access", { exact: false })).toBeVisible();
+  await page.getByRole("link", { name: "Overview", exact: true }).click();
+  expect(writeStarts).toBe(1);
+});
+}
+
 test("Connect apps shows real read-only Gmail status and clearly planned integrations", async ({ page, baseURL }, testInfo) => {
   const guards = installGuards(page, baseURL);
   await signIn(page);

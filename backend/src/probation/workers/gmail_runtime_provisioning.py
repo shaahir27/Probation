@@ -146,11 +146,22 @@ def _not_provisioned_step() -> Step:
 
 
 def _restriction_gate(
-    connection: sqlite3.Connection, owner: str, connection_id: str, account_id: str
+    connection: sqlite3.Connection,
+    owner: str,
+    connection_id: str,
+    account_id: str,
+    *,
+    registration: ConnectorAccess,
 ) -> Callable[[str], ExecutionRestrictions]:
     """The read worker's only control path; any store doubt fails closed inside the gate."""
 
     def gate(as_of: str) -> ExecutionRestrictions:
+        row = registration.one(
+            "SELECT authorized_at FROM gmail_connections WHERE connection_id=? AND owner_id=?",
+            (connection_id, owner),
+        )
+        if row is None:
+            return ExecutionRestrictions("unavailable", True, True, ("connection_absent",))
         return restrictions_for(
             connection,
             owner_id=owner,
@@ -160,6 +171,7 @@ def _restriction_gate(
             class_key=None,
             action="OBSERVE",
             as_of=as_of,
+            authorized_at=None if row["authorized_at"] is None else str(row["authorized_at"]),
         )
 
     return gate
@@ -203,7 +215,9 @@ def observation_worker(
             grant.connection_id,
             owner,
             transport,
-            _restriction_gate(connection, owner, grant.connection_id, account),
+            _restriction_gate(
+                connection, owner, grant.connection_id, account, registration=connectors[0]
+            ),
         )
     if provider is None or len(connectors) != 2:
         return None, StepProvisioning("observation", "not_provisioned", "read_worker_inputs_absent")

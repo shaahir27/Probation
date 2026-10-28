@@ -31,7 +31,7 @@ from probation.connectors.gmail_read_grant import (
     write_grant,
 )
 from probation.connectors.types import ConnectorError
-from probation.core.clock import Clock
+from probation.core.clock import Clock, parse_timestamp
 from probation.core.lifecycle import CommandIntent
 from probation.db.gmail_store import ConnectorAccess, StoreAccessError
 from probation.db.lifecycle_commands import CommandStore
@@ -45,7 +45,7 @@ CONSUMER: Final = "connector"
 ABSENT: Final = "UNKNOWN"
 _MAX_BATCH: Final = 100
 
-_SELECT_CANDIDATES = """SELECT id,type,rowid FROM command_requests
+_SELECT_CANDIDATES = """SELECT id,type FROM command_requests
  WHERE type IN('pause','resume','revoke') AND created_at COLLATE UTC_TIMESTAMP <= ?
  ORDER BY created_at COLLATE UTC_TIMESTAMP,id"""
 
@@ -113,13 +113,13 @@ class GmailCommandConsumer:
         """
         now = self._clock.now_iso()
         outcomes: list[CommandOutcome] = []
-        for command_id, command_type, command_sequence in self._unapplied(now)[: self._batch_size]:
-            outcome = self._apply(command_id, command_type, command_sequence, now)
+        for command_id, command_type in self._unapplied(now)[: self._batch_size]:
+            outcome = self._apply(command_id, command_type, now)
             if outcome is not None:
                 outcomes.append(outcome)
         return tuple(outcomes)
 
-    def _unapplied(self, now: str) -> list[tuple[str, CommandType, int]]:
+    def _unapplied(self, now: str) -> list[tuple[str, CommandType]]:
         """Intents already visible at ``now``, excluding anything already receipted.
 
         The receipt lives in the private store and the intent in the engine database, so the
@@ -134,42 +134,12 @@ class GmailCommandConsumer:
             )
         }
         return [
-            (str(row["id"]), cast(CommandType, str(row["type"])), int(row["rowid"]))
+            (str(row["id"]), cast(CommandType, str(row["type"])))
             for row in rows
             if str(row["id"]) not in receipted
         ]
 
-    def _authorization_cutoff(self, connection_id: str) -> int | None:
-        """Return the command sequence superseded by the current OAuth authorization.
-
-        A reconnect is a new owner authorization. Commands already queued before it must not be
-        applied to the fresh credential; commands created after it remain durable owner controls.
-        """
-        row = self._store.one(
-            "SELECT authorized_at,authorization_sequence,authorization_sequence_at "
-            "FROM gmail_connections WHERE connection_id=?",
-            (connection_id,),
-        )
-        if row is None or row["authorized_at"] is None:
-            return None
-        authorized_at = str(row["authorized_at"])
-        if str(row["authorization_sequence_at"] or "") != authorized_at:
-            engine_row = self._commands.access.conn.execute(
-                "SELECT COALESCE(MAX(rowid), 0) FROM command_requests"
-            ).fetchone()
-            sequence = int(engine_row[0] if engine_row is not None else 0)
-            self._store.write(
-                "gmail_connections",
-                "UPDATE gmail_connections SET authorization_sequence=?,authorization_sequence_at=? "
-                "WHERE connection_id=? AND authorized_at=?",
-                (sequence, authorized_at, connection_id, authorized_at),
-            )
-            return sequence
-        return int(row["authorization_sequence"] or 0)
-
-    def _apply(
-        self, command_id: str, command_type: CommandType, command_sequence: int, now: str
-    ) -> CommandOutcome | None:
+    def _apply(self, command_id: str, command_type: CommandType, now: str) -> CommandOutcome | None:
         """One command, one transaction: state change and receipt commit together or not at all."""
         try:
             intent = self._commands.get(command_id)
@@ -177,13 +147,16 @@ class GmailCommandConsumer:
             return self._finish(command_id, command_type, "", ABSENT, "invalid_command_scope", now)
         if intent is None:
             return None
-        cutoff = self._authorization_cutoff(intent.scope.connection_id)
-        if cutoff is not None and command_sequence <= cutoff:
-            row = self._store.one(
-                "SELECT state FROM gmail_connections WHERE connection_id=?",
-                (intent.scope.connection_id,),
-            )
-            observed_state = ABSENT if row is None else str(row["state"])
+        row = self._store.one(
+            "SELECT state,authorized_at FROM gmail_connections WHERE connection_id=?",
+            (intent.scope.connection_id,),
+        )
+        if (
+            row is not None
+            and row["authorized_at"] is not None
+            and parse_timestamp(intent.created_at) < parse_timestamp(str(row["authorized_at"]))
+        ):
+            observed_state = str(row["state"])
             return self._finish(
                 command_id,
                 command_type,

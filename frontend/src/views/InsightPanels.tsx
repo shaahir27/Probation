@@ -7,6 +7,7 @@ import { formatWhen } from "../lib/emailText";
 
 /** Counts, never a global trust score. Percentages name their own cohort. */
 export function ReportCardPanel({ reportCard }: { reportCard: ReportCardResponse | null }) {
+  const [filter, setFilter] = useState<"all" | "attention" | "stable">("all");
   if (reportCard === null) {
     return (
       <StatePanel
@@ -17,9 +18,8 @@ export function ReportCardPanel({ reportCard }: { reportCard: ReportCardResponse
     );
   }
   const total = reportCard.total_evaluated;
-  const pct = (value: number) => (total > 0 ? Math.floor((value / total) * 100) : 0);
+  const pct = (value: number, denominator = total) => denominator > 0 ? `${Math.floor((value / denominator) * 100)}%` : "Unavailable";
   const tasks = (reportCard.tasks ?? []).filter((task) => (task.action ?? "").toUpperCase() !== "ABSTAIN");
-  const [filter, setFilter] = useState<"all" | "attention" | "stable">("all");
   const attention = (task: TaskReportItem) => task.status === "needs_attention" || task.needs_attention === true;
   const visible = tasks.filter((task) => (filter === "attention" ? attention(task) : filter === "stable" ? !attention(task) : true));
 
@@ -34,13 +34,13 @@ export function ReportCardPanel({ reportCard }: { reportCard: ReportCardResponse
           {reportCard.as_of ? ` · as of ${formatWhen(reportCard.as_of)}` : ""}.
         </p>
         <ul className="flex flex-wrap gap-x-5 gap-y-1 text-sm">
-          <li>Same as you: <strong>{reportCard.same}</strong> ({pct(reportCard.same)}%)</li>
-          <li>Would have asked: <strong>{reportCard.would_ask}</strong> ({pct(reportCard.would_ask)}%)</li>
-          <li>Different: <strong className="text-status-danger">{reportCard.different}</strong> ({pct(reportCard.different)}%)</li>
+          <li>Same as you: <strong>{reportCard.same}</strong> ({pct(reportCard.same)})</li>
+          <li>Would have asked: <strong>{reportCard.would_ask}</strong> ({pct(reportCard.would_ask, reportCard.total_proposals)} of proposals)</li>
+          <li>Different: <strong className="text-status-danger">{reportCard.different}</strong> ({pct(reportCard.different)})</li>
           <li>No answer yet: <strong className="text-ink-tertiary">{reportCard.censored}</strong></li>
         </ul>
         <p className="text-xs text-ink-tertiary">
-          Based only on what was known at the time. Recent items have no answer yet and are left out of the denominator.
+          Based only on what was known at the time. Same and Different cover evaluated decisions; an abstention counts as Different when an outcome is known. Would have asked counts all proposals and can overlap with those results. Items with no answer are excluded from the evaluated count.
         </p>
       </section>
 
@@ -157,7 +157,7 @@ export function MetricsPanel({ metrics }: { metrics: MetricsSummaryResponse | nu
                 <th scope="col" className="p-2">Week</th>
                 <th scope="col" className="p-2">Needs you</th>
                 <th scope="col" className="p-2">Suggested</th>
-                <th scope="col" className="p-2">Acted on</th>
+                <th scope="col" className="p-2">Suggested to act</th>
               </tr>
             </thead>
             <tbody>

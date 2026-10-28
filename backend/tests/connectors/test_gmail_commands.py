@@ -31,7 +31,8 @@ from probation.db.gmail_store import (
 from probation.db.lifecycle_commands import CommandStore
 from probation.workers.gmail_commands import GmailCommandConsumer
 from probation.workers.gmail_observation import GmailObservationWorker
-from probation.workers.restrictions import ExecutionRestrictions
+from probation.workers.gmail_runtime_provisioning import _restriction_gate
+from probation.workers.restrictions import ExecutionRestrictions, process_restriction_commands
 
 CONNECTION = "conn-1"
 ACCOUNT = "acct-1"
@@ -110,6 +111,7 @@ def _submit(
     *,
     owner: str = OWNER,
     account: str = ACCOUNT,
+    created_at: str = T_VISIBLE,
 ) -> None:
     CommandStore(RoleAccess(engine, Role.API)).submit(
         CommandIntent(
@@ -117,7 +119,7 @@ def _submit(
             owner_id=owner,
             type=kind,  # type: ignore[arg-type]
             scope=CommandScope(connection_id=CONNECTION, account_id=account),
-            created_at=T_VISIBLE,
+            created_at=created_at,
         )
     )
 
@@ -128,6 +130,29 @@ def _consumer(handles: _Handles, engine: sqlite3.Connection, clock: Clock) -> Gm
         store=handles.access("administration"),
         clock=clock,
     )
+
+
+@pytest.mark.parametrize("kind", ["pause", "revoke"])
+@pytest.mark.parametrize(
+    "created_at,blocked",
+    [(T_VISIBLE, False), ("2026-10-24T08:59:45Z", True), ("2026-10-24T08:59:50Z", True)],
+)
+def test_observation_uses_fresh_authorization_but_honors_new_controls(
+    handles: _Handles, memory_db: sqlite3.Connection, kind: str, created_at: str, blocked: bool
+) -> None:
+    register(handles)
+    handles.access("administration").write(
+        "gmail_connections",
+        "UPDATE gmail_connections SET authorized_at=? WHERE connection_id=?",
+        ("2026-10-24T08:59:45Z", CONNECTION),
+    )
+    _submit(memory_db, "read-control", kind, created_at=created_at)
+    gate = _restriction_gate(
+        memory_db, OWNER, CONNECTION, ACCOUNT, registration=handles.access("ingestor")
+    )
+    assert gate("2026-10-24T09:00:00Z").blocked is blocked
+    process_restriction_commands(memory_db, as_of="2026-10-24T09:00:00Z")
+    assert gate("2026-10-24T09:00:00Z").blocked is blocked
 
 
 def _state(handles: _Handles) -> str:
@@ -246,7 +271,7 @@ def test_commands_queued_before_a_fresh_authorization_are_superseded(
     admin.write(
         "gmail_connections",
         "UPDATE gmail_connections SET authorized_at=? WHERE connection_id=?",
-        (T_VISIBLE, CONNECTION),
+        ("2026-10-24T08:59:45Z", CONNECTION),
     )
 
     (stale,) = _consumer(handles, memory_db, clock).consume()
@@ -254,11 +279,30 @@ def test_commands_queued_before_a_fresh_authorization_are_superseded(
     assert stale.safe_code == "superseded_by_reauthorization"
     assert _state(handles) == "SHADOW"
 
-    _submit(memory_db, "post-reauthorization-disconnect", "revoke")
+    _submit(
+        memory_db, "post-reauthorization-disconnect", "revoke", created_at="2026-10-24T08:59:50Z"
+    )
     (current,) = _consumer(handles, memory_db, clock).consume()
     assert current.outcome == "applied"
     assert current.applied_state == "DISCONNECTED"
     assert _state(handles) == "DISCONNECTED"
+
+
+@pytest.mark.parametrize("kind,expected", [("pause", "PAUSED"), ("revoke", "DISCONNECTED")])
+def test_control_after_authorization_before_first_consume(
+    handles: _Handles, memory_db: sqlite3.Connection, kind: str, expected: str
+) -> None:
+    register(handles, "SHADOW")
+    admin = handles.access("administration")
+    admin.write(
+        "gmail_connections",
+        "UPDATE gmail_connections SET authorized_at=? WHERE connection_id=?",
+        ("2026-10-24T08:59:00Z", CONNECTION),
+    )
+    _submit(memory_db, "new-control", kind)
+    (result,) = _consumer(handles, memory_db, _clock()).consume()
+    assert result.outcome == "applied"
+    assert _state(handles) == expected
 
 
 # -- resume ----------------------------------------------------------------------------------------

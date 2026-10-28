@@ -36,7 +36,7 @@ type CommandKind = "pause" | "resume" | "disconnect";
 function useGmailSetupFlow(kind: SetupKind, enabled: boolean) {
   const queryClient = useQueryClient();
   const initial = useRead(
-    ["private", `gmail-${kind}-setup`],
+    ["private", kind === "read" ? "gmail-setup" : "gmail-write-setup"],
     (signal) => (kind === "read" ? apiClient.getGmailSetup(signal) : apiClient.getGmailWriteSetup(signal)),
     { enabled },
   );
@@ -165,10 +165,14 @@ export function ConnectAppsPanel({ profile }: { profile: "private" | "synthetic"
   useEffect(() => {
     // A combined choice asks for read first, then the action consent. Two Google prompts are
     // deliberate: the observer keeps its own read-only credential.
+    if (fullConnect && !readFlow.pending && (readFlow.error || readFlow.outcome === "failed" || readFlow.outcome === "unknown")) {
+      setFullConnect(false);
+      return;
+    }
     if (!fullConnect || !readConnected || readFlow.pending || writeFlow.pending) return;
     setFullConnect(false);
     void writeFlow.start();
-  }, [fullConnect, readConnected, readFlow.pending, writeFlow]);
+  }, [fullConnect, readConnected, readFlow.pending, readFlow.error, readFlow.outcome, writeFlow]);
 
   async function runCommand(kind: CommandKind): Promise<void> {
     if (!connection) return;
@@ -227,10 +231,10 @@ export function ConnectAppsPanel({ profile }: { profile: "private" | "synthetic"
             : !readConnected ? <div className="space-y-3">
               <div className="flex flex-wrap items-center gap-2">
                 <Button variant="primary" onClick={() => { setAccessClosed(false); setFullConnect(false); void readFlow.start(); }} disabled={readFlow.pending || readFlow.initial.isLoading}>
-                  {readFlow.pending && !fullConnect ? "Waiting for Google..." : "Connect Gmail"}
+                  {readFlow.pending ? "Waiting for Google..." : "Connect Gmail"}
                 </Button>
-                <Button onClick={() => { setAccessClosed(false); setFullConnect(true); void readFlow.start(); }} disabled={readFlow.pending || readFlow.initial.isLoading}>
-                  Connect with action access
+                <Button onClick={() => { setAccessClosed(false); setFullConnect(true); void readFlow.start(); }} disabled={readFlow.pending || writeFlow.pending || fullConnect || readFlow.initial.isLoading}>
+                  {fullConnect ? "Step 1 of 2: read access" : "Connect with action access"}
                 </Button>
               </div>
               <p className="max-w-md text-xs leading-5 text-ink-tertiary">Read-only asks for mailbox reading only. Action access opens a second Google consent showing read, change and send; change and send are required for actions, and you still approve every action. You can choose either option now or add action access later.</p>
@@ -268,8 +272,8 @@ export function ConnectAppsPanel({ profile }: { profile: "private" | "synthetic"
       </article>)}
     </div>
     <div aria-live="polite" className="space-y-3 text-sm leading-6">
-      {readFlow.pending && <p role="status">Finish sign-in in the Google window and approve read access to the configured test account. You can keep this page open.</p>}
-      {writeFlow.pending && <p role="status">Finish sign-in in the Google window and approve action access for the same test account. You can keep this page open.</p>}
+      {readFlow.pending && <p role="status">{fullConnect ? "Step 1 of 2. " : ""}Finish sign-in in the Google window and approve read access to the configured test account. {fullConnect ? "A second Google window will then ask for action access. Keep this page open." : "You can keep this page open."}</p>}
+      {writeFlow.pending && <p role="status">Step 2 of 2. Finish sign-in in the Google window and approve action access for the same test account. You can keep this page open.</p>}
       {readFlow.outcome === "succeeded" && readConnected && !readFlow.pending && <p>Google read access is registered. Email processing and suggestions have their own status; connecting does not grant permission to send or change anything.</p>}
       {writeFlow.outcome === "succeeded" && writeConnected && !writeFlow.pending && <p>Action access is granted. Probation may archive, label, send or forward only after you review that decision, and only for this account.</p>}
       {commandNotice && <p>{commandNotice}</p>}
@@ -277,6 +281,6 @@ export function ConnectAppsPanel({ profile }: { profile: "private" | "synthetic"
       {writeFailure && <p role="alert" className="text-status-danger">{writeFailure} <a href="#/more/help" className="inline-flex min-h-11 items-center underline underline-offset-4">Setup help</a></p>}
       {commandError && <p role="alert" className="text-status-danger">{commandError}</p>}
     </div>
-    <p className="max-w-xl text-xs leading-5 text-ink-secondary">Your owner session signs you into Probation; Google consent is a separate step. Read access and action access are granted separately. Disconnecting ends both and asks for consent again before any email is read. Calendar and Drive are planned integrations and cannot be connected in this prototype. App names and icons belong to their respective owners.</p>
+    <p className="max-w-xl text-xs leading-5 text-ink-secondary">Google access and earned permission are different. You do not need an earned permission to grant action access or approve one action yourself. Automatic actions need their own evidence and checks. Your owner session signs you into Probation; Google consent is separate. Disconnecting ends both grants and requires consent again. Calendar and Drive are planned integrations. App names and icons belong to their respective owners.</p>
   </section>;
 }

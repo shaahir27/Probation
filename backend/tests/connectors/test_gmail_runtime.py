@@ -433,6 +433,63 @@ def test_stop_shuts_down_all_roles(engine: Path, private_store: Path, clock: Clo
     )
 
 
+@pytest.mark.parametrize("unverifiable", [False, True])
+def test_new_setup_grant_restarts_only_its_role_and_disconnect_removes_it(
+    engine: Path,
+    private_store: Path,
+    clock: Clock,
+    monkeypatch: pytest.MonkeyPatch,
+    unverifiable: bool,
+) -> None:
+    from types import SimpleNamespace
+
+    from probation.workers import gmail_setup_grant
+
+    calls: list[tuple[list[str], dict[str, str]]] = []
+    runtime = GmailRuntime(
+        db_path=engine,
+        private_store_path=private_store,
+        env=_env_with(READ_GRANT),
+        grants={RuntimeRole.OBSERVATION: READ_GRANT},
+        clock=clock,
+        launcher=_recording(calls),
+    )
+    plans = runtime.plan()
+    handles = {role: _FakeProcess() for role in RuntimeRole}
+    old_executor = handles[RuntimeRole.EXECUTOR]
+    read_bundle = runtime.env[READ_GRANT.env_name]
+    grants = {
+        "read": SimpleNamespace(grant=READ_GRANT, bundle_json=read_bundle),
+        "write": SimpleNamespace(grant=WRITE_GRANT, bundle_json="new-synthetic-write"),
+    }
+    monkeypatch.setattr(
+        gmail_setup_grant, "load_setup_grant", lambda *a, role, **kw: grants.get(role)
+    )
+    failures: dict[RuntimeRole, str] = {}
+    runtime._refresh_setup_roles(plans, handles, failures, join_timeout=0.01)
+    assert old_executor.terminated
+    assert [_role_of(command) for command, _ in calls] == [RuntimeRole.EXECUTOR]
+    assert calls[0][1][WRITE_GRANT.env_name] == "new-synthetic-write"
+    assert READ_GRANT.env_name not in calls[0][1]
+    assert plans[RuntimeRole.EXECUTOR][2] is True
+    runtime._refresh_setup_roles(plans, handles, failures, join_timeout=0.01)
+    assert len(calls) == 1, "unchanged consent must not restart a worker"
+    grants.pop("write")
+    if unverifiable:
+
+        def reject_write(*args, role, **kwargs):
+            if role == "write":
+                raise ConnectorError("synthetic_acl_denied")
+            return grants.get(role)
+
+        monkeypatch.setattr(gmail_setup_grant, "load_setup_grant", reject_write)
+    runtime._refresh_setup_roles(plans, handles, failures, join_timeout=0.01)
+    assert len(calls) == 2
+    assert WRITE_GRANT.env_name not in calls[1][1]
+    assert WRITE_GRANT.env_name not in runtime.env
+    assert plans[RuntimeRole.EXECUTOR][2] is False
+
+
 def test_role_failure_does_not_silently_hide(
     engine: Path, private_store: Path, clock: Clock
 ) -> None:

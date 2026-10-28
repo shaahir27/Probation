@@ -275,15 +275,15 @@ export function HelpPanel({ profile }: { profile: "private" | "synthetic" | null
         <p className="text-ink-secondary">
           {profile === "synthetic"
             ? "Every email, name, address and result on this screen was generated for a demonstration. It is not a real person's mailbox, and nothing shown here was sent anywhere."
-            : "Probation reads only the account you connected, through your local owner session. Google consent is separate and stays read-only."}
+            : "Probation reads only the account you connected, through your local owner session. Gmail read access and action access require separate consent."}
         </p>
       </section>
       <section className="space-y-2">
         <h2 className="text-base font-medium">What this build demonstrates</h2>
         <ul className="list-disc space-y-1 pl-5 text-ink-secondary">
-          <li>Read-only Gmail observation, an explained suggestion and an owner decision in this browser.</li>
+          <li>Gmail observation, an explained suggestion and an owner decision in this browser.</li>
           <li>Google Calendar and Google Drive are planned in Connect apps; they are not connected in this build.</li>
-          <li>This build does not send, archive or trash mail. No write operation is provisioned for the demo.</li>
+          <li>{profile === "synthetic" ? "Synthetic demo actions do not change Gmail." : "Separately granted action access allows approved Gmail operations; a reply needs a validated draft."}</li>
           <li>Permission is derived from evidence, never granted by a click. A new account starts by watching and asking.</li>
           <li>An unconfirmed result is shown as "Result not confirmed" and is never retried automatically.</li>
           <li>Settings, caps and hands-off lists cannot be edited here.</li>
@@ -294,8 +294,7 @@ export function HelpPanel({ profile }: { profile: "private" | "synthetic" | null
           <h2 className="text-base font-medium">Connecting Gmail</h2>
           <p className="text-ink-secondary">
             Open <a href="#/more/connections" className="text-ink underline underline-offset-4">Connect apps</a> and
-            choose Connect Gmail. Your owner key signs you into Probation; Google consent is a separate
-            read-only step.
+            choose Connect Gmail. Sign in with a local account or owner key; Google read consent is a separate step. Action access requires another consent.
           </p>
           <p className="text-ink-secondary">
             If the connection does not complete, run the local preflight in the project terminal:

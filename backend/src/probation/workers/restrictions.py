@@ -45,8 +45,8 @@ def restrictions_for(
         if not all((owner_id, connection_id, account_id, resource_id, action)):
             raise ValueError("missing_execution_scope")
         for record in HistoryView(conn, as_of).control_records():
-            # A fresh OAuth grant is newer authority than any control completed before it.
-            record_at = str(record["completed_at"] or record["created_at"])
+            # Delayed consumption must not make a pre-authorization control newer authority.
+            record_at = str(record["created_at"])
             if authorized_at is not None and parse_timestamp(record_at) < parse_timestamp(
                 authorized_at
             ):

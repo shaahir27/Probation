@@ -18,8 +18,9 @@ interface ActionsViewProps {
  */
 export function ActionsView({ actions, busyId, conflict, error, onUndo }: ActionsViewProps) {
   return (
-    <section aria-labelledby="actions-title" className="space-y-6">
-      <header>
+    <section aria-labelledby="actions-title" className="activity-page">
+      <header className="activity-heading">
+        <p className="dashboard-eyebrow">Your workspace</p>
         <h1 id="actions-title" className="page-title">
           Activity
         </h1>
@@ -44,7 +45,7 @@ export function ActionsView({ actions, busyId, conflict, error, onUndo }: Action
           description="Actions Probation takes will appear here with their current status."
         />
       ) : (
-        <ul className="border-t border-line divide-y divide-line">
+        <div className="activity-table"><div className="activity-table-heading"><h2>Action history</h2><span>{actions.length} recorded</span></div><ul>
           {actions.map((action) => {
             const unconfirmed = isUnconfirmedResult(action.status) || isUnconfirmedResult(action.execution_status);
             const settled = isSettledStatus(action.status) && !unconfirmed;
@@ -54,12 +55,12 @@ export function ActionsView({ actions, busyId, conflict, error, onUndo }: Action
             const canUndo = Boolean(action.undo_available);
             const text = parseEmailText(action.summary);
             return (
-              <li key={action.id} className="flex flex-wrap items-start justify-between gap-4 py-5 first:pt-0 last:pb-0">
-                <div className="min-w-0 max-w-3xl space-y-1">
+              <li key={action.id} className="activity-row">
+                <div className="min-w-0 space-y-2">
                   <p className="font-serif text-[18px] font-normal leading-[1.35] tracking-[-0.01em] break-words">{action.summary ? text.subject : action.type.replace(/_/g, " ").toLowerCase()}</p>
                   {text.preview && <p className="line-clamp-2 text-sm leading-6 text-ink-secondary">{text.preview}</p>}
                   <p className="text-sm text-ink-secondary">
-                    {label}
+                    <span className="font-medium text-ink">{action.type.replace(/_/g, " ").toLowerCase()}</span> · {label}
                     {action.hold_until !== null ? ` · Held until ${formatWhen(action.hold_until)}` : ""}
                     {!settled && !unconfirmed ? " · Not completed yet" : ""}
                   </p>
@@ -72,7 +73,7 @@ export function ActionsView({ actions, busyId, conflict, error, onUndo }: Action
                     <p className="text-xs text-ink-tertiary">Undo window until {formatWhen(action.undo_deadline)}.</p>
                   )}
                 </div>
-                <div className="shrink-0">
+                <div className="activity-row-control">
                   {canUndo ? (
                     <Button
                       size="md"
@@ -97,7 +98,7 @@ export function ActionsView({ actions, busyId, conflict, error, onUndo }: Action
               </li>
             );
           })}
-        </ul>
+        </ul></div>
       )}
     </section>
   );

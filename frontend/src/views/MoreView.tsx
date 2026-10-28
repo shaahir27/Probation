@@ -36,11 +36,16 @@ export function MoreView({ section, profile, authenticated }: MoreViewProps) {
       {active === "activity" && <ActivityPanel authenticated={authenticated} />}
       {active === "settings" && <SettingsPanel authenticated={authenticated} />}
       {active === "help" && <HelpPanel profile={profile} />}
-      {active === "insights" && <ReportCardPanel reportCard={report.data ?? null} />}
-      {active === "metrics" && <MetricsPanel metrics={metrics.data ?? null} />}
-      {active === "exams" && <ExamsPanel exams={exams.data?.runs ?? []} busy={commands.busyKey !== null} error={commands.error} onRun={runExam} />}
+      {active === "insights" && report.data && <ReportCardPanel reportCard={report.data} />}
+      {active === "metrics" && metrics.data && <MetricsPanel metrics={metrics.data} />}
+      {active === "exams" && exams.data && <ExamsPanel exams={exams.data.runs} busy={commands.busyKey !== null} error={commands.error} onRun={runExam} />}
       {OUTSIDE_DEMO.has(active) && <UnavailablePanel title="Outside this email demo" reason="This workflow is not part of the focused email demonstration. Probation has no accepted end-to-end workflow to offer here." scope="Use Overview, Review, Activity and Permissions for this demonstration." />}
     </div>
+    {active === "insights" && report.isLoading && <StatePanel state="loading" title="Loading performance" description="Reading recorded results." />}
+    {active === "metrics" && metrics.isLoading && <StatePanel state="loading" title="Loading counts" description="Reading recorded activity." />}
+    {active === "exams" && exams.isLoading && <StatePanel state="loading" title="Loading tests" description="Reading recorded tests." />}
+    {active === "metrics" && metrics.error !== null && <StatePanel state="error" title="Counts are unavailable" description="Could not read recorded counts." onRetry={() => void metrics.refetch()} />}
+    {active === "exams" && exams.error !== null && <StatePanel state="error" title="Tests are unavailable" description="Could not read recorded tests." onRetry={() => void exams.refetch()} />}
     {active === "insights" && report.error !== null && <StatePanel state="error" title="Report card is unavailable" description={report.error instanceof Error ? report.error.message : "This information is unavailable right now."} onRetry={() => void report.refetch()} />}
   </div>;
 }

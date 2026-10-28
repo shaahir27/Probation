@@ -354,6 +354,7 @@ def serve(
             # The supervisor's own ledger, fed by each child's reported status lines. Without it
             # no role can ever prove it did work, so readiness would stay unavailable forever.
             work=WorkLedger(),
+            refresh_setup_grants=True,
         )
         report = runtime.run(Event())
         for role, status in report.items():

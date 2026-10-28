@@ -124,3 +124,41 @@ test("an unanswered item never claims an action happened", async ({ page }) => {
   await expect(page.getByText("Probation has not acted on any email in this list.")).toBeVisible();
   await expect(page.getByText("Probation confirmed this action.")).toHaveCount(0);
 });
+
+test("overview explains permissions per task without a global level", async ({ page }) => {
+  await signIn(page);
+  await page.goto("/#/home");
+  await expect(page.getByText("Each task and action has its own permission, based on the evidence available.")).toBeVisible();
+  await expect(page.getByText("You are here", { exact: true })).toHaveCount(0);
+});
+
+test("an item without a recommendation requires an explicit action choice", async ({ page }) => {
+  await signIn(page);
+  await page.route("**/api/items/proposal", async route => {
+    const response = await route.fetch();
+    const body = await response.json();
+    body.action = "ABSTAIN";
+    await route.fulfill({ response, json: body });
+  });
+  await page.goto("/#/queue/proposal");
+  await expect(page.getByRole("heading", { name: "About this decision" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Reject suggestion" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Choose an action", exact: true })).toBeDisabled();
+  await page.getByLabel("Action to take").selectOption("ARCHIVE");
+  await expect(page.getByRole("button", { name: "Use: Archive email" })).toBeEnabled();
+});
+
+test("the would-ask percentage uses all proposals and explains overlap", async ({ page }) => {
+  await signIn(page);
+  await page.route("**/api/report-card?**", async route => {
+    const response = await route.fetch();
+    const body = await response.json();
+    body.total_proposals = 10;
+    body.total_evaluated = 5;
+    body.would_ask = 10;
+    await route.fulfill({ response, json: body });
+  });
+  await page.goto("/#/more/insights");
+  await expect(page.getByText(/Would have asked:.*100% of proposals/)).toBeVisible();
+  await expect(page.getByText(/can overlap with those results/)).toBeVisible();
+});
