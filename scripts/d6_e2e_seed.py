@@ -400,6 +400,25 @@ def _append_licence_history(
     return situation_ids
 
 
+def _seed_budget_scopes(conn) -> None:  # type: ignore[no-untyped-def]
+    """Provision the demo's spending allowance so Try-it live is armed, not merely wired.
+
+    shortcut: one total-period scope per configured model at $2; revisit per-day scopes
+    only if this workspace ever outlives the judging window.
+    """
+    from probation.config import settings
+
+    for index, model in enumerate(dict.fromkeys((settings.model_reader, settings.model_writer))):
+        conn.execute(
+            """INSERT INTO budget_scopes (scope_id,provider,account_label,model_id,
+            period_rule,period_key,cap_units,price_version,created_at_op)
+            VALUES (?,'nebius_token_factory','primary',?,'total','total',200000000,'prices-v1',
+            '2026-10-20T10:00:00Z')""",
+            (f"demo-scope-{index}", model),
+        )
+    conn.commit()
+
+
 def _seed_usage(conn) -> None:  # type: ignore[no-untyped-def]
     """Recorded model usage for the synthetic workspace, priced from the real table.
 
@@ -641,6 +660,14 @@ def main() -> int:
     from wp6_mail_fixture import seed
 
     conn, _world = seed(temp_root, action="ARCHIVE")
+    # The mail fixture applies the base schema only; the snapshot must carry the same
+    # current schema a production `db migrate` produces, or Try-it live and demo reset
+    # find the durable accounting tables missing at runtime.
+    from probation.db.connection import ensure_schema
+
+    conn.commit()
+    ensure_schema(conn)
+    _seed_budget_scopes(conn)
     conn.execute("PRAGMA foreign_keys = OFF")
     conn.execute("UPDATE raw_items SET source_id = ? WHERE source_id = 'source'", (SOURCE_ID,))
     conn.execute("UPDATE sources SET id = ? WHERE id = 'source'", (SOURCE_ID,))

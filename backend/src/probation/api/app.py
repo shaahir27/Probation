@@ -300,5 +300,18 @@ def _budget_summary(conn: Any) -> dict[str, Any]:
 # is unaffected; the mount only answers non-API paths. Hash routing needs index.html
 # only at "/", so html=True is sufficient.
 _DIST = Path(__file__).resolve().parents[4] / "frontend" / "dist"
+
+
+class _UiFiles(StaticFiles):
+    """index.html names this deploy's hashed assets, so a stale cached copy breaks the UI."""
+
+    def file_response(self, *args: Any, **kwargs: Any) -> Any:
+        response = super().file_response(*args, **kwargs)
+        full_path = str(kwargs.get("full_path", args[0] if args else ""))
+        if full_path.endswith(".html"):
+            response.headers["Cache-Control"] = "no-cache"
+        return response
+
+
 if _DIST.is_dir():
-    app.mount("/", StaticFiles(directory=_DIST, html=True), name="ui")
+    app.mount("/", _UiFiles(directory=_DIST, html=True), name="ui")

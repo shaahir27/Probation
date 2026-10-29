@@ -26,6 +26,7 @@ from probation.api.owner_session import (
     OwnerSessionManager,
     OwnerSessionRecord,
 )
+from probation.config import settings
 
 router = APIRouter(prefix="/api/session", tags=["owner-session"])
 
@@ -113,6 +114,11 @@ def create_session(request: Request, response: Response) -> dict[str, Any]:
 def read_session(request: Request, response: Response) -> dict[str, Any]:
     """Report the current session, renewing its idle window and cookie lifetime."""
     if not _client_is_loopback(request):
+        if settings.app_profile == "synthetic":
+            # The public demo has no session to protect: a signed-out probe is a state,
+            # not a 401 the judge's console has to show on every visit.
+            response.headers["Cache-Control"] = "no-store"
+            return _signed_out_body()
         raise HTTPException(status_code=401, detail=SESSION_REQUIRED)
     manager = _manager(request)
     token = request.cookies.get(SESSION_COOKIE)
