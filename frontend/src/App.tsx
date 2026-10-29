@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   useActionsRead,
   usePermissionsRead,
@@ -71,6 +71,16 @@ function DemoResetButton() {
   );
 }
 
+function DemoResetWhenNeeded() {
+  const state = useQuery({
+    queryKey: queryKeys.demoState,
+    queryFn: ({ signal }) => apiClient.demoState(signal),
+    staleTime: 30_000,
+  });
+  if (state.data?.drift !== true) return null;
+  return <DemoResetButton />;
+}
+
 export default function App() {
   return (
     <OwnerSessionProvider>
@@ -138,6 +148,7 @@ function Workspace() {
     client.invalidateQueries({ queryKey: queryKeys.habits });
     client.invalidateQueries({ queryKey: queryKeys.exams });
     client.invalidateQueries({ queryKey: queryKeys.queue });
+    client.invalidateQueries({ queryKey: queryKeys.demoState });
   }, [client]);
 
   useEffect(() => {
@@ -219,7 +230,7 @@ function Workspace() {
           {session.profile === "synthetic" && (
             <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-surface px-4 py-2 text-xs leading-5 text-ink-secondary">
               <p>Synthetic workspace. These emails and past choices are fictional. Try it live makes real model calls.</p>
-              <DemoResetButton />
+              <DemoResetWhenNeeded />
             </div>
           )}
           <div role="status" aria-live="polite">

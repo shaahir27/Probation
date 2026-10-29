@@ -535,6 +535,9 @@ export const apiClient = {
   async resetDemo(signal?: Signal): Promise<void> {
     await request<unknown>("/demo/reset", { method: "POST", signal });
   },
+  async demoState(signal?: Signal): Promise<{ drift: boolean }> {
+    return request<{ drift: boolean }>("/demo/state", { signal });
+  },
   async denyHabit(id: string, requestId: string, signal?: Signal): Promise<{ ok: boolean; command: AdminCommand }> {
     return decodeCommandEnvelope(
       await request<unknown>(`/habits/${encodeURIComponent(id)}/deny`, {

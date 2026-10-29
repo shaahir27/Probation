@@ -26,6 +26,7 @@ export const queryKeys = {
   habits: ["private", "habits"] as const,
   chains: ["private", "chains"] as const,
   exams: ["private", "exams"] as const,
+  demoState: ["demo-state"] as const,
   item: (id: string) => ["private", "item", id] as const,
   response: (id: string) => ["private", "response", id] as const,
   command: (id: string) => ["private", "command", id] as const,

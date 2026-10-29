@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import os
 import shutil
+import sqlite3
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -21,7 +22,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from probation.api.authority import OwnerContext, optional_owner
 from probation.config import settings
-from probation.core.clock import elapsed_seconds, operational_clock
+from probation.core.clock import configure_clock_collation, elapsed_seconds, operational_clock
 from probation.db.access import Role
 from probation.db.connection import get_role_connection
 from probation.db.demo_reset import ensure_resettable
@@ -134,6 +135,49 @@ def demo_analyze(body: DemoAnalyzeBody, owner: Owner) -> dict[str, Any]:
         }
     finally:
         conn.close()
+
+
+_snapshot_rows: tuple[int, int] | None = None
+
+
+def _snapshot_rows_count() -> tuple[int, int] | None:
+    """Ledger and response row counts of the shipped snapshot, read once, for drift detection.
+
+    Decisions land in ``user_responses`` at once while ledger rows arrive only when a
+    resolver settles them, and the demo container runs no resolver, so both are compared.
+    """
+    global _snapshot_rows
+    if _snapshot_rows is not None:
+        return _snapshot_rows
+    source = SNAPSHOT_DIR / "engine.db"
+    if not source.is_file():
+        return None
+    conn = sqlite3.connect(f"file:{source}?mode=ro", uri=True)
+    try:
+        configure_clock_collation(conn)
+        ledger = int(conn.execute("SELECT COUNT(*) FROM ledger").fetchone()[0])
+        responses = int(conn.execute("SELECT COUNT(*) FROM user_responses").fetchone()[0])
+    except sqlite3.Error:
+        return None
+    finally:
+        conn.close()
+    _snapshot_rows = (ledger, responses)
+    return _snapshot_rows
+
+
+@router.get("/demo/state")
+def demo_state(_profile: Annotated[None, Depends(demo_profile)]) -> dict[str, bool]:
+    """True once the workspace differs from the shipped snapshot, so the UI can offer a reset."""
+    baseline = _snapshot_rows_count()
+    if baseline is None:
+        return {"drift": True}
+    conn = get_role_connection(settings.db_path, Role.EXAMINER)
+    try:
+        ledger = int(conn.execute("SELECT COUNT(*) FROM ledger").fetchone()[0])
+        responses = int(conn.execute("SELECT COUNT(*) FROM user_responses").fetchone()[0])
+    finally:
+        conn.close()
+    return {"drift": (ledger, responses) != baseline}
 
 
 def _restore(source: Path, target: Path) -> None:
