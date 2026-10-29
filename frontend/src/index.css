@@ -221,7 +221,7 @@ main button {
 .permission-why a { min-height: 44px; display: inline-flex; align-items: center; text-decoration: underline; text-underline-offset: 4px; }
 .permission-noop { color: var(--ink-tertiary); font-size: 12px; line-height: 1.6; }
 @media (max-width: 900px) { .permission-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 0; } .permission-facts { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-@media (max-width: 640px) { .permission-steps { grid-template-columns: minmax(0, 1fr); gap: 14px; } .permission-steps li { padding-top: 12px; } .permission-card { padding: 16px; } .permission-card-head { flex-direction: column; } .permission-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 640px) { .permission-steps { grid-template-columns: minmax(0, 1fr); gap: 0; } .permission-steps li { padding: 0 0 18px 18px; border-top: 0; border-left: 2px solid var(--line); } .permission-steps li:last-child { padding-bottom: 2px; border-left-color: transparent; } .permission-step-dot { top: 3px; left: -5px; } .permission-card { padding: 16px; } .permission-card-head { flex-direction: column; } .permission-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .home-section { border-top: 1px solid var(--line); padding-top: 22px; }
 .home-rail { border-top: 1px solid var(--line); padding-top: 20px; }
 .review-workspace { display: grid; grid-template-columns: minmax(0,1fr) 280px; gap: 24px; align-items: start; }
