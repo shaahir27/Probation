@@ -30,13 +30,14 @@ from probation.config import settings
 
 
 def _synthetic_owner_id(request: Request, owner_credential: OwnerApiCredential) -> str:
-    """Trusted server profile: one synthetic workspace, still loopback-only and CSRF-marked.
+    """Trusted server profile: one synthetic workspace, loopback-only unless the public demo
+    flag is set, and always CSRF-marked.
 
     No credential is accepted in this mode, and the profile cannot be selected by a client.
     Gmail setup routes additionally refuse to run outside the private profile.
     """
     client_host = request.client.host if request.client is not None else None
-    if not is_loopback_host(client_host):
+    if not is_loopback_host(client_host) and not settings.demo_allow_any_host:
         raise OwnerAuthError()
     if (
         request.method.upper() not in SAFE_METHODS

@@ -49,6 +49,27 @@ export function PermissionsView({ licences, errorMessage = null, onRetry }: Perm
                 </div>
                 <span className="rounded-full border border-line bg-surface px-3 py-1 text-xs font-semibold text-brand">{levelName(entry.level)}</span>
               </div>
+              {entry.checklist && <div className="mt-4 space-y-1 text-sm text-ink-secondary">
+                <p>
+                  {entry.checklist.evidence.met
+                    ? `${entry.checklist.evidence.have} clean agreements — the ${entry.checklist.evidence.need} needed for this level`
+                    : `${entry.checklist.evidence.have} of ${entry.checklist.evidence.need} clean agreements`}
+                  {" · "}
+                  {entry.checklist.recent.met ? "recent volume met" : `${entry.checklist.recent.have} of ${entry.checklist.recent.need} recent`}
+                  {" · "}
+                  {entry.checklist.exam.met ? "test passed" : "test not yet passed"}
+                  {" · "}
+                  {entry.checklist.alarm.met ? "no alarm" : "alarm recorded"}
+                </p>
+                {entry.checklist.next && <p>
+                  {entry.checklist.next.remaining_clean > 0
+                    ? `${entry.checklist.next.remaining_clean} more clean agreements for level ${entry.checklist.next.level}` +
+                      (entry.checklist.next.estimated_days > 0
+                        ? `, about ${entry.checklist.next.estimated_days} days at the recent pace.`
+                        : ".")
+                    : `Level ${entry.checklist.next.level} evidence is met.`}
+                </p>}
+              </div>}
               <details className="mt-2 text-sm">
                 <summary className="min-h-11 cursor-pointer py-3 text-ink underline underline-offset-4">Why?</summary>
                 <div className="max-w-3xl space-y-3 border-t border-line pt-4 leading-6 text-ink-secondary">

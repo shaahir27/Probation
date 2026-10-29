@@ -10,11 +10,32 @@ Built for the **NVIDIA Global AI Hackathon** (Personal AI Track) using **NVIDIA 
 
 ---
 
+## Demo access (for judges)
+
+The demo is a **synthetic workspace**: generated emails, derived permissions, and no real account.
+
+1. Open the deployed demo URL, or run the container command under **Public demo in a container**.
+2. On the sign-in page click **Enter the demo workspace**. No password or key is typed.
+3. The workspace resets every six hours, and the banner in the app says so.
+
+If the button is unavailable, use the owner-key form:
+
+| Field | Value |
+|---|---|
+| Owner key | `synthetic-demo-owner-key` |
+| Owner ID | `local-owner` (server-side; not entered on the page) |
+
+There is no email/password demo account: account routes are disabled in the synthetic profile. The button appears only when the server runs `APP_PROFILE=synthetic` with `PROBATION_DEMO_LOGIN=1`; the Docker image sets both. `make serve` without those variables runs the private profile, so it shows the private login and no demo button.
+
+---
+
 ## The idea: an assistant that earns permission
 
 Probation observes examples of your decisions, predicts what it would do, and compares those predictions with what you actually did. It earns permission separately for each type of task and action. When evidence is missing, it watches or asks you.
 
 For example, learning how to handle one kind of notification does not grant permission over every notification. The dashboard shows the evidence, current permission, review requests and eligible actions.
+
+Existing agent gateways earn trust from approval clicks — exactly the signal approval fatigue destroys. Probation earns it from what you actually did in your own mailbox, backtested without peeking, and then tries to trick itself with a code-graded exam.
 
 ### What works today
 
@@ -43,6 +64,15 @@ flowchart TD
 
 Nemotron helps turn redacted text into structured data; it does not receive tools or credentials. Tavily supplies public web information that may inform or restrict a decision, never increase autonomy. Code validates model output and applies the rules. Only the Executor performs external actions. The diagram describes the architecture: verify the records before claiming that a particular demo item used a model, web lookup or external action.
 
+### What earns permission
+
+- **Level 2 — Acts with undo:** 60 clean decisions for that task and action in the evidence window, at least 20 of them in the last 30 days, a 95% lower bound on the agreement rate after pooling, and a passed exam. The exact perfect-record minimum for that bound is 58; the configured volume is 60 so the gate is reachable rather than arithmetically impossible.
+- **Level 3 — Acts automatically:** the same gates at a 98% lower bound and 150 clean decisions (exact minimum 148), plus a recallable action.
+- **A mistake costs volume, not the history.** One disagreement in 40 decisions leaves the bound near 0.89; roughly another 40 clean decisions are needed to clear 0.95 again. Drift invalidates the exam, not the evidence: two undos inside 30 days raise an alarm and demote the licence, and one new passing exam restores it.
+- **The forecast is computed, not written by hand.** `GET /api/permissions` returns the checklist and inverts the same Beta lower bound that decides the level, so the screen cannot promise a volume the engine would refuse. `scripts/licence_ladder.py` prints the same table from the command line.
+
+The Permissions page shows the checklist per task: clean agreements against the configured need, recent volume, exam state, alarm state, and the remaining count with a day estimate from the recent decision pace.
+
 ---
 
 ## What the demo currently shows
@@ -68,9 +98,10 @@ The live account's first request was a cold-start **ASK** — the product asking
 | **Permissions** | One task/action at a time: Watching, Suggests, Acts with undo, Acts automatically; evidence counts and caps. Level 0 is not presented as an earned permission. |
 | **More → Connect apps** | Gmail read access, separate action access, pause/resume and confirmed disconnect, plus Calendar and Drive clearly marked Planned. |
 | **More → Performance / Counts & trends / Trick tests** | The historical record, measured counts and code-graded exam history. |
+| **More → What I've learned** | Patterns mined from recorded decisions with support counts and a dismiss control; a dismissal never grants or removes a permission. |
 | **More → Privacy & web / Cost & usage / Integrity record / Settings / Help** | Exact web queries and sources, model/usage and spend authority, the hash-chained record, effective settings and limits. |
 
-There are honest empty states where the current live account has no data — for example no Tavily calls for the cold-start item and no earned permission yet. Probation does not fill them with sample rows.
+There are honest empty states where the private live account has no data — for example no Tavily calls for the cold-start item and no earned permission yet. The shipped synthetic workspace is populated; Probation does not fill the private account's empty states with sample rows.
 
 ---
 
@@ -82,10 +113,11 @@ There are honest empty states where the current live account has no data — for
 | **Google Calendar** | **Planned.** Shown in Connect apps; no connect action and no execution. |
 | **Google Drive** | **Planned.** Shown in Connect apps; no connect action and no execution. |
 | **Files** | Code exists in the wider engine; not part of this email release and not shown as a working workflow. |
-| **Chains / Habits / Radar / Reading** | Not part of this focused release. Legacy deep links show an explicit unavailable explanation, never fake boards. |
+| **Habits** | **Prototype.** **More → What I've learned** lists mined patterns with support counts and a dismiss control; dismissal never changes a permission. |
+| **Chains / Radar / Reading** | Not part of this focused release. Legacy deep links show an explicit unavailable explanation, never fake boards. |
 | **Local data import** | Command-line import only; there is no browser upload. |
 
-The Gmail, Google Calendar and Google Drive product icons are served locally from Google's Brand Resource Center. They identify the corresponding integrations; Google retains all rights, and inclusion does not imply endorsement or availability. See [`frontend/public/integrations/ATTRIBUTION.md`](frontend/public/integrations/ATTRIBUTION.md).
+The Gmail, Google Calendar and Google Drive product icons are served locally from Google's Brand Resource Center. They identify the corresponding integrations; Google retains all rights, and inclusion does not imply endorsement or availability. See [`frontend/public/integrations/ATTRIBUTION.md`](frontend/public/integrations/ATTRIBUTION.md). They are fine in the repository; keep them out of submitted video frames, the thumbnail and the gallery image, where the submission rules restrict third-party marks.
 
 ---
 
@@ -144,9 +176,10 @@ The model mapping is fixed in configuration. There is no automatic model fallbac
 
 ## Live evidence and measured results
 
-### Local verification on 28 October 2026
+### Local verification (28–29 October 2026)
 
-- The complete check gate passed **1,509 backend tests**, lint, formatting and both type checks. The dashboard passed **39 workspace browser tests**, **18 unit tests** and its production build.
+- The complete check gate passed **1,509 backend tests**, lint, formatting and both type checks. The dashboard passed its browser suite, **18 unit tests** and its production build.
+- Re-ran the complete gate on 29 October after the demo-workspace work: **1509 passed, 2 deselected**, with ruff, format and both mypy gates clean.
 - A newly labeled fictional Gmail message was ingested and processed by Nemotron Super with validated reader output. Its owner-approved archive and undo both have confirmed Executor/provider receipts; undo restored `INBOX` and preserved unrelated labels.
 - Reconnect now completes both consent steps and refreshes the affected worker. The Gmail history adapter parses the actual Google wire format; the fake provider now emits that same format. Undo refuses missing touched-label version proof.
 - The later research message encountered an unconfirmed model transport result and stopped before Tavily. Its web verification and a live sent reply remain **unverified**. Recorded synthetic D5 Tavily results are separate historical evidence, not a fresh check of that Gmail message.
@@ -167,7 +200,7 @@ The model mapping is fixed in configuration. There is no automatic model fallbac
 | Gmail undos | all **four eligible archive/trash** requests now have `confirmed` Executor attempts and restored original labels; no undo is claimed without that receipt |
 | Gmail reconnect | Real disconnect deleted both refresh tokens; fresh read and read/change/send consents restored `SHADOW` then `ACTIVE`; queued pre-reconnect disconnects are superseded by the new authorization sequence |
 | Connect/action access | live UI shows **Connected / read-only** and **Granted** action access; four live undos processed after the fresh grant |
-| Paid model/Tavily calls in this D6 live session | **0** |
+| Paid model/Tavily calls in this D6 live session | **0** in this session; development total is **$0.005005 across 29 succeeded calls**, with a hard per-model budget and a reconciled attempt log |
 | Full backend gate | `python scripts/check.py` — **1494 passed, 2 deselected, 0 failed**; ruff/format and both mypy gates clean; protected fixture/result hashes unchanged |
 
 The browser suite covers known answer/copy truth, all primary routes, the More destinations, the Connect apps chooser, responsive layouts at 360/390/768/1440, 200% zoom, keyboard-only review, visible focus, announced errors, reduced motion, session isolation, safe links, production-bundle verification and zero console errors.
@@ -193,7 +226,11 @@ The paid-call authority is `data/d5/live/accounting.db`, scope `d5-nemotron-tavi
 | Nebius Super | $0.003896 (15 reconciled attempts) | 0 | per-model $1 scope; ~$0.9961 remaining |
 | Tavily | 8.0 credits (9 recorded calls, 8 reconciled) | 1 `ambiguous` call | **11 credits usable** |
 
-Nebius confirmed total across both scopes: **$0.005005** (29 succeeded, 8 failed closed). The one Tavily `ambiguous` row is an unresolved hold: it stays counted and must never be re-sent to "clear" it. **No new paid calls were made in this D6 live session.** Do not create a fresh allowance; re-read the authority before any paid run.
+Nebius confirmed total across both scopes: **$0.005005** (29 succeeded, 8 failed closed). The one Tavily `ambiguous` row is an unresolved hold: it stays counted and must never be re-sent to "clear" it. Development used **under one cent of Token Factory spend across 29 calls**, with a hard per-model budget and a reconciled attempt log. No new paid calls were made in this D6 live session; do not create a fresh allowance, and re-read the authority before any paid run.
+
+### One live model call the jury can trigger
+
+`POST /api/demo/analyze` accepts up to 4,000 characters and runs the registered `reader.mail.v4` job through the same gateway, durable spend authority and response cache as production. It returns the model id, input/output tokens, latency, this call's USD cost, the validated result and whether the answer came from cache. It is available only in the synthetic profile and returns `404` in private mode; with no configured model credential it returns `503 model_not_configured` rather than inventing numbers. The **More → Cost & usage** panel contains the **Try it live** card that calls it.
 
 ---
 
@@ -213,7 +250,7 @@ From the repository root:
 
 ```powershell
 # Windows
-C:\Users\shaah\miniconda3\python.exe -m pip install -e ./backend[dev]
+python -m pip install -e ./backend[dev]
 cd frontend
 npm install
 cd ..
@@ -269,7 +306,7 @@ python -B scripts/verify_embeddings.py --model-dir data/models/all-MiniLM-L6-v2/
 For a fresh installation, first run `python -m probation.cli db init`. For an existing database, back it up before migrating:
 
 ```powershell
-C:\Users\shaah\miniconda3\python.exe -m probation.cli db migrate
+python -m probation.cli db migrate
 ```
 
 `db migrate` applies the complete current schema (WP1, lifecycle, replay, provenance and accounting) and leaves the ledger records unchanged. It refuses a missing database rather than creating one silently. Back up `data/db/probation.db` before changing an existing local database.
@@ -282,7 +319,7 @@ Use a local terminal from the repository root. Do not run a plain `serve` on por
 # Terminal 1 — supervised API + observation + Brain + Webfacts + Examiner + Resolver
 make.cmd serve-live
 # equivalently:
-# C:\Users\shaah\miniconda3\python.exe -m probation.cli serve --gmail-runtime
+# python -m probation.cli serve --gmail-runtime
 
 # Terminal 2 — frontend
 make.cmd web
@@ -293,7 +330,7 @@ Open `http://localhost:5173` (or the alternate local port `http://localhost:5174
 If port 8000 is occupied by another server, keep the single runtime on 8001 and point the frontend proxy at it before starting Vite:
 
 ```powershell
-C:\Users\shaah\miniconda3\python.exe -m probation.cli serve --gmail-runtime --port 8001
+python -m probation.cli serve --gmail-runtime --port 8001
 cd frontend
 $env:PROBATION_D6_E2E_API_TARGET="http://127.0.0.1:8001"
 npm run dev -- --port 5173
@@ -313,7 +350,7 @@ Open `http://localhost:5173`. Do not run a separate plain API on 8000: access ch
 If Google blocks the request, run the safe preflight from the project root:
 
 ```powershell
-C:\Users\shaah\miniconda3\python.exe -B scripts\d6_gmail_setup.py --check
+python -B scripts\d6_gmail_setup.py --check
 ```
 
 It prints booleans and the exact redirect URI, never a token or secret. The common cause is a Web OAuth client without the saved `http://127.0.0.1:8765/` redirect; the other causes are the wrong test account, a non-Desktop client with no registered loopback URI, or an expired consent window.
@@ -321,15 +358,15 @@ It prints booleans and the exact redirect URI, never a token or secret. The comm
 To diagnose a failure with visible safe output, run the same local setup child for the required role:
 
 ```powershell
-C:\Users\shaah\miniconda3\python.exe -u -B scripts\d6_gmail_setup.py --authorize-read
-C:\Users\shaah\miniconda3\python.exe -u -B scripts\d6_gmail_setup.py --authorize-write
+python -u -B scripts\d6_gmail_setup.py --authorize-read
+python -u -B scripts\d6_gmail_setup.py --authorize-write
 ```
 
 ### Tests
 
 ```powershell
 # Full backend gate (isolated snapshot; ruff, format, mypy and pytest)
-C:\Users\shaah\miniconda3\python.exe scripts\check.py
+python scripts\check.py
 
 # Frontend
 cd frontend
@@ -339,6 +376,52 @@ npx playwright test --reporter=list
 ```
 
 The Playwright harness builds the production bundle, starts a throwaway synthetic API and a built frontend on separate loopback ports, and uses the installed system Chrome. It does not use the private Gmail account or the private owner key.
+
+---
+
+## Public demo in a container
+
+`Dockerfile` builds the dashboard into the API image. When `frontend/dist` is present the API serves it at `/`, so one origin answers both the UI and `/api/*`; routes registered for `/api` are unaffected by the mount.
+
+The workspace is shipped as a generated snapshot at `demo/seed/engine.db` and `demo/seed/connector_store.db` (plus `world.db`). On a cold start `scripts/demo_boot.py` copies the snapshot into `/data` **only when the target is absent**; a restart never overwrites a database. `scripts/demo_reset.sh` restores the snapshot, refuses unless `APP_PROFILE=synthetic`, and is wired to cron every six hours in the image. The UI states that the workspace is synthetic and resets every six hours.
+
+```bash
+docker build -t probation-demo .
+docker run --rm -p 8000:8000 -v probation-demo-data:/data probation-demo
+```
+
+The snapshot is entirely synthetic. It contains:
+
+- **72 clean decisions** deriving a **level-2** licence for `mail|fyi|frequent` + `ARCHIVE` (lower bound 0.964) and **27 clean decisions** deriving a **level-1** row for `mail|fyi|known`.
+- **50 observed `LEAVE` decisions** that never count toward a licence but give the existing habit miner a real association: `You archived 99 of 99 emails with intent=fyi` and `You left 50 of 50 emails with intent=newsletter`.
+- **One passing exam** for the level-2 pair. This is the only hand-written engine row: it is labelled `"synthetic_demo": true` in `exam_runs.details_json` and its details satisfy `meaningful_exam`. The licence itself is derived by `derive_licences` from the outcomes, never copied from a constant. Running the exam board for real needs a fitted policy and a model edit provider; this snapshot labels the fixture instead of pretending the board ran.
+- `scripts/demo_seed.py` regenerates the snapshot. The owner is read from `settings.probation_gmail_owner_id` (default `local-owner`), so the API and the seeded rows agree by construction.
+
+Cold-start verification from an empty runtime directory: bootstrap `{"profile":"synthetic","auth_required":false}`, **153** queue rows, **2** licences above level 0 (`mail|fyi|frequent` level 2, `mail|fyi|known` level 1), **1** exam run, **2** mined habits. `scripts/demo_reset.sh` restored the exact snapshot hashes and the same counts.
+
+The image sets `PROBATION_DEMO_LOGIN=1`, so the sign-in page shows **Enter the demo workspace**. That button needs no credentials. For the manual owner-key path, the demo key is `synthetic-demo-owner-key` and the owner id is `local-owner`; no email/password account is created because account routes are disabled in the synthetic profile. The one-click flag is ignored in the private profile.
+
+Manual reset, with the API stopped or on Linux:
+
+```bash
+APP_PROFILE=synthetic \
+DB_PATH=/data/db/probation.db \
+PROBATION_GMAIL_STORE=/data/private/connectors/gmail_metadata.db \
+  sh scripts/demo_reset.sh
+```
+
+`PROBATION_DEMO_ALLOW_ANY_HOST=1` relaxes the loopback check only in the synthetic profile. It is ignored in private mode, Gmail setup and account routes stay disabled, and the server logs a warning at startup whenever it is on. Unsafe methods still require `X-Probation-CSRF: 1`, and the demo database needs `CLOCK_MODE=live` so the seeded October evidence is inside the cutoff. Put HTTPS in front of the container at your tunnel or host; the app itself serves HTTP on port 8000. Never mount the private `data/` tree into a public container.
+
+For a local run without Docker, use an empty runtime directory and the same environment. On Windows PowerShell, set the same values with `$env:NAME="value"` first and then run `python -m uvicorn probation.api.app:app --host 127.0.0.1 --port 8010` (use a free port; 8000 may already be the private server):
+
+```bash
+APP_PROFILE=synthetic CLOCK_MODE=live PROBATION_DEMO_ALLOW_ANY_HOST=1 PROBATION_DEMO_LOGIN=1 \
+  DB_PATH=/tmp/probation-demo/db/probation.db \
+  PROBATION_GMAIL_STORE=/tmp/probation-demo/private/connectors/gmail_metadata.db \
+  PROBATION_GMAIL_OWNER_ID=local-owner \
+  PROBATION_GMAIL_OWNER_API_KEY=synthetic-demo-owner-key \
+  PYTHONPATH=backend/src python scripts/demo_boot.py
+```
 
 ---
 
@@ -360,11 +443,12 @@ The Playwright harness builds the production bundle, starts a throwaway syntheti
 - Gmail writes are limited to the approved manifest: **archive**, **trash**, **forward-to-self** and a reviewed **reply** only when a validated draft exists. There is no third-party recipient, permanent delete, settings change or automatic retry.
 - Live **undo** is proven for archive and trash: all four eligible requests have confirmed Executor attempts and restored original labels. Undo still fails closed when the provider's state or history evidence is incomplete, and a forward/send cannot be recalled. A refused undo is reported as refused and changes nothing.
 - **Google Calendar and Google Drive are planned**, not implemented.
-- Files, chains, habits, Radar and Reading are not part of this focused email release. Their legacy routes state that they are unavailable; they do not render fake data.
+- Files, chains, Radar and Reading are not part of this focused email release. Their legacy routes state that they are unavailable; they do not render fake data. **More → What I've learned** lists habits mined from recorded decisions and lets the owner dismiss one; a dismissal hides the sentence and never grants or removes a permission.
 - No public deployment, hosted multi-user service, real personal data, mobile app, push notifications or hosted URL is claimed here. Local accounts exist only on this machine. Deployment is a separate step and was intentionally not performed.
 - The six-case Super smoke is not accuracy, a Gmail score or an autonomy result.
 - The live demo item is a cold-start request for approval; it does not claim that a model draft was produced for that specific email.
 - The local cost panel reflects the app's recorded spend; the cumulative D5 accounting authority is a separate record. Neither is a provider invoice.
+- Run the backend suite from the repository root, as `scripts/check.py` does. Running `pytest` from `backend/` makes the relative `config/prices.json` unreachable, so the price-table tests fail closed; that is a working-directory requirement, not a skipped or weakened test.
 - Interactive replay is incomplete: the dashboard has no play/pause/speed controls, and the deployed Examiner does not pump the historical event stream. Use the command-line backtest for offline evaluation; do not present a changing date as a working replay.
 
 ---

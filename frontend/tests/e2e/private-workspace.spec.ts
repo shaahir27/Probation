@@ -9,7 +9,7 @@ async function signIn(page: import("@playwright/test").Page) {
   await page.getByLabel("Owner key").fill(syntheticOwnerKey);
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(page.getByRole("heading", { name: "Workspace overview" })).toBeVisible();
-  await expect(page.getByText("Waiting for you", { exact: true }).locator("..").getByText("1", { exact: true })).toBeVisible();
+  await expect(page.getByText("1 waiting", { exact: true })).toBeVisible();
 }
 
 test("home stays readable at desktop, tablet, and phone widths", async ({ page }, testInfo) => {
@@ -26,7 +26,7 @@ test("home stays readable at desktop, tablet, and phone widths", async ({ page }
   await page.getByRole("link", { name: /^Review emails/ }).click();
   for (const width of [1440, 768, 390, 360]) {
     await page.setViewportSize({ width, height: 900 });
-    await expect(page.getByText("Some information.")).toBeVisible();
+    await expect(page.getByText("Notice of renewal — payment due 5 November")).toBeVisible();
     await page.screenshot({ path: testInfo.outputPath(`queue-${width}.png`), fullPage: true });
   }
 });
@@ -42,14 +42,14 @@ test("sign-in stores no key in browser storage and shows the synthetic review it
   await page.getByLabel("Owner key").fill(syntheticOwnerKey);
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(page.getByRole("heading", { name: "Workspace overview" })).toBeVisible();
-  await expect(page.getByText("Waiting for you", { exact: true }).locator("..").getByText("1", { exact: true })).toBeVisible();
+  await expect(page.getByText("1 waiting", { exact: true })).toBeVisible();
   expect(await page.evaluate(() => [localStorage.length, sessionStorage.length])).toEqual([0, 0]);
 
   await page.getByRole("link", { name: /^Review emails/ }).click();
   await expect(page.getByText("1 waiting")).toBeVisible();
-  await expect(page.getByText("Some information.")).toBeVisible();
+  await expect(page.getByText("Notice of renewal — payment due 5 November")).toBeVisible();
   await page.getByRole("button", { name: "Review email" }).click();
-  await expect(page.getByRole("heading", { name: "Some information." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Notice of renewal — payment due 5 November" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Why Probation suggested this" })).toBeVisible();
 });
 

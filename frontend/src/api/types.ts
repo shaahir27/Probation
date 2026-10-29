@@ -209,6 +209,18 @@ export interface LicenceItem {
   exam_run_id: string | null;
   valid_until: string;
   reasons: string[];
+  checklist?: {
+    evidence: { have: number; need: number; met: boolean };
+    recent: { have: number; need: number; met: boolean };
+    exam: { met: boolean; run_id: string | null };
+    alarm: { met: boolean; last_alarm_at: string | null };
+    next: {
+      level: number;
+      clean_agreements_needed: number;
+      remaining_clean: number;
+      estimated_days: number;
+    } | null;
+  };
   drift?: {
     cusum: number;
     baseline_err: number;
@@ -481,4 +493,14 @@ export interface AdminCommand {
   requested_at: string;
   updated_at: string;
   result: Record<string, unknown> | null;
+}
+
+export interface DemoAnalyzeResponse {
+  model: string;
+  tokens_in: number;
+  tokens_out: number;
+  latency_ms: number;
+  usd: number;
+  result: Record<string, unknown>;
+  cached: boolean;
 }

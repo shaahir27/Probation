@@ -5,11 +5,11 @@ export const OWNER_KEY = "d6-e2e-synthetic-owner-key-only-never-for-private-use"
 
 /** Summaries are the seeded synthetic text; specs address rows by them, never by index. */
 export const ITEM = {
-  first: "Some information.",
-  conflict: "Second synthetic notice: the renewal window closed.",
-  plain: "Third synthetic notice: the club is asking for a decision.",
-  shadow: "Synthetic notice Probation is only observing.",
-  cited: "Synthetic notice with a cited web check.",
+  first: "Notice of renewal — payment due 5 November",
+  conflict: "Your renewal window closed on 30 September",
+  plain: "Committee vote on the autumn schedule",
+  shadow: "Newsletter 42 — what changed this month",
+  cited: "Renewal notice — payment due 5 November",
 } as const;
 
 export interface Guards {

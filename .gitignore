@@ -53,3 +53,7 @@ graphify-out/
 
 # Local design-skill scratch (direction notes and browser captures)
 /.taste-skill/
+
+# Shipped synthetic demo snapshot. Generated rows only; never personal data.
+!demo/seed/
+!demo/seed/*.db

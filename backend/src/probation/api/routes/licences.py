@@ -6,6 +6,7 @@ GET /licences: Current derived licences with evidence, plus the last 5 changes o
 """
 
 import json
+import math
 import sqlite3
 from typing import Annotated, Any
 
@@ -24,6 +25,68 @@ def _get_db() -> sqlite3.Connection:
     if not settings.db_path.exists():
         raise HTTPException(status_code=503, detail="Database not initialized")
     return get_connection(settings.db_path)
+
+
+def _checklist(
+    level: int,
+    action: str,
+    n_strong: int,
+    n_recent: int,
+    exam_ok: bool,
+    exam_run_id: str | None,
+    drift: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """The gates that still stand between this pair and its next level, plus a forecast.
+
+    The forecast inverts the same Beta lower bound the licence uses, so it cannot promise
+    a volume the engine would refuse. Days use the recent decision pace, never a guess.
+    """
+    from probation.engine.caps import is_recallable
+    from probation.engine.evidence import lower_bound
+
+    target: tuple[int, float] | None = None
+    if level < 2:
+        target = (2, settings.l2_min_lb)
+    elif level == 2 and is_recallable(action):
+        target = (3, settings.l3_min_lb)
+
+    forecast = None
+    if target is not None:
+        target_level, target_lb = target
+        need = max(settings.strong_min_raw_n, n_strong)
+        while (
+            need < 10_000
+            and lower_bound(k=need, n=need, kappa=settings.pooling_kappa, q=settings.lb_quantile)
+            < target_lb
+        ):
+            need += 1
+        remaining = max(0, need - n_strong)
+        pace = n_recent / 30.0
+        forecast = {
+            "level": target_level,
+            "clean_agreements_needed": need,
+            "remaining_clean": remaining,
+            "estimated_days": math.ceil(remaining / pace) if pace > 0 and remaining else 0,
+        }
+
+    return {
+        "evidence": {
+            "have": n_strong,
+            "need": settings.strong_min_raw_n,
+            "met": n_strong >= settings.strong_min_raw_n,
+        },
+        "recent": {
+            "have": n_recent,
+            "need": settings.licence_min_recent_n,
+            "met": n_recent >= settings.licence_min_recent_n,
+        },
+        "exam": {"met": exam_ok, "run_id": exam_run_id},
+        "alarm": {
+            "met": not (drift and drift.get("last_alarm_at")),
+            "last_alarm_at": drift.get("last_alarm_at") if drift else None,
+        },
+        "next": forecast,
+    }
 
 
 def _licence_payload(source_ids: tuple[str, ...] | None) -> dict[str, Any]:
@@ -90,6 +153,9 @@ def _licence_payload(source_ids: tuple[str, ...] | None) -> dict[str, Any]:
                     "last_alarm_at": d_row["last_alarm_at"],
                 }
 
+            checklist = _checklist(
+                level, act, n_strong, n_recent, view.exam_ok, exam_run_id, drift_info
+            )
             licences.append(
                 {
                     "class_key": ck,
@@ -97,6 +163,7 @@ def _licence_payload(source_ids: tuple[str, ...] | None) -> dict[str, Any]:
                     "level": level,
                     "lower_bound": lb,
                     "exam_ok": view.exam_ok,
+                    "checklist": checklist,
                     "lb_strong": view.lb_strong,
                     "lb_all": view.lb_all,
                     "agreement_strong": k_strong / n_strong if n_strong else None,

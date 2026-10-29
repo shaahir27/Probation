@@ -26,7 +26,7 @@ L1_MIN_N_DEFAULT: Final[int] = 20
 L1_MIN_LB_DEFAULT: Final[float] = 0.70
 L2_MIN_LB_DEFAULT: Final[float] = 0.95
 L3_MIN_LB_DEFAULT: Final[float] = 0.98
-STRONG_MIN_RAW_N_DEFAULT: Final[int] = 40
+STRONG_MIN_RAW_N_DEFAULT: Final[int] = 60
 LICENCE_MIN_RECENT_N_DEFAULT: Final[int] = 20
 LICENCE_TTL_DAYS_DEFAULT: Final[int] = 30
 EXAM_VALID_DAYS_DEFAULT: Final[int] = 90
@@ -62,8 +62,8 @@ def derive_licence_level(
 
     Authority: docs/ENGINE_SPEC.md section 6.3:
     - Level 1: n_all >= 20 and lb_all >= 0.70
-    - Level 2: n_strong >= 40, n_recent >= 20, lb_strong >= 0.95, and exam_ok(level=2)
-    - Level 3: n_strong >= 40, n_recent >= 20, lb_strong >= 0.98, exam_ok(level=3), and action.recallable
+    - Level 2: n_strong >= 60, n_recent >= 20, lb_strong >= 0.95, and exam_ok(level=2)
+    - Level 3: n_strong >= 60, n_recent >= 20, lb_strong >= 0.98, exam_ok(level=3), and action.recallable
     - Effective level: min(L, cap)
     """
     rec = recallable if recallable is not None else is_recallable(action)

@@ -29,6 +29,7 @@ import type {
   ReviewReceipt,
   SettingsResponse,
   WebFactsResponse,
+  DemoAnalyzeResponse,
 } from "./types";
 import {
   ApiError,
@@ -38,6 +39,7 @@ import {
   decodeBootstrap,
   decodeChainList,
   decodeCommandEnvelope,
+  decodeDemoAnalyze,
   decodeExamRuns,
   decodeExposure,
   decodeHabitList,
@@ -459,7 +461,7 @@ export const apiClient = {
       await request<unknown>(`/commands/${encodeURIComponent(requestId)}`, { signal }),
     );
   },
-  async getBootstrap(signal?: Signal): Promise<{ version: string; profile: "private" | "synthetic"; auth_required: boolean }> {
+  async getBootstrap(signal?: Signal): Promise<{ version: string; profile: "private" | "synthetic"; auth_required: boolean; demo_login: boolean }> {
     return decodeBootstrap(await request<unknown>("/bootstrap", { signal }));
   },
   async getHealth(signal?: Signal): Promise<{ status: string; service: string; mode: string }> {
@@ -515,6 +517,11 @@ export const apiClient = {
   },
   async getHabits(signal?: Signal): Promise<{ habits: HabitItem[] }> {
     return decodeHabitList(await request<unknown>("/habits", { signal }));
+  },
+  async demoAnalyze(text: string, signal?: Signal): Promise<DemoAnalyzeResponse> {
+    return decodeDemoAnalyze(
+      await request<unknown>("/demo/analyze", { method: "POST", body: { text }, signal }),
+    );
   },
   async denyHabit(id: string, requestId: string, signal?: Signal): Promise<{ ok: boolean; command: AdminCommand }> {
     return decodeCommandEnvelope(

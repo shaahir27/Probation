@@ -1,8 +1,10 @@
+import { useState } from "react";
 import { useExposureRead, useLedgerRead, useSettingsRead, useWebFactsRead } from "../api/queries";
 import { ExternalLink } from "../components/common/ExternalLink";
 import { Button } from "../components/common/Button";
 import { StatePanel } from "../components/common/StatePanel";
-import { ApiError } from "../api/client";
+import { ApiError, apiClient } from "../api/client";
+import type { DemoAnalyzeResponse } from "../api/types";
 import { ConnectAppsPanel } from "./ConnectAppsPanel";
 import { formatWhen } from "../lib/emailText";
 
@@ -15,6 +17,125 @@ function errorState(error: unknown): { message: string; locked: boolean } | null
   if (!(error instanceof Error)) return null;
   const status = error instanceof ApiError ? error.status : undefined;
   return { message: error.message, locked: status === 401 || status === 403 };
+}
+
+const ANALYZE_SAMPLE =
+  "Subject: Renewal due\n\nPlease renew the club membership by Friday. If it lapses we will close the order.";
+
+function LiveAnalysisCard() {
+  const [text, setText] = useState(ANALYZE_SAMPLE);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<DemoAnalyzeResponse | null>(null);
+
+  const submit = async () => {
+    if (busy || text.trim().length === 0) return;
+    setBusy(true);
+    setError(null);
+    try {
+      setResult(await apiClient.demoAnalyze(text));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "That call could not complete.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const scalarEntries =
+    result === null
+      ? []
+      : Object.entries(result.result).filter(
+          ([, value]) =>
+            value === null || ["string", "number", "boolean"].includes(typeof value),
+        );
+
+  return (
+    <section
+      className="space-y-3 rounded-2xl border border-line bg-surface p-4"
+      aria-labelledby="live-analysis-title"
+    >
+      <div>
+        <h2 id="live-analysis-title" className="text-base font-medium">
+          Try it live
+        </h2>
+        <p className="mt-1 text-xs leading-5 text-ink-secondary">
+          One real call to the configured Nemotron model on Nebius Token Factory, through the same
+          reader job and hard budget guard as the rest of Probation. Identical text is served from
+          the recorded answer at no cost.
+        </p>
+      </div>
+      <label className="block text-sm">
+        <span className="text-ink-secondary">Email text to analyse</span>
+        <textarea
+          value={text}
+          onChange={(event) => setText(event.target.value)}
+          maxLength={4000}
+          rows={6}
+          className="mt-2 w-full rounded-xl border border-line bg-canvas p-3 font-mono text-xs leading-5"
+        />
+      </label>
+      <div className="flex flex-wrap items-center gap-3">
+        <Button
+          variant="primary"
+          size="md"
+          disabled={busy || text.trim().length === 0}
+          onClick={() => void submit()}
+        >
+          {busy ? "Asking the model…" : "Analyse this email"}
+        </Button>
+        <span className="text-xs text-ink-tertiary">{text.length} / 4000 characters</span>
+      </div>
+      {error !== null && (
+        <p role="alert" className="text-sm text-status-danger">
+          {error}
+        </p>
+      )}
+      {result !== null && (
+        <div className="space-y-3 border-t border-line pt-3">
+          <p className="text-sm">
+            <span className="text-ink-tertiary">Model</span>{" "}
+            <span className="break-words font-mono text-xs">{result.model}</span>
+          </p>
+          <dl className="grid gap-3 text-sm sm:grid-cols-4">
+            <div>
+              <dt className="text-xs text-ink-tertiary">Tokens in</dt>
+              <dd className="mt-1 text-xl tabular-nums">{result.tokens_in}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-ink-tertiary">Tokens out</dt>
+              <dd className="mt-1 text-xl tabular-nums">{result.tokens_out}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-ink-tertiary">Latency</dt>
+              <dd className="mt-1 text-xl tabular-nums">{result.latency_ms} ms</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-ink-tertiary">This call cost</dt>
+              <dd className="mt-1 text-xl tabular-nums">{money(result.usd)}</dd>
+            </div>
+          </dl>
+          {result.cached && (
+            <p className="text-xs text-ink-tertiary">
+              Cached: this repeated input made no new paid call.
+            </p>
+          )}
+          {scalarEntries.length > 0 && (
+            <dl className="divide-y rounded-xl border border-line text-sm">
+              {scalarEntries.map(([key, value]) => (
+                <div
+                  key={key}
+                  className="flex flex-wrap items-baseline justify-between gap-2 p-2"
+                >
+                  <dt className="text-ink-secondary">{key.replace(/_/g, " ")}</dt>
+                  <dd className="break-words font-mono text-xs">{String(value)}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
+        </div>
+      )}
+    </section>
+  );
 }
 
 /** Recorded model and search spend, with the caveat that nothing recorded is nothing spent. */
@@ -46,6 +167,7 @@ export function UsagePanel({ authenticated }: { authenticated: boolean }) {
           <dd className="mt-1 text-2xl">{usage.calls}</dd>
         </div>
       </dl>
+      <LiveAnalysisCard />
       <section
         className="space-y-3 rounded-2xl border border-line bg-surface p-4"
         aria-labelledby="budget-authority-title"

@@ -17,6 +17,8 @@ Rejection text carries a short code and, at most, a SID string: never the path's
 never a token, never a message body.
 """
 
+from __future__ import annotations
+
 import ctypes
 import os
 from dataclasses import dataclass

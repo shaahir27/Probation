@@ -18,12 +18,12 @@ from __future__ import annotations
 import json
 import os
 import sys
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
 WORKTREE = Path(__file__).resolve().parents[1]
 CONNECTION_ID = "d6-e2e-connection"
-OWNER_ID = "d6-e2e-owner"
 ACCOUNT_ID = "e2e-owner@example.test"
 SOURCE_ID = f"gmail-source:{CONNECTION_ID}"
 NOW = "2026-10-01T01:00:00Z"
@@ -33,11 +33,54 @@ CITATION_URL = "https://www.example.org/renewal-notice"
 
 # The first item keeps the fixture summary the private-workspace journey asserts on.
 EXTRA_ASKS = (
-    ("e2e-ask-2", "Second synthetic notice: the renewal window closed.", "<ask2@test.local>"),
-    ("e2e-ask-3", "Third synthetic notice: the club is asking for a decision.", "<ask3@test.local>"),
+    (
+        "e2e-ask-2",
+        (
+            "Subject: Your renewal window closed on 30 September\n\n"
+            "Hello,\n\n"
+            "Our records show that the renewal for your club membership closed on 30 September.\n\n"
+            "If you still want the current rate, reply before Friday and we will reopen the order. "
+            "Nothing has been charged on your account.\n\n"
+            "— Membership desk"
+        ),
+        "<ask2@test.local>",
+    ),
+    (
+        "e2e-ask-3",
+        (
+            "Subject: Committee vote on the autumn schedule\n\n"
+            "Hi,\n\n"
+            "We need a decision on the autumn schedule before the room booking lapses on Monday.\n\n"
+            "The proposal is to move the Thursday session to 19:00 and keep the Saturday one "
+            "unchanged. If you do not reply, we will assume you are abstaining and book the "
+            "original slot.\n\n"
+            "— Scheduling"
+        ),
+        "<ask3@test.local>",
+    ),
 )
-SHADOW_ITEM = ("e2e-shadow-1", "Synthetic notice Probation is only observing.", "<shadow@test.local>")
-VERIFIED_ITEM = ("e2e-verified-1", "Synthetic notice with a cited web check.", "<verified@test.local>")
+SHADOW_ITEM = (
+    "e2e-shadow-1",
+    (
+        "Subject: Newsletter 42 — what changed this month\n\n"
+        "This month: a new scheduling rule, two bug fixes, and a note on the September outage.\n\n"
+        "You are receiving this because you subscribed last year. Unsubscribe at any time.\n\n"
+        "— The digest"
+    ),
+    "<shadow@test.local>",
+)
+VERIFIED_ITEM = (
+    "e2e-verified-1",
+    (
+        "Subject: Renewal notice — payment due 5 November\n\n"
+        "Hello,\n\n"
+        "This is a reminder that your subscription renews on 5 November. The amount is unchanged "
+        "from last year and no action is needed if you have already paid.\n\n"
+        "The fee schedule is published on our site.\n\n"
+        "— Billing"
+    ),
+    "<verified@test.local>",
+)
 
 FIELDS = {"title": "Renewal notice", "deadline_date": "2026-11-05"}
 CITATIONS = [{"title": "Synthetic renewal page", "url": CITATION_URL}]
@@ -121,11 +164,19 @@ def _proposal(
     conn.commit()
 
 
+def _owner_id() -> str:
+    """The one owner this workspace serves, read from trusted settings."""
+    from probation.config import settings
+
+    return settings.probation_gmail_owner_id
+
+
 def _binding_json(conn, proposal_id: str, action: str) -> tuple[str, str]:  # type: ignore[no-untyped-def]
     """A real ApprovalBinding for the seeded item, hashed exactly like the Executor would."""
+    import hashlib
+
     from probation.core.hashing import canonical_json
     from probation.core.lifecycle import ApprovalBinding, binding_hash
-    import hashlib
 
     row = conn.execute(
         """SELECT r.source_ref,r.payload_json,r.content_hash FROM proposals p
@@ -142,7 +193,7 @@ def _binding_json(conn, proposal_id: str, action: str) -> tuple[str, str]:  # ty
         ).encode()
     ).hexdigest()
     binding = ApprovalBinding(
-        owner_id=OWNER_ID,
+        owner_id=_owner_id(),
         connection_id=CONNECTION_ID,
         account_id=ACCOUNT_ID,
         resource_id=str(row["source_ref"]),
@@ -200,6 +251,267 @@ def _action(
     conn.commit()
 
 
+LICENCE_CLASS_KEY = "mail|fyi|frequent"
+LICENCE_GRADIENT_CLASS_KEY = "mail|fyi|known"
+LICENCE_ACTION = "ARCHIVE"
+LICENCE_HISTORY = 72
+LICENCE_GRADIENT = 27
+OBSERVED_CLASS_KEY = "mail|newsletter|known"
+OBSERVED_HISTORY = 50
+LICENCE_BASE = datetime(2026, 10, 20, 10, 0, 0, tzinfo=UTC)
+EXAM_RUN_ID = "exam-synthetic-demo-v1"
+
+
+def _append_licence_history(
+    conn,  # type: ignore[no-untyped-def]
+    *,
+    class_key: str,
+    action: str,
+    clue: str,
+    count: int,
+    base: datetime,
+    prefix: str,
+    sender: str,
+    subject: str,
+    body: str,
+) -> list[str]:
+    """Write one synthetic decision history the Resolver itself would write."""
+    from probation.db.ledger import append_ledger
+    from probation.llm.feature_identity import semantic_feature_version
+
+    redacted = f"Subject: {subject}\n\n{body}"
+    situation_ids: list[str] = []
+    for index in range(count):
+        proposed = base + timedelta(minutes=index)
+        known = proposed + timedelta(hours=1)
+        proposed_at = proposed.strftime("%Y-%m-%dT%H:%M:%SZ")
+        known_at = known.strftime("%Y-%m-%dT%H:%M:%SZ")
+        situation_id = f"sit-{prefix}-{index}"
+        raw_id = f"raw-{prefix}-{index}"
+        proposal_id = f"prop-{prefix}-{index}"
+        source_ref = f"<{prefix}-{index}@test.local>"
+        content_hash = f"hash-{prefix}-{index}"
+        payload = {
+            "message_id": source_ref,
+            "thread_id": f"thread-{prefix}-{index}",
+            "from": sender,
+            "subject": subject,
+            "body": body,
+        }
+        conn.execute(
+            """INSERT INTO raw_items (id,source_id,pack,item_kind,source_ref,occurred_at,
+            known_at,payload_json,content_hash) VALUES (?,?,'mail','mail_in',?,?,?,?,?)""",
+            (raw_id, SOURCE_ID, source_ref, proposed_at, proposed_at, json.dumps(payload), content_hash),
+        )
+        conn.execute(
+            """INSERT INTO situations (id,raw_item_id,pack,family,occurred_at,sender_key,
+            content_hash,redacted_text,created_at) VALUES (?,?,'mail','email_action',?,?,?,?,?)""",
+            (situation_id, raw_id, proposed_at, sender, content_hash, redacted, proposed_at),
+        )
+        proposal_seq = append_ledger(
+            conn,
+            "proposal",
+            proposal_id,
+            {
+                "situation_id": situation_id,
+                "action": action,
+                "class_key": class_key,
+                "gate": "SUGGEST",
+                "proposed_at": proposed_at,
+                "retrospective": False,
+                "evidence_context": "prospective_synthetic",
+            },
+            proposed_at,
+        )
+        conn.execute(
+            """INSERT INTO proposals (id,situation_id,family,class_key,action,probs_json,
+            p_max,novelty,novel,licence_level,cap,gate,reasons_json,policy_version,
+            features_hash,audit_holdout,proposed_at,ledger_seq,params_json,explanation_json,web_json)
+            VALUES (?,?,'email_action',?,?,?,0.99,0,0,2,3,'SUGGEST','[]','synthetic-demo',
+            'features',0,?,?,'{}','{}','{}')""",
+            (
+                proposal_id,
+                situation_id,
+                class_key,
+                action,
+                json.dumps({action: 0.99}),
+                proposed_at,
+                proposal_seq,
+            ),
+        )
+        conn.execute(
+            """INSERT INTO features (situation_id,deterministic_json,reader_json,reader_ok,
+            featurizer_version,model_id,prompt_version,features_hash,created_at,provenance_json)
+            VALUES (?,?,NULL,1,?,NULL,NULL,?,?,NULL)""",
+            (
+                situation_id,
+                json.dumps({"intent": clue}),
+                semantic_feature_version(),
+                content_hash,
+                proposed_at,
+            ),
+        )
+        outcome_seq = append_ledger(
+            conn,
+            "outcome",
+            proposal_id,
+            {
+                "situation_id": situation_id,
+                "proposal_id": proposal_id,
+                "observed_action": action,
+                "strength": "STRONG",
+                "source": "footprint",
+                "known_at": known_at,
+                "retrospective": False,
+                "evidence_context": "prospective_synthetic",
+            },
+            known_at,
+        )
+        conn.execute(
+            """INSERT INTO outcomes (situation_id,observed_action,strength,source,observed_at,
+            known_at,details_json,ledger_seq) VALUES (?,?,'STRONG','footprint',?,?,
+            '{"synthetic_demo":true}',?)""",
+            (situation_id, action, known_at, known_at, outcome_seq),
+        )
+        situation_ids.append(situation_id)
+    return situation_ids
+
+
+def _seed_earned_licence(conn) -> None:  # type: ignore[no-untyped-def]
+    """A synthetic history the engine can license, plus one labelled exam fixture.
+
+    The outcomes below are written exactly as the Resolver writes them — a committed
+    proposal, a matching outcome ledger entry and an ``outcomes`` row — so the licence
+    on screen is derived by ``derive_licences``, never copied from a constant. The exam
+    row is a fixture because running the board needs a fitted policy and a model edit
+    provider; it is marked ``synthetic_demo`` and its details satisfy ``meaningful_exam``.
+    """
+    from probation.config import settings
+    from probation.db.ledger import append_ledger
+    from probation.engine.exam_catalogue import operators_for_class
+    from probation.llm.feature_identity import semantic_feature_version
+
+    base_ids = _append_licence_history(
+        conn,
+        class_key=LICENCE_CLASS_KEY,
+        action=LICENCE_ACTION,
+        clue="fyi",
+        count=LICENCE_HISTORY,
+        base=LICENCE_BASE,
+        prefix="lic",
+        sender="club@test.local",
+        subject="Weekly club notice",
+        body=(
+            "Hello,\n\nThis is the weekly club notice. No action is needed; the schedule is "
+            "unchanged.\n\n— Club desk"
+        ),
+    )
+    _append_licence_history(
+        conn,
+        class_key=LICENCE_GRADIENT_CLASS_KEY,
+        action=LICENCE_ACTION,
+        clue="fyi",
+        count=LICENCE_GRADIENT,
+        base=LICENCE_BASE + timedelta(hours=3),
+        prefix="grad",
+        sender="alerts@test.local",
+        subject="Monthly statement",
+        body="Hello,\n\nYour monthly statement is ready. No action is needed.\n\n— Accounts",
+    )
+    # A minority action gives the habit miner a real association to find; LEAVE is a noop
+    # for licences, so this never changes the earned rows above.
+    _append_licence_history(
+        conn,
+        class_key=OBSERVED_CLASS_KEY,
+        action="LEAVE",
+        clue="newsletter",
+        count=OBSERVED_HISTORY,
+        base=LICENCE_BASE + timedelta(hours=6),
+        prefix="obs",
+        sender="digest@test.local",
+        subject="Weekly digest",
+        body="Hello,\n\nThis week's digest is below. No action is needed.\n\n— The digest",
+    )
+    from probation.engine.habits import mine_habits
+
+    mine_habits(conn, as_of="2026-10-29T12:00:00Z")
+
+    operators = operators_for_class(LICENCE_CLASS_KEY)
+    started_at = "2026-10-20T12:00:00Z"
+    finished_at = "2026-10-20T12:10:00Z"
+    exam_bases = base_ids[:20]
+    details = {
+        "schema": "wp5-exam-details-v1",
+        "synthetic_demo": True,
+        "reason": "synthetic_demo_fixture",
+        "snapshot_version": "wp5-frozen-v1",
+        "snapshot": {
+            "policy_digest": "synthetic-demo-policy-digest",
+            "history_digest": "synthetic-demo-history-digest",
+            "feature_version": semantic_feature_version(),
+            "configured_models": [settings.model_reader, settings.model_exam_edits],
+            "model_cutoff": "2026-10-13T12:00:00Z",
+            "history_cutoff": started_at,
+        },
+        "required_operators": [op.name for op in operators],
+        "operator_coverage": {op.name: len(exam_bases) for op in operators},
+        "base_ids": exam_bases,
+        "valid_base_cases": len(exam_bases),
+        "pipeline_failures": 0,
+        "missing_operators": [],
+    }
+    conn.execute(
+        """INSERT INTO exam_runs (id,class_key,action,level_tested,started_at,finished_at,
+        n_cases,invariance_flip_rate,directional_violations_critical,
+        directional_violation_rate_other,passed,edit_model_id,details_json)
+        VALUES (?,?,?,2,?,?,?,0.0,0,0.0,1,?,?)""",
+        (
+            EXAM_RUN_ID,
+            LICENCE_CLASS_KEY,
+            LICENCE_ACTION,
+            started_at,
+            finished_at,
+            len(exam_bases),
+            settings.model_exam_edits,
+            json.dumps(details),
+        ),
+    )
+    for base_index, base_id in enumerate(exam_bases):
+        for op_index, op in enumerate(operators):
+            conn.execute(
+                """INSERT INTO exam_cases (id,exam_run_id,base_situation_id,operator,
+                expectation,edit_valid,decision_before,decision_after,violated,critical)
+                VALUES (?,?,?,?,?,1,'DO_WITH_UNDO','DO_WITH_UNDO',0,?)""",
+                (
+                    f"case-{EXAM_RUN_ID}-{base_index}-{op_index}",
+                    EXAM_RUN_ID,
+                    base_id,
+                    op.name,
+                    op.expectation,
+                    int(op.critical),
+                ),
+            )
+    append_ledger(
+        conn,
+        "exam_run",
+        EXAM_RUN_ID,
+        {
+            "exam_run_id": EXAM_RUN_ID,
+            "class_key": LICENCE_CLASS_KEY,
+            "action": LICENCE_ACTION,
+            "level_tested": 2,
+            "passed": True,
+            "n_cases": len(exam_bases),
+            "invariance_flip_rate": 0.0,
+            "critical_violations": 0,
+            "finished_at": finished_at,
+            "synthetic_demo": True,
+        },
+        finished_at,
+    )
+    conn.commit()
+
+
 def main() -> int:
     if len(sys.argv) != 2:
         return 2
@@ -210,13 +522,26 @@ def main() -> int:
     sys.path.insert(0, str(WORKTREE / "backend" / "tests" / "unit"))
 
     from probation.db.gmail_store import ConnectorAccess, migrate_store, open_store
-    from wp6_mail_fixture import NOW as FIXTURE_NOW, seed
+    from wp6_mail_fixture import NOW as FIXTURE_NOW
+    from wp6_mail_fixture import seed
 
     conn, _world = seed(temp_root, action="ARCHIVE")
     conn.execute("PRAGMA foreign_keys = OFF")
     conn.execute("UPDATE raw_items SET source_id = ? WHERE source_id = 'source'", (SOURCE_ID,))
     conn.execute("UPDATE sources SET id = ? WHERE id = 'source'", (SOURCE_ID,))
-    conn.execute("UPDATE situations SET redacted_text = ? WHERE id = 'sit'", ("Some information.",))
+    conn.execute(
+        "UPDATE situations SET redacted_text = ? WHERE id = 'sit'",
+        (
+            (
+                "Subject: Notice of renewal — payment due 5 November\n\n"
+                "Hello,\n\n"
+                "Your subscription renews on 5 November. The amount is unchanged from last year, "
+                "and no action is needed if you have already paid.\n\n"
+                "If you would rather stop the renewal, reply before 1 November.\n\n"
+                "— Billing"
+            ),
+        ),
+    )
     # The engine asked the owner here, so Home may count it as needing a decision.
     conn.execute("UPDATE proposals SET gate='ASK', web_json=?, explanation_json=? WHERE id='proposal'", (_web(None), EXPLANATION))
     conn.commit()
@@ -297,6 +622,8 @@ def main() -> int:
             undo_deadline=None,
             attempt_state="failed",
         )
+    if items >= 3:
+        _seed_earned_licence(conn)
     conn.close()
 
     store_path = Path(os.environ["PROBATION_GMAIL_STORE"])
@@ -313,7 +640,7 @@ def main() -> int:
         (
             CONNECTION_ID,
             ACCOUNT_ID,
-            OWNER_ID,
+            _owner_id(),
             FIXTURE_NOW,
             FIXTURE_NOW,
         ),

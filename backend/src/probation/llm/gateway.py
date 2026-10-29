@@ -21,7 +21,12 @@ from urllib.parse import urlparse
 from probation.config import settings
 from probation.core.hashing import det_id
 from probation.llm.budget import BudgetExceeded
-from probation.llm.cache import CacheProvenance, SemanticEnvelope, usable_cached_answer
+from probation.llm.cache import (
+    CacheProvenance,
+    SemanticEnvelope,
+    get_cache_row,
+    usable_cached_answer,
+)
 from probation.llm.catalog import JobNotRegistered, JobSpec, model_for_job, resolve_job
 from probation.llm.client import LLMClient
 from probation.llm.context import check_headers, request_limit_for
@@ -200,12 +205,15 @@ class JobGateway:
                     code=FailureCode.INVALID_OUTPUT,
                 )
             self._contextual(cached, contextual)
+            cached_row = get_cache_row(self.conn, envelope.cache_key())
             return JobOutcome(
                 dict(cached),
                 self._provenance(spec, asset, model, counts, transport="cache", request_id=None),
                 True,
                 0,
                 0,
+                int(cached_row["tokens_in"]) if cached_row is not None else 0,
+                int(cached_row["tokens_out"]) if cached_row is not None else 0,
             )
 
         if not authority.granted:
@@ -250,6 +258,8 @@ class JobGateway:
             answer.cache_hit,
             answer.physical_attempts,
             answer.cost_units,
+            answer.tokens_in,
+            answer.tokens_out,
         )
 
     def _resolve(self, prompt_id: str, prompt_version: str) -> JobSpec:

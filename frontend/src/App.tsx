@@ -133,7 +133,7 @@ function Workspace() {
     );
   }
 
-  if (session.profile === "private" && session.status === "unknown") {
+  if ((session.profile === "private" || session.demoLogin) && session.status === "unknown") {
     return (
       <main className="min-h-screen bg-canvas p-6 text-ink">
         <p role="status" className="text-sm">Restoring your session…</p>
@@ -141,7 +141,7 @@ function Workspace() {
     );
   }
 
-  if (session.profile === "private" && !authenticated) {
+  if ((session.profile === "private" || session.demoLogin) && !authenticated) {
     const finishSignIn = async (attempt: Promise<boolean>) => {
       const ok = await attempt;
       if (!ok) return;
@@ -155,6 +155,7 @@ function Workspace() {
         onSubmit={(token) => finishSignIn(session.signIn(token))}
         onSignIn={(email, password) => finishSignIn(session.signInAccount(email, password))}
         onRegister={(email, password) => finishSignIn(session.registerAccount(email, password))}
+        onDemo={session.demoLogin ? session.enterDemo : undefined}
         error={session.errorMessage}
         busy={session.status === "checking"}
       />
@@ -184,6 +185,11 @@ function Workspace() {
         />
 
         <main className="mx-auto w-full max-w-[1280px] flex-1 px-5 py-7 sm:px-6 lg:px-8">
+          {session.profile === "synthetic" && (
+            <p className="mb-4 rounded-xl border border-line bg-surface px-4 py-2 text-xs leading-5 text-ink-secondary">
+              Synthetic workspace. It resets every 6 hours from a generated snapshot; the private product keeps your own history and never uses these rows.
+            </p>
+          )}
           <div role="status" aria-live="polite">
             <p className="sr-only">
               {coreStatus.isStale

@@ -145,20 +145,31 @@ def test_t_licence_ladder_derivation() -> None:
     # Level 2 requires exam_ok(level=2)
     l2_no_exam = derive_licence_level(
         action="ARCHIVE",
-        n_all=50,
+        n_all=70,
         lb_all=0.96,
-        n_strong=45,
+        n_strong=65,
         lb_strong=0.96,
         n_recent=25,
         exam_ok_fn=lambda lvl: False,
     )
     assert l2_no_exam == LicenceLevel.SUGGEST  # Falls back to level 1
 
+    l2_too_thin = derive_licence_level(
+        action="ARCHIVE",
+        n_all=70,
+        lb_all=0.96,
+        n_strong=55,
+        lb_strong=0.96,
+        n_recent=25,
+        exam_ok_fn=lambda lvl: lvl <= 2,
+    )
+    assert l2_too_thin == LicenceLevel.SUGGEST
+
     l2_ok = derive_licence_level(
         action="ARCHIVE",
-        n_all=50,
+        n_all=70,
         lb_all=0.96,
-        n_strong=45,
+        n_strong=65,
         lb_strong=0.96,
         n_recent=25,
         exam_ok_fn=lambda lvl: lvl <= 2,

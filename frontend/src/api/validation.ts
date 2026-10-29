@@ -14,6 +14,7 @@ import {
   BoardResponse,
   ChainItem,
   Citation,
+  DemoAnalyzeResponse,
   ExamRunItem,
   ExposureResponse,
   HabitItem,
@@ -369,7 +370,12 @@ export function decodeBootstrap(value: unknown) {
   ) {
     throw new ApiError("invalid_response", "Probation returned incomplete setup information.");
   }
-  return payload as { version: string; profile: "private" | "synthetic"; auth_required: boolean };
+  return {
+    version: payload.version,
+    profile: payload.profile as "private" | "synthetic",
+    auth_required: payload.auth_required,
+    demo_login: payload.demo_login === true,
+  };
 }
 
 export function decodeReviewReceipt(value: unknown): ReviewReceipt {
@@ -514,6 +520,19 @@ function decodeMetricWeek(value: unknown): MetricWeek {
 export function decodeHabitList(value: unknown): { habits: HabitItem[] } {
   const row = recordValue(value, "habits");
   return { habits: arrayValue(row.habits, "habits") as HabitItem[] };
+}
+
+export function decodeDemoAnalyze(value: unknown): DemoAnalyzeResponse {
+  const row = recordValue(value, "live analysis");
+  return {
+    model: stringValue(row.model, "live analysis model"),
+    tokens_in: countValue(row.tokens_in, "live analysis input tokens"),
+    tokens_out: countValue(row.tokens_out, "live analysis output tokens"),
+    latency_ms: countValue(row.latency_ms, "live analysis latency"),
+    usd: finiteNumberValue(row.usd, "live analysis cost"),
+    result: recordValue(row.result, "live analysis result"),
+    cached: booleanValue(row.cached, "live analysis cache flag"),
+  };
 }
 
 export function decodeChainList(value: unknown): { chains: ChainItem[] } {

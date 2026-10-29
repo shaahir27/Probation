@@ -184,12 +184,16 @@ class JobOutcome:
     cache_hit: bool
     physical_attempts: int
     cost_units: int
+    tokens_in: int = 0
+    tokens_out: int = 0
 
     def __post_init__(self) -> None:
         if self.cache_hit and self.physical_attempts != 0:
             raise ValueError("a cache hit dispatches nothing")
         if self.cost_units < 0 or self.physical_attempts < 0:
             raise ValueError("attempt and cost counts cannot be negative")
+        if self.tokens_in < 0 or self.tokens_out < 0:
+            raise ValueError("token counts cannot be negative")
         if not self.cache_hit and (self.physical_attempts < 1 or self.cost_units < 1):
             raise ValueError("a dispatched job records at least one attempt and one unit")
 

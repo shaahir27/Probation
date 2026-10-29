@@ -399,11 +399,15 @@ def run_evaluation(
         },
         "ablations": {
             "baseline_probation": round(probation_interruptions.attention_units_per_100, 2),
-            "no_pooling_delta_error": 0.042,
-            "no_exam_delta_violations": 3,
-            "no_audit_holdout_overfitting": 0.035,
-            "no_drift_post_drift_error": 0.185,
-            "weak_outcomes_for_l2_error": 0.071,
+            # Ablations are not computed by this runner. They were previously emitted as
+            # literals, which made the report card look measured when it was not. Until each
+            # ablation is actually executed, report them as not run.
+            "no_pooling_delta_error": None,
+            "no_exam_delta_violations": None,
+            "no_audit_holdout_overfitting": None,
+            "no_drift_post_drift_error": None,
+            "weak_outcomes_for_l2_error": None,
+            "ablations_status": "not_run",
         },
         "drift": {
             "detection_delay_days": drift_res.detection_delay_days,
@@ -477,21 +481,24 @@ def format_results_markdown(res: dict[str, Any]) -> str:
     md.append(
         f"| **Full Probation** | {abl.get('baseline_probation', 0):.1f} | Reference baseline |"
     )
-    md.append(
-        f"| *Without Evidence Pooling* | N/A | +{abl.get('no_pooling_delta_error', 0):.1%} error on cold/low-data task classes |"
-    )
-    md.append(
-        f"| *Without Exam Board* | N/A | {abl.get('no_exam_delta_violations')} critical failures on adversarial edge cases |"
-    )
-    md.append(
-        f"| *Without Audit Holdout* | N/A | +{abl.get('no_audit_holdout_overfitting', 0):.1%} overconfidence drift |"
-    )
-    md.append(
-        f"| *Without CUSUM/PSI Drift Guard* | N/A | +{abl.get('no_drift_post_drift_error', 0):.1%} post-drift persistent error |"
-    )
-    md.append(
-        f"| *With Weak Outcomes for Level 2 (I-11 Violation)* | N/A | +{abl.get('weak_outcomes_for_l2_error', 0):.1%} false licence elevation |"
-    )
+    if abl.get("ablations_status") == "not_run":
+        md.append("| *Every listed ablation* | N/A | not run |")
+    else:
+        md.append(
+            f"| *Without Evidence Pooling* | N/A | +{abl.get('no_pooling_delta_error', 0):.1%} error on cold/low-data task classes |"
+        )
+        md.append(
+            f"| *Without Exam Board* | N/A | {abl.get('no_exam_delta_violations')} critical failures on adversarial edge cases |"
+        )
+        md.append(
+            f"| *Without Audit Holdout* | N/A | +{abl.get('no_audit_holdout_overfitting', 0):.1%} overconfidence drift |"
+        )
+        md.append(
+            f"| *Without CUSUM/PSI Drift Guard* | N/A | +{abl.get('no_drift_post_drift_error', 0):.1%} post-drift persistent error |"
+        )
+        md.append(
+            f"| *With Weak Outcomes for Level 2 (I-11 Violation)* | N/A | +{abl.get('weak_outcomes_for_l2_error', 0):.1%} false licence elevation |"
+        )
     md.append("")
     md.append("## 3. Drift Monitoring & Safety Agility (E4)")
     md.append("")

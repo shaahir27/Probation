@@ -35,16 +35,23 @@ def run_examiner_job(
     access_conn.verify_write("ledger")
 
     if prediction_context is None:
-        from probation.core.clock import get_clock
+        from datetime import timedelta
+
+        from probation.core.clock import format_timestamp, get_clock, parse_timestamp
         from probation.engine.exam_context import build_exam_context
         from probation.engine.novelty import NoveltyUnavailable
         from probation.llm.consumers import RegisteredConsumer
 
+        exam_as_of = as_of or (clock or get_clock()).now_iso()
+        # A week the policy never saw, so the exam measures unseen history rather than
+        # re-scoring its own training rows.
+        policy_as_of = format_timestamp(parse_timestamp(exam_as_of) - timedelta(days=7))
         try:
             prediction_context = build_exam_context(
                 conn,
                 class_key,
-                as_of or (clock or get_clock()).now_iso(),
+                exam_as_of,
+                policy_as_of=policy_as_of,
                 consumer=llm_client if isinstance(llm_client, RegisteredConsumer) else None,
             )
         except (NoveltyUnavailable, ValueError):

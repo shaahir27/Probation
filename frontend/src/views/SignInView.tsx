@@ -9,12 +9,14 @@ interface SignInViewProps {
   onSubmit: (token: string) => Promise<void>;
   onSignIn: (email: string, password: string) => Promise<void>;
   onRegister: (email: string, password: string) => Promise<void>;
+  /** Present only on the synthetic demo server; enters without a typed credential. */
+  onDemo?: () => void;
   error: string | null;
   busy: boolean;
 }
 
-export function SignInView({ onSubmit, onSignIn, onRegister, error, busy }: SignInViewProps) {
-  const [mode, setMode] = useState<AuthMode>("account");
+export function SignInView({ onSubmit, onSignIn, onRegister, onDemo, error, busy }: SignInViewProps) {
+  const [mode, setMode] = useState<AuthMode>(onDemo ? "owner" : "account");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [token, setToken] = useState("");
@@ -47,12 +49,19 @@ export function SignInView({ onSubmit, onSignIn, onRegister, error, busy }: Sign
       <div className="space-y-5 max-w-md">
         <p className="inline-flex items-center gap-2 text-sm text-brand-muted"><span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-accent" />Permission, earned.</p>
         <h2 className="font-serif text-[clamp(2.6rem,4.2vw,3.9rem)] font-normal leading-[1.02] tracking-[-0.03em] text-brand-on">A second opinion.<br />Your final say.</h2>
-        <p className="text-sm leading-6 text-brand-muted">An email assistant that explains its suggestions, checks relevant public sources, and earns permission from your decisions.</p>
+        <p className="text-sm leading-6 text-brand-muted">A personal AI that earns permission to act — it learns your judgment from your own decisions, and proves it on a test before it touches anything.</p>
       </div>
       <div className="sign-in-method"><span>Read</span><span aria-hidden="true">→</span><span>Review</span><span aria-hidden="true">→</span><span>Decide</span></div>
     </section>
     <section className="sign-in-access">
       <form onSubmit={submit} className="w-full max-w-sm space-y-5">
+        {onDemo && <div className="rounded-2xl border border-line bg-surface p-4">
+          <p className="text-sm font-medium">Synthetic demo workspace</p>
+          <p className="mt-1 text-xs leading-5 text-ink-secondary">No credentials needed. The data is generated, and the workspace resets every six hours.</p>
+          <Button type="button" variant="primary" size="lg" className="mt-3 w-full justify-between" onClick={onDemo} disabled={busy}>
+            Enter the demo workspace<ArrowRight size={16} aria-hidden="true" />
+          </Button>
+        </div>}
         <div className="space-y-3 mb-8">
           <p className="inline-flex items-center gap-2 text-xs text-ink-secondary"><LockKeyhole aria-hidden="true" size={14} />Private account</p>
           <h1 className="page-title text-[32px]">{registering ? "Create your account" : "Sign in to your account"}</h1>

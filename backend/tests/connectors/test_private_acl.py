@@ -8,6 +8,8 @@ platform flag, which proves the fail-closed branch for a non-Windows host.
 Authority: docs/WP12_D4_GMAIL_CONTRACT.md section 5, docs/SECURITY_PRIVACY.md class B.
 """
 
+from __future__ import annotations
+
 import ctypes
 import logging
 from collections.abc import Iterator

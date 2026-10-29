@@ -16,15 +16,25 @@ def build_exam_context(
     class_key: str,
     as_of: str,
     *,
+    policy_as_of: str | None = None,
     consumer: RegisteredConsumer | None = None,
     reader_callable: ReaderCallable | None = None,
     embedder: EmbeddingProvider | None = None,
 ) -> ExamPredictionContext:
+    """The question pool reads `as_of`; the policy may be fitted on an earlier cutoff.
+
+    Passing `policy_as_of` makes the exam measure unseen history instead of the same
+    rows the policy trained on. `run_exam` rejects only a policy newer than the history.
+    """
     history = HistoryView(conn, as_of)
     family = family_for_class(class_key)
     return ExamPredictionContext(
         build_runtime_snapshot(
-            conn, family, as_of, embedder=embedder, reader_stub=reader_callable is not None
+            conn,
+            family,
+            policy_as_of or as_of,
+            embedder=embedder,
+            reader_stub=reader_callable is not None,
         ),
         history,
         consumer or offline_consumer(conn),

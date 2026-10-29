@@ -1,10 +1,13 @@
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Annotated, Any
 
 from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from probation.api import gmail_setup
@@ -16,6 +19,7 @@ from probation.api.routes import (
     auth,
     boards,
     controls,
+    demo,
     gmail_connector,
     insights,
     items,
@@ -45,6 +49,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             "PROBATION_GMAIL_BIND_HOST": settings.probation_gmail_bind_host,
         }
     )
+    if settings.demo_allow_any_host:
+        logging.getLogger("probation").warning(
+            "demo_allow_any_host is ON: the synthetic workspace accepts non-loopback clients. "
+            "Never enable this with app_profile=private."
+        )
     yield
 
 
@@ -101,6 +110,7 @@ app.include_router(boards.router)
 app.include_router(webfacts.router)
 app.include_router(readiness.router)
 app.include_router(replay.router)
+app.include_router(demo.router)
 app.include_router(gmail_connector.router)
 app.include_router(gmail_setup.router)
 app.include_router(session.router)
@@ -130,6 +140,8 @@ def api_bootstrap() -> dict[str, Any]:
         "profile": settings.app_profile,
         # The selected synthetic profile is a server-owned workspace and needs no owner key.
         "auth_required": settings.app_profile == "private",
+        # A public synthetic demo may still ask for one click instead of opening directly.
+        "demo_login": settings.app_profile == "synthetic" and settings.demo_login,
     }
 
 
@@ -282,3 +294,11 @@ def _budget_summary(conn: Any) -> dict[str, Any]:
         "never_dispatched": int(priced or 0),
         "unit": "usd",
     }
+
+
+# Serve the built dashboard when it is present. Routes registered above win, so /api/*
+# is unaffected; the mount only answers non-API paths. Hash routing needs index.html
+# only at "/", so html=True is sufficient.
+_DIST = Path(__file__).resolve().parents[4] / "frontend" / "dist"
+if _DIST.is_dir():
+    app.mount("/", StaticFiles(directory=_DIST, html=True), name="ui")

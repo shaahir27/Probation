@@ -27,12 +27,15 @@ export function registerSessionReset(callback: () => void): () => void {
 interface OwnerSessionValue {
   profile: Profile | null;
   authRequired: boolean;
+  /** The synthetic demo asks for one click instead of opening directly. */
+  demoLogin: boolean;
   status: SessionStatus;
   generation: number;
   /** Message from the last failed attempt; null once a read succeeds. */
   errorMessage: string | null;
   bootstrapError: string | null;
   loadBootstrap(): Promise<void>;
+  enterDemo(): void;
   signIn(token: string): Promise<boolean>;
   signInAccount(email: string, password: string): Promise<boolean>;
   registerAccount(email: string, password: string): Promise<boolean>;
@@ -47,6 +50,7 @@ export function OwnerSessionProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [authRequired, setAuthRequired] = useState(false);
+  const [demoLogin, setDemoLogin] = useState(false);
   const [status, setStatus] = useState<SessionStatus>("unknown");
   const [generation, setGeneration] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -68,7 +72,8 @@ export function OwnerSessionProvider({ children }: { children: ReactNode }) {
       const value = await apiClient.getBootstrap();
       setProfile(value.profile);
       setAuthRequired(value.auth_required);
-      if (!value.auth_required) {
+      setDemoLogin(value.demo_login);
+      if (!value.auth_required && !value.demo_login) {
         beginOwnerSession();
         setGeneration(getSessionGeneration());
         setStatus("signed-in");
@@ -113,13 +118,22 @@ export function OwnerSessionProvider({ children }: { children: ReactNode }) {
       clearPrivateCache(queryClient);
       resetEverywhere();
       setErrorMessage(reason ?? null);
-      setStatus(profile === "private" || authRequired ? "signed-out" : "signed-in");
+      setStatus(
+        profile === "private" || authRequired || demoLogin ? "signed-out" : "signed-in",
+      );
       // The local session is already closed; a missing or expired server session is
       // equivalent to logout, so its failure must not reopen anything.
       void apiClient.endSession().catch(() => undefined);
     },
-    [authRequired, profile, queryClient, resetEverywhere],
+    [authRequired, demoLogin, profile, queryClient, resetEverywhere],
   );
+
+  const enterDemo = useCallback(() => {
+    beginOwnerSession();
+    setErrorMessage(null);
+    setGeneration(getSessionGeneration());
+    setStatus("signed-in");
+  }, []);
 
   const lock = useCallback(
     (message: string) => {
@@ -211,18 +225,20 @@ export function OwnerSessionProvider({ children }: { children: ReactNode }) {
     () => ({
       profile,
       authRequired,
+      demoLogin,
       status,
       generation,
       errorMessage,
       bootstrapError,
       loadBootstrap,
+      enterDemo,
       signIn,
       signInAccount,
       registerAccount,
       signOut,
       lock,
     }),
-    [authRequired, bootstrapError, errorMessage, generation, loadBootstrap, lock, profile, registerAccount, signIn, signInAccount, signOut, status],
+    [authRequired, bootstrapError, demoLogin, enterDemo, errorMessage, generation, loadBootstrap, lock, profile, registerAccount, signIn, signInAccount, signOut, status],
   );
 
   return <OwnerSessionContext.Provider value={value}>{children}</OwnerSessionContext.Provider>;

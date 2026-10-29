@@ -54,6 +54,18 @@ class Settings(BaseSettings):
     clock_mode: str = "replay"  # "replay" | "live"
     # Selected by trusted server configuration only; a browser can never choose a profile.
     app_profile: str = "private"  # "private" | "synthetic"
+    # Synthetic workspace only. Relaxes the loopback check so a public judge can open the
+    # demo. Ignored in the private profile; Gmail setup and account routes stay disabled.
+    # Settings has no env_prefix, so the alias is required for PROBATION_DEMO_ALLOW_ANY_HOST.
+    demo_allow_any_host: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("PROBATION_DEMO_ALLOW_ANY_HOST", "DEMO_ALLOW_ANY_HOST"),
+    )
+    # Show the one-click synthetic-demo entry on the sign-in page. Ignored in private mode.
+    demo_login: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("PROBATION_DEMO_LOGIN", "DEMO_LOGIN"),
+    )
     user_addresses: str = "meena@example.test"
     user_tz: str = "Asia/Kolkata"
     embed_model: str = "sentence-transformers/all-MiniLM-L6-v2"
@@ -100,9 +112,9 @@ class Settings(BaseSettings):
     audit_seed: str = "probation-audit-v1"
     l1_min_n: int = 20
     l1_min_lb: float = 0.70
-    l2_min_n: int = 50
+    l2_min_n: int = 60
     l2_min_lb: float = 0.95
-    l3_min_n: int = 100
+    l3_min_n: int = 150
     l3_min_lb: float = 0.98
     cusum_threshold: float = 5.0
     cusum_allowance: float = 0.02
@@ -128,7 +140,7 @@ class Settings(BaseSettings):
     lb_quantile: float = 0.05
     attention_cost: float = 1.0
     evidence_window_days: int = 180
-    strong_min_raw_n: int = 40
+    strong_min_raw_n: int = 60
     licence_min_recent_n: int = 20
     licence_ttl_days: int = 30
     habit_min_support: int = 20

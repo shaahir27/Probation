@@ -15,8 +15,9 @@ test("the demo navigation focuses on email review and its real outcomes", async 
   await expect(navigation.getByRole("link", { name: /Radar|Reading library|Habits|Chains|Calendar|Files/ })).toHaveCount(0);
   await page.goto("/#/more");
   const settings = page.getByRole("navigation", { name: "More destinations" });
-  await expect(settings.getByRole("link")).toHaveCount(9);
-  await expect(settings.getByRole("link", { name: /Radar|Reading library|Learned about you|Follow-on patterns/ })).toHaveCount(0);
+  await expect(settings.getByRole("link")).toHaveCount(10);
+  await expect(settings.getByRole("link", { name: "What I've learned" })).toBeVisible();
+  await expect(settings.getByRole("link", { name: /Radar|Reading library|Follow-on patterns/ })).toHaveCount(0);
 });
 
 test("every primary route renders its own screen", async ({ page }) => {
