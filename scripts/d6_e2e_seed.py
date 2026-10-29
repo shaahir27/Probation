@@ -97,6 +97,7 @@ def _card(availability: str, fee_status: str, fields: dict[str, Any] | None) -> 
         "reasons": REASONS,
         "fetched_at": "2026-09-30T09:00:00Z",
         "ttl_until": FUTURE,
+        "provenance": {"synthetic": True, "source": "demo_seed"},
     }
 
 
@@ -117,6 +118,26 @@ EXPLANATION = json.dumps(
     {
         "top_clues": ["The sender recurs in your own history", "The subject names a deadline"],
         "summary_reason": "You archived a very similar notice from this sender last time.",
+        "similar_cases": [
+            {
+                "situation_id": "sit-lic-0",
+                "similarity": 0.94,
+                "action_taken": "ARCHIVE",
+                "summary": "Subject: Weekly club notice\n\nHello,\n\nNo action is needed this week.",
+            },
+            {
+                "situation_id": "sit-grad-0",
+                "similarity": 0.91,
+                "action_taken": "ARCHIVE",
+                "summary": "Subject: Monthly statement\n\nHello,\n\nYour statement is ready.",
+            },
+            {
+                "situation_id": "sit-obs-0",
+                "similarity": 0.88,
+                "action_taken": "LEAVE",
+                "summary": "Subject: Weekly digest\n\nThis week's digest is below.",
+            },
+        ],
     }
 )
 
@@ -257,7 +278,9 @@ LICENCE_ACTION = "ARCHIVE"
 LICENCE_HISTORY = 72
 LICENCE_GRADIENT = 27
 OBSERVED_CLASS_KEY = "mail|newsletter|known"
-OBSERVED_HISTORY = 50
+OBSERVED_HISTORY = 57
+WATCH_CLASS_KEY = "mail|request|known"
+WATCH_HISTORY = 12
 LICENCE_BASE = datetime(2026, 10, 20, 10, 0, 0, tzinfo=UTC)
 EXAM_RUN_ID = "exam-synthetic-demo-v1"
 
@@ -431,6 +454,47 @@ def _seed_earned_licence(conn) -> None:  # type: ignore[no-untyped-def]
         sender="digest@test.local",
         subject="Weekly digest",
         body="Hello,\n\nThis week's digest is below. No action is needed.\n\n— The digest",
+    )
+    _append_licence_history(
+        conn,
+        class_key=WATCH_CLASS_KEY,
+        action=LICENCE_ACTION,
+        clue="request",
+        count=WATCH_HISTORY,
+        base=LICENCE_BASE + timedelta(hours=9),
+        prefix="watch",
+        sender="requests@test.local",
+        subject="Request from the club",
+        body="Hello,\n\nPlease review the attached proposal when you have a moment.\n\n— Club desk",
+    )
+    # A recorded web check that matches the seeded renewal card, so Access & privacy
+    # and the card do not contradict each other. It is explicitly synthetic.
+    conn.execute(
+        """INSERT INTO tavily_calls (id, endpoint, purpose, query_text, params_json,
+        credits, ok, latency_ms, situation_id, created_at, accounting_version,
+        account_label, run_id, request_id, attempt_ordinal, state, reserved_units,
+        charged_units, run_cap_units, request_hash, usage_provenance, dispatched_at,
+        reconciled_at) VALUES
+        ('tavily-demo-1','search','find_official','example.org official renewal page',
+        '{}',1.0,1,120,'sit','2026-10-01T00:30:00Z',1,
+        'demo','demo-run-1','demo-request-1',1,'reserved',1000,0,800000,
+        'demo-request-hash',NULL,NULL,NULL)"""
+    )
+    conn.execute(
+        """UPDATE tavily_calls SET state='dispatched', dispatched_at='2026-10-01T00:30:00Z'
+        WHERE id='tavily-demo-1'"""
+    )
+    conn.execute(
+        """UPDATE tavily_calls SET state='reconciled', charged_units=1000,
+        usage_provenance='provider', reconciled_at='2026-10-01T00:30:01Z'
+        WHERE id='tavily-demo-1'"""
+    )
+    conn.execute(
+        """INSERT INTO web_facts (entity_key,status,facts_json,sources_json,origin,
+        fetched_at,ttl_until) VALUES
+        ('example.org','confirmed_official','{"domain_in_results":true}',
+        '["https://www.example.org/renewal-notice"]','tavily',
+        '2026-10-01T00:30:00Z','2027-01-01T00:00:00Z')"""
     )
     from probation.engine.habits import mine_habits
 

@@ -8,13 +8,32 @@ import { StatePanel, UnavailablePanel } from "../components/common/StatePanel";
 import { ActivityPanel, ConnectionsPanel, HelpPanel, PrivacyPanel, SettingsPanel, UsagePanel } from "./DataPanels";
 import { ExamsPanel, HabitsPanel, MetricsPanel, ReportCardPanel } from "./InsightPanels";
 interface MoreViewProps { section: string; profile: "private" | "synthetic" | null; authenticated: boolean }
-const SECTIONS = [
-  { id: "connections", label: "Connect apps" }, { id: "insights", label: "Performance" },
-  { id: "habits", label: "What I've learned" },
-  { id: "metrics", label: "Counts & trends" }, { id: "exams", label: "Trick tests" },
-  { id: "privacy", label: "Privacy & web" }, { id: "usage", label: "Cost & usage" },
-  { id: "activity", label: "Integrity record" }, { id: "settings", label: "Settings in use" },
-  { id: "help", label: "Help & limits" },
+const GROUPS = [
+  {
+    label: "Proof",
+    items: [
+      { id: "insights", label: "Performance" },
+      { id: "metrics", label: "Counts & trends" },
+      { id: "exams", label: "Trick tests" },
+      { id: "habits", label: "What I've learned" },
+    ],
+  },
+  {
+    label: "Access & privacy",
+    items: [
+      { id: "connections", label: "Connect apps" },
+      { id: "privacy", label: "Privacy & web" },
+      { id: "usage", label: "Cost & usage" },
+    ],
+  },
+  {
+    label: "Record & rules",
+    items: [
+      { id: "activity", label: "Integrity record" },
+      { id: "settings", label: "Settings in use" },
+      { id: "help", label: "Help & limits" },
+    ],
+  },
 ];
 const OUTSIDE_DEMO = new Set(["chains", "radar", "library"]);
 export function MoreView({ section, profile, authenticated }: MoreViewProps) {
@@ -43,7 +62,7 @@ export function MoreView({ section, profile, authenticated }: MoreViewProps) {
   const runExam = (classKey: string, action: string) => void commands.submit("run-exam", `${classKey}|${action}`, () => apiClient.runExam(classKey, action));
   return <div className="space-y-6">
     <header><h1 className="page-title">More</h1><p className="mt-2 text-sm text-ink-secondary">What it has learned, what it has earned, and what it spent.</p></header>
-    <nav aria-label="More destinations" className="flex flex-wrap gap-x-5 gap-y-1 border-b border-line pb-1">{SECTIONS.map((entry) => <a key={entry.id} href={`#/more/${entry.id}`} aria-current={active === entry.id ? "page" : undefined} className={`review-tab ${active === entry.id ? "text-ink border-ink" : "text-ink-secondary"}`}>{entry.label}</a>)}</nav>
+    <nav aria-label="More destinations" className="space-y-2 border-b border-line pb-3">{GROUPS.map((group) => <div key={group.label} className="flex flex-wrap items-baseline gap-x-5 gap-y-1"><span className="w-full text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-tertiary sm:w-auto">{group.label}</span>{group.items.map((entry) => <a key={entry.id} href={`#/more/${entry.id}`} aria-current={active === entry.id ? "page" : undefined} className={`review-tab ${active === entry.id ? "text-ink border-ink" : "text-ink-secondary"}`}>{entry.label}</a>)}</div>)}</nav>
     <CommandStatus commandIds={commands.submitted.map((entry) => entry.commandId)} onSettled={onSettled} />
     <div className="space-y-6">
       {active === "connections" && <ConnectionsPanel profile={profile} />}

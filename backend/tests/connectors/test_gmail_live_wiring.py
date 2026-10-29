@@ -461,7 +461,15 @@ def test_owner_can_sign_in_before_gmail_store_exists(tmp_path: Path, monkeypatch
     )
 
     assert response.status_code == 200
-    assert response.json() == {"items": [], "digests": [], "total_count": 0}
+    assert response.json() == {
+        "items": [],
+        "digests": [],
+        "total_count": 0,
+        "handled_count": 0,
+        "handled_digests": [],
+        "expired_count": 0,
+        "expired_digests": [],
+    }
     assert not missing_store.exists()
 
 

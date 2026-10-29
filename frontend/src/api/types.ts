@@ -45,6 +45,7 @@ export interface VerificationCard {
   fetched_at: string | null;
   ttl_until: string | null;
   extraction_id: string | null;
+  provenance?: Record<string, string | number | boolean | null> | null;
 }
 
 export interface ItemDetail {
@@ -160,10 +161,22 @@ export interface QueueDigest {
   items: string[];
 }
 
+export interface QueueGroup {
+  class_key: string;
+  action: string;
+  family: string;
+  count: number;
+  last_at: string;
+}
+
 export interface QueueResponse {
   items: QueueItem[];
   digests: QueueDigest[];
   total_count: number;
+  handled_count: number;
+  handled_digests: QueueGroup[];
+  expired_count: number;
+  expired_digests: QueueGroup[];
 }
 
 export interface ActionItem {
@@ -208,9 +221,12 @@ export interface LicenceItem {
   n_recent: number;
   exam_run_id: string | null;
   valid_until: string;
+  as_of?: string;
+  history_scope?: string;
   reasons: string[];
   checklist?: {
     evidence: { have: number; need: number; met: boolean };
+    history?: { have: number; need: number; met: boolean; lower_bound: number };
     recent: { have: number; need: number; met: boolean };
     exam: { met: boolean; run_id: string | null };
     alarm: { met: boolean; last_alarm_at: string | null };
@@ -219,12 +235,15 @@ export interface LicenceItem {
       clean_agreements_needed: number;
       remaining_clean: number;
       estimated_days: number;
+      basis?: "all" | "strong";
+      exam_required?: boolean;
     } | null;
   };
   drift?: {
     cusum: number;
     baseline_err: number;
     last_alarm_at: string | null;
+    scope?: string;
   } | null;
   history: LicenceChangeHistory[];
   title?: string;
@@ -502,5 +521,6 @@ export interface DemoAnalyzeResponse {
   latency_ms: number;
   usd: number;
   result: Record<string, unknown>;
+  redaction_counts: Record<string, number>;
   cached: boolean;
 }

@@ -27,7 +27,7 @@ export function DesktopSidebar({ currentTab, currentSection, queueCount }: Deskt
       <div className="sidebar-principle"><Eye aria-hidden="true" size={16} /><p>It starts by watching.<br /><span className="text-sidebar-muted">You stay in control.</span></p></div>
       <div className="space-y-1">
         <a href="#/more/connections" aria-current={currentTab === "more" && currentSection === "connections" ? "page" : undefined} className={`workspace-nav-link ${currentTab === "more" && currentSection === "connections" ? "is-current" : ""}`}><Link2 aria-hidden="true" size={17} strokeWidth={1.6} /><span>Connect apps</span></a>
-        <a href="#/more/insights" aria-current={currentTab === "more" && currentSection !== "connections" ? "page" : undefined} className={`workspace-nav-link ${currentTab === "more" && currentSection !== "connections" ? "is-current" : ""}`}><MoreHorizontal aria-hidden="true" size={17} strokeWidth={1.6} /><span>More</span></a>
+        <a href="#/more" aria-current={currentTab === "more" ? "page" : undefined} className={`workspace-nav-link ${currentTab === "more" ? "is-current" : ""}`}><MoreHorizontal aria-hidden="true" size={17} strokeWidth={1.6} /><span>More</span></a>
       </div>
     </div>
   </aside>;

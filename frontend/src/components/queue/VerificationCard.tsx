@@ -36,9 +36,16 @@ export function VerificationCard({ card, asOf }: VerificationCardProps) {
         <h2 id="verification-title" className="text-base font-medium">
           Web check
         </h2>
-        <p className={`text-sm font-medium ${availabilityToneClass(card)}`}>
-          {availabilityLabel(card)}
-        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          {card?.provenance?.synthetic === true && (
+            <span className="rounded-full border border-line px-2 py-0.5 text-[11px] font-semibold text-ink-secondary">
+              Synthetic demonstration record
+            </span>
+          )}
+          <p className={`text-sm font-medium ${availabilityToneClass(card)}`}>
+            {availabilityLabel(card)}
+          </p>
+        </div>
       </div>
       <p className="text-sm text-ink-secondary">{availabilityDetail(card)}</p>
 

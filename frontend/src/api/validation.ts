@@ -179,12 +179,29 @@ export function decodeQueueItem(value: unknown): QueueItem {
   };
 }
 
+function decodeQueueGroups(value: unknown, label: string): QueueResponse["handled_digests"] {
+  return arrayValue(value ?? [], label).map((entry) => {
+    const row = recordValue(entry, label);
+    return {
+      class_key: stringValue(row.class_key, `${label} task`),
+      action: stringValue(row.action, `${label} action`),
+      family: stringValue(row.family, `${label} family`),
+      count: countValue(row.count, `${label} count`),
+      last_at: stringValue(row.last_at, `${label} time`),
+    };
+  });
+}
+
 export function decodeQueueResponse(value: unknown): QueueResponse {
   const payload = recordValue(value, "review list");
   return {
     items: arrayValue(payload.items, "review list").map(decodeQueueItem),
     digests: arrayValue(payload.digests ?? [], "review groups") as QueueResponse["digests"],
     total_count: countValue(payload.total_count, "review list"),
+    handled_count: countValue(payload.handled_count ?? 0, "handled list"),
+    handled_digests: decodeQueueGroups(payload.handled_digests, "handled groups"),
+    expired_count: countValue(payload.expired_count ?? 0, "expired list"),
+    expired_digests: decodeQueueGroups(payload.expired_digests, "expired groups"),
   };
 }
 
@@ -231,6 +248,10 @@ export function decodeVerificationCard(value: unknown): VerificationCard | null 
     fetched_at: optionalStringValue(row.fetched_at, "verification checked time"),
     ttl_until: optionalStringValue(row.ttl_until, "verification valid until"),
     extraction_id: optionalStringValue(row.extraction_id, "verification extraction"),
+    provenance:
+      row.provenance === undefined || row.provenance === null
+        ? null
+        : (recordValue(row.provenance, "verification provenance") as VerificationCard["provenance"]),
   };
 }
 
@@ -531,6 +552,11 @@ export function decodeDemoAnalyze(value: unknown): DemoAnalyzeResponse {
     latency_ms: countValue(row.latency_ms, "live analysis latency"),
     usd: finiteNumberValue(row.usd, "live analysis cost"),
     result: recordValue(row.result, "live analysis result"),
+    redaction_counts: Object.fromEntries(
+      Object.entries(recordValue(row.redaction_counts ?? {}, "live analysis redactions")).map(
+        ([key, value]) => [key, countValue(value, "live analysis redaction")],
+      ),
+    ),
     cached: booleanValue(row.cached, "live analysis cache flag"),
   };
 }

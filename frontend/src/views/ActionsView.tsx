@@ -1,8 +1,32 @@
+import { useEffect, useState } from "react";
 import { RESULT_NOT_CONFIRMED, actionStatusLabel, isSettledStatus, isUnconfirmedResult } from "../api/action_status";
 import { ActionItem } from "../api/types";
+import { useLedgerRead } from "../api/queries";
 import { Button } from "../components/common/Button";
 import { EmptyState } from "../components/common/EmptyState";
 import { formatWhen, parseEmailText } from "../lib/emailText";
+
+function RecordCheck() {
+  const read = useLedgerRead(true);
+  const [checkedAt, setCheckedAt] = useState<string | null>(null);
+  useEffect(() => {
+    if (read.data) setCheckedAt(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
+  }, [read.data, read.dataUpdatedAt]);
+  if (read.error !== null) {
+    return <p role="alert" className="text-xs text-ink-tertiary">The record check is unavailable right now.</p>;
+  }
+  if (read.data === undefined) {
+    return <p className="text-xs text-ink-tertiary">Checking the record…</p>;
+  }
+  return <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-y border-line py-2 text-xs text-ink-secondary" aria-live="polite">
+    <span className={read.data.ok ? "font-semibold text-status-success" : "font-semibold text-status-danger"}>
+      {read.data.ok ? "Record unchanged" : `Record check failed at event ${read.data.seq ?? "unknown"}`}
+    </span>
+    <span>{read.data.length} events</span>
+    {checkedAt && <span>last checked {checkedAt}</span>}
+    <button type="button" className="min-h-11 underline underline-offset-4" onClick={() => void read.refetch()}>Check again</button>
+  </div>;
+}
 
 interface ActionsViewProps {
   actions: ActionItem[];
@@ -17,6 +41,9 @@ interface ActionsViewProps {
  * completed; `unknown` and `needs-reconciliation` both read "Result not confirmed".
  */
 export function ActionsView({ actions, busyId, conflict, error, onUndo }: ActionsViewProps) {
+  const held = actions.filter((action) => action.status === "HELD").length;
+  const undoable = actions.filter((action) => Boolean(action.undo_available)).length;
+  const unconfirmed = actions.filter((action) => isUnconfirmedResult(action.status) || isUnconfirmedResult(action.execution_status)).length;
   return (
     <section aria-labelledby="actions-title" className="activity-page">
       <header className="activity-heading">
@@ -31,6 +58,9 @@ export function ActionsView({ actions, busyId, conflict, error, onUndo }: Action
           Undo is re-checked against the mailbox when you ask. If Probation cannot prove the original state, it refuses the undo and changes nothing.
         </p>
       </header>
+
+      <RecordCheck />
+      {actions.length > 0 && <p className="text-xs text-ink-secondary">{actions.length} recorded · {held} held · {undoable} can be cancelled · {unconfirmed} unconfirmed</p>}
 
       {conflict !== null && (
         <p role="alert" className="rounded-xl border border-status-warning/30 bg-status-warning/10 p-4 text-sm">
@@ -72,6 +102,11 @@ export function ActionsView({ actions, busyId, conflict, error, onUndo }: Action
                   {action.status === "DONE" && action.undo_deadline !== null && action.undo_deadline !== undefined && (
                     <p className="text-xs text-ink-tertiary">Undo window until {formatWhen(action.undo_deadline)}.</p>
                   )}
+                  <p className="text-xs text-ink-tertiary">
+                    Recorded {formatWhen(action.created_at)}
+                    {action.executed_at ? ` · Effect ${formatWhen(action.executed_at)}` : ""}
+                    {action.updated_at !== action.created_at ? ` · Updated ${formatWhen(action.updated_at)}` : ""}
+                  </p>
                 </div>
                 <div className="activity-row-control">
                   {canUndo ? (

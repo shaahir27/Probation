@@ -222,6 +222,8 @@ def test_queue_endpoints(tmp_path: Path) -> None:
         assert len(data["items"]) == 1
         assert data["items"][0]["id"] == "prop-1"
         assert len(data["digests"]) == 1
+        assert data["handled_count"] == 0
+        assert data["expired_count"] == 0
 
         # 2. POST /api/queue/{id}/respond
         body = {"version": "v2", "response": "accept"}
@@ -261,6 +263,86 @@ def test_queue_endpoints(tmp_path: Path) -> None:
             },
         )
         assert res_post2.status_code == 409
+
+
+def test_queue_separates_waiting_handled_expired_and_future(tmp_path: Path) -> None:
+    test_db = tmp_path / "test_queue_states.db"
+    _seed_sample_db(test_db)
+    conn = get_connection(test_db)
+    now = "2026-03-01T10:00:00Z"
+    conn.execute(
+        "INSERT INTO sources (id, pack, kind, ref, imported_at) VALUES ('src-2','mail','mbox','/b',?)",
+        (now,),
+    )
+    rows = (
+        ("handled", "src-1", "footprint", "STRONG", "2026-03-01T10:30:00Z"),
+        ("expired", "src-1", "window_close", "WEAK", "2026-03-01T10:30:00Z"),
+        ("future", "src-1", "footprint", "STRONG", "2026-03-02T10:00:00Z"),
+        ("other", "src-2", "footprint", "STRONG", "2026-03-01T10:30:00Z"),
+    )
+    for suffix, source_id, outcome_source, strength, known_at in rows:
+        conn.execute(
+            """INSERT INTO raw_items (id,source_id,pack,item_kind,source_ref,occurred_at,
+            known_at,payload_json,content_hash) VALUES (?,?,'mail','mail_in',?,?,?,'{}',?)""",
+            (f"raw-{suffix}", source_id, f"<{suffix}@x>", now, now, f"h-{suffix}"),
+        )
+        conn.execute(
+            """INSERT INTO situations (id,raw_item_id,pack,family,occurred_at,sender_key,
+            content_hash,redacted_text,created_at) VALUES (?,?,'mail','email_action',?,
+            'x@test',?,'x',?)""",
+            (f"sit-{suffix}", f"raw-{suffix}", now, f"h-{suffix}", now),
+        )
+        conn.execute(
+            """INSERT INTO proposals (id,situation_id,family,class_key,action,probs_json,
+            p_max,novelty,novel,licence_level,cap,gate,reasons_json,policy_version,
+            features_hash,audit_holdout,proposed_at,ledger_seq)
+            VALUES (?,?,'email_action',?,'REPLY','{}',.5,0,0,0,2,'ASK','[]','v','h',0,?,1)""",
+            (f"prop-{suffix}", f"sit-{suffix}", f"mail|{suffix}", now),
+        )
+        conn.execute(
+            """INSERT INTO outcomes (situation_id,observed_action,strength,source,
+            observed_at,known_at,details_json,ledger_seq)
+            VALUES (?, 'REPLY', ?, ?, ?, ?, '{}', 1)""",
+            (f"sit-{suffix}", strength, outcome_source, known_at, known_at),
+        )
+    conn.commit()
+    conn.close()
+
+    with patch.object(settings, "db_path", test_db):
+        data = client.get("/api/queue").json()
+
+    assert data["total_count"] == 2
+    assert {item["id"] for item in data["items"]} == {"prop-1", "prop-future"}
+    assert data["handled_count"] == 1
+    assert data["expired_count"] == 1
+    assert [group["count"] for group in data["handled_digests"]] == [1]
+    assert [group["count"] for group in data["expired_digests"]] == [1]
+    assert all("prop-other" != item["id"] for item in data["items"])
+
+
+def test_demo_reset_is_synthetic_only_and_restores_snapshot(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    test_db = tmp_path / "reset.db"
+    _seed_sample_db(test_db)
+    monkeypatch.setattr(settings, "db_path", test_db)
+    monkeypatch.setattr(settings, "probation_gmail_store", tmp_path / "store.db")
+    monkeypatch.setattr(settings, "app_profile", "synthetic")
+    from probation.api.routes import demo as demo_route
+
+    demo_route._last_reset_at = 0.0
+    response = client.post("/api/demo/reset")
+    assert response.status_code == 200, response.text
+    conn = get_connection(test_db)
+    try:
+        assert conn.execute("SELECT count(*) FROM proposals WHERE id='prop-1'").fetchone()[0] == 0
+        assert conn.execute("SELECT count(*) FROM proposals").fetchone()[0] > 0
+    finally:
+        conn.close()
+    assert (tmp_path / "store.db").is_file()
+
+    monkeypatch.setattr(settings, "app_profile", "private")
+    assert client.post("/api/demo/reset").status_code == 404
 
 
 def test_item_detail_endpoint(tmp_path: Path) -> None:

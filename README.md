@@ -392,12 +392,13 @@ docker run --rm -p 8000:8000 -v probation-demo-data:/data probation-demo
 
 The snapshot is entirely synthetic. It contains:
 
-- **72 clean decisions** deriving a **level-2** licence for `mail|fyi|frequent` + `ARCHIVE` (lower bound 0.964) and **27 clean decisions** deriving a **level-1** row for `mail|fyi|known`.
-- **50 observed `LEAVE` decisions** that never count toward a licence but give the existing habit miner a real association: `You archived 99 of 99 emails with intent=fyi` and `You left 50 of 50 emails with intent=newsletter`.
-- **One passing exam** for the level-2 pair. This is the only hand-written engine row: it is labelled `"synthetic_demo": true` in `exam_runs.details_json` and its details satisfy `meaningful_exam`. The licence itself is derived by `derive_licences` from the outcomes, never copied from a constant. Running the exam board for real needs a fitted policy and a model edit provider; this snapshot labels the fixture instead of pretending the board ran.
+- **72 clean decisions** deriving a **level-2** licence for `mail|fyi|frequent` + `ARCHIVE` (lower bound 0.964), **27 clean decisions** deriving a **level-1** row for `mail|fyi|known`, and **12 decisions** deriving a **level-0** “Requests from known senders” row with 8 more for Suggests.
+- **57 observed `LEAVE` decisions** that never count toward a licence but give the existing habit miner a real association: `You archived 99 of 99 emails with intent=fyi` and `You left 57 of 57 emails with intent=newsletter`.
+- **One passing exam** for the level-2 pair (20 base emails × 10 changes = 200 checks). This is the only hand-written engine row: it is labelled `"synthetic_demo": true` in `exam_runs.details_json` and its details satisfy `meaningful_exam`. The licence itself is derived by `derive_licences` from the outcomes, never copied from a constant. Running the exam board for real needs a fitted policy and a model edit provider; this snapshot labels the fixture instead of pretending the board ran.
+- **One synthetic Tavily record** and one matching `web_facts` entity for the cited renewal card, marked **Synthetic demonstration record**. It is recorded evidence, not a runtime call.
 - `scripts/demo_seed.py` regenerates the snapshot. The owner is read from `settings.probation_gmail_owner_id` (default `local-owner`), so the API and the seeded rows agree by construction.
 
-Cold-start verification from an empty runtime directory: bootstrap `{"profile":"synthetic","auth_required":false}`, **153** queue rows, **2** licences above level 0 (`mail|fyi|frequent` level 2, `mail|fyi|known` level 1), **1** exam run, **2** mined habits. `scripts/demo_reset.sh` restored the exact snapshot hashes and the same counts.
+Cold-start verification from an empty runtime directory: bootstrap `{"profile":"synthetic","auth_required":false,"demo_login":true}`, **4 waiting / 168 already handled / 0 expired**, four derived task groups (two above level 0 plus the level-0 requests group with 12 decisions), **1** exam run (20 base / 200 checks), **2** mined habits, and **1** synthetic Tavily record. `scripts/demo_reset.sh` restored the exact snapshot hashes and the same counts.
 
 The image sets `PROBATION_DEMO_LOGIN=1`, so the sign-in page shows **Enter the demo workspace**. That button needs no credentials. For the manual owner-key path, the demo key is `synthetic-demo-owner-key` and the owner id is `local-owner`; no email/password account is created because account routes are disabled in the synthetic profile. The one-click flag is ignored in the private profile.
 

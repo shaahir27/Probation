@@ -10,10 +10,13 @@ opens a Webfacts-scoped connection solely to record the attempt and its exposure
 
 from __future__ import annotations
 
+import os
+import shutil
+from pathlib import Path
 from typing import Annotated, Any
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
 from probation.api.authority import OwnerContext, optional_owner
@@ -32,6 +35,9 @@ router = APIRouter(prefix="/api", tags=["demo"])
 
 PROMPT_ID = "reader.mail"
 PROMPT_VERSION = "v4"
+SNAPSHOT_DIR = Path(__file__).resolve().parents[5] / "demo" / "seed"
+RESET_COOLDOWN_S = 5.0
+_last_reset_at = 0.0
 
 
 class DemoAnalyzeBody(BaseModel):
@@ -40,11 +46,16 @@ class DemoAnalyzeBody(BaseModel):
     text: str = Field(min_length=1, max_length=4000)
 
 
-def demo_owner(request: Request) -> OwnerContext:
-    """404 outside the synthetic profile; otherwise the normal owner boundary applies."""
+def demo_profile() -> None:
+    """404 outside the synthetic profile, before any credential is considered."""
     if settings.app_profile != "synthetic":
         raise HTTPException(status_code=404, detail="not_found")
-    owner = optional_owner(request)
+
+
+def demo_owner(
+    _profile: Annotated[None, Depends(demo_profile)],
+    owner: Annotated[OwnerContext | None, Depends(optional_owner)],
+) -> OwnerContext:
     if owner is None or not owner.owner_id:
         raise HTTPException(status_code=403, detail="authenticated_owner_required")
     return owner
@@ -115,7 +126,43 @@ def demo_analyze(body: DemoAnalyzeBody, owner: Owner) -> dict[str, Any]:
             "latency_ms": latency_ms,
             "usd": float(units_to_usd(outcome.cost_units)),
             "result": dict(outcome.data),
+            "redaction_counts": dict(outcome.provenance.redaction_counts),
             "cached": outcome.cache_hit,
         }
     finally:
         conn.close()
+
+
+def _restore(source: Path, target: Path) -> None:
+    target.parent.mkdir(parents=True, exist_ok=True)
+    temporary = target.with_name(f"{target.name}.reset-{os.getpid()}")
+    shutil.copy2(source, temporary)
+    os.replace(temporary, target)
+    for suffix in ("-wal", "-shm"):
+        target.with_name(f"{target.name}{suffix}").unlink(missing_ok=True)
+
+
+@router.post("/demo/reset")
+def demo_reset(owner: Owner) -> dict[str, Any]:
+    """Restore the shipped synthetic snapshot. Never available in the private profile."""
+    del owner
+    global _last_reset_at
+    now = elapsed_seconds()
+    if now - _last_reset_at < RESET_COOLDOWN_S:
+        raise HTTPException(status_code=429, detail="reset_too_soon")
+    _last_reset_at = now
+    store = settings.probation_gmail_store or (
+        Path(settings.db_path).parent.parent / "private" / "connectors" / "gmail_metadata.db"
+    )
+    sources = {
+        SNAPSHOT_DIR / "engine.db": Path(settings.db_path),
+        SNAPSHOT_DIR / "connector_store.db": Path(store),
+    }
+    if not all(source.is_file() for source in sources):
+        raise HTTPException(status_code=503, detail="demo_snapshot_unavailable")
+    try:
+        for source, target in sources.items():
+            _restore(source, target)
+    except OSError as exc:
+        raise HTTPException(status_code=503, detail="demo_reset_failed") from exc
+    return {"ok": True, "restored": [source.name for source in sources]}

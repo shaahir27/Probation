@@ -10,6 +10,7 @@ import {
   queryKeys,
 } from "./api/queries";
 import { useAdminCommandFlow, useReviewFlow, useUndoFlow } from "./api/mutations";
+import { apiClient } from "./api/client";
 import type { QueueItem } from "./api/types";
 import { OwnerSessionProvider, useOwnerSession } from "./auth/OwnerSession";
 import { DesktopSidebar } from "./components/layout/DesktopSidebar";
@@ -40,6 +41,35 @@ const TITLES: Record<string, string> = {
   request: "Request status",
   "not-found": "Page not found",
 };
+
+function DemoResetButton() {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const reset = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await apiClient.resetDemo();
+      window.location.reload();
+    } catch {
+      setError("The demo could not be reset. Try again.");
+      setBusy(false);
+    }
+  };
+  return (
+    <span className="inline-flex flex-wrap items-center gap-2">
+      <button
+        type="button"
+        onClick={() => void reset()}
+        disabled={busy}
+        className="min-h-11 rounded-lg border border-line bg-surface px-3 text-xs font-semibold text-ink disabled:opacity-50"
+      >
+        {busy ? "Resetting…" : "Reset demo"}
+      </button>
+      {error !== null && <span role="alert" className="text-status-danger">{error}</span>}
+    </span>
+  );
+}
 
 export default function App() {
   return (
@@ -164,6 +194,7 @@ function Workspace() {
 
   const tab = primaryPage(route);
   const items = queue.data?.items ?? [];
+  const queueTotal = queue.data?.total_count ?? items.length;
   for (const row of items) seenRows.current.set(row.id, row);
   const openRow = (id: string): QueueItem | undefined =>
     items.find((row) => row.id === id) ?? seenRows.current.get(id);
@@ -173,7 +204,7 @@ function Workspace() {
 
   return (
     <div className="flex min-h-screen flex-col border-t-4 border-accent bg-canvas font-sans text-ink selection:bg-brand selection:text-brand-on md:flex-row">
-      <DesktopSidebar currentTab={tab} currentSection={route.page === "more" ? route.section ?? "connections" : undefined} queueCount={items.length} />
+      <DesktopSidebar currentTab={tab} currentSection={route.page === "more" ? route.section ?? "connections" : undefined} queueCount={queueTotal} />
 
       <div className="flex min-h-screen min-w-0 flex-1 flex-col pb-24 md:pb-6">
         <Header
@@ -186,9 +217,10 @@ function Workspace() {
 
         <main className="mx-auto w-full max-w-[1280px] flex-1 px-5 py-7 sm:px-6 lg:px-8">
           {session.profile === "synthetic" && (
-            <p className="mb-4 rounded-xl border border-line bg-surface px-4 py-2 text-xs leading-5 text-ink-secondary">
-              Synthetic workspace. It resets every 6 hours from a generated snapshot; the private product keeps your own history and never uses these rows.
-            </p>
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-surface px-4 py-2 text-xs leading-5 text-ink-secondary">
+              <p>Synthetic workspace. It resets every 6 hours from a generated snapshot; the private product keeps your own history and never uses these rows.</p>
+              <DemoResetButton />
+            </div>
           )}
           <div role="status" aria-live="polite">
             <p className="sr-only">
@@ -248,6 +280,9 @@ function Workspace() {
               {route.page === "home" && (
                 <HomeView
                   queueItems={items}
+                  queueTotal={queueTotal}
+                  handledCount={queue.data?.handled_count ?? 0}
+                  expiredCount={queue.data?.expired_count ?? 0}
                   licences={permissions.data?.licences ?? []}
                   actions={actions.data?.actions ?? []}
                   profile={session.profile ?? "synthetic"}
@@ -257,6 +292,11 @@ function Workspace() {
               {(route.page === "queue" || route.page === "item") && (
                 <ReviewWorkspace
                   items={items}
+                  digests={queue.data?.digests ?? []}
+                  handledCount={queue.data?.handled_count ?? 0}
+                  handledDigests={queue.data?.handled_digests ?? []}
+                  expiredCount={queue.data?.expired_count ?? 0}
+                  expiredDigests={queue.data?.expired_digests ?? []}
                   gate={gate}
                   onGateChange={setGate}
                   selectedId={route.page === "item" ? route.id : null}
@@ -338,7 +378,7 @@ function Workspace() {
         </main>
       </div>
 
-      <MobileNav currentTab={tab} queueCount={items.length} />
+      <MobileNav currentTab={tab} queueCount={queueTotal} />
     </div>
   );
 }

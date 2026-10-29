@@ -14,9 +14,12 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from probation.api.authority import OwnerContext, require_owner
 from probation.api.db import connect_api as get_connection
+from probation.api.labels import task_title
 from probation.config import settings
+from probation.core.actions import InvalidAction, parse_action
 from probation.core.clock import get_clock
-from probation.engine.licence import derive_licences
+from probation.engine.caps import get_action_cap, is_recallable
+from probation.engine.licence import derive_licences, family_for_class
 
 router = APIRouter(prefix="/api", tags=["licences"], dependencies=[Depends(require_owner)])
 
@@ -27,46 +30,63 @@ def _get_db() -> sqlite3.Connection:
     return get_connection(settings.db_path)
 
 
+def _is_noop(action: str) -> bool:
+    try:
+        return parse_action(action).is_noop
+    except InvalidAction:
+        return True
+
+
 def _checklist(
     level: int,
     action: str,
     n_strong: int,
     n_recent: int,
+    n_all: int,
+    lb_all: float,
     exam_ok: bool,
     exam_run_id: str | None,
     drift: dict[str, Any] | None,
+    cap: int,
 ) -> dict[str, Any]:
     """The gates that still stand between this pair and its next level, plus a forecast.
 
-    The forecast inverts the same Beta lower bound the licence uses, so it cannot promise
-    a volume the engine would refuse. Days use the recent decision pace, never a guess.
+    Level 0 is watching; its next gate is level 1 and is measured on all decisions, not
+    strong ones. The forecast inverts the same Beta lower bound the engine uses, so it
+    cannot promise a volume the licence would refuse.
     """
-    from probation.engine.caps import is_recallable
     from probation.engine.evidence import lower_bound
 
-    target: tuple[int, float] | None = None
-    if level < 2:
-        target = (2, settings.l2_min_lb)
-    elif level == 2 and is_recallable(action):
-        target = (3, settings.l3_min_lb)
+    noop = _is_noop(action)
+    target: tuple[int, float, int, str] | None = None
+    if not noop and cap >= 1:
+        if level < 1:
+            target = (1, settings.l1_min_lb, n_all, "all")
+        elif level < 2:
+            target = (2, settings.l2_min_lb, n_strong, "strong")
+        elif level == 2 and is_recallable(action) and cap >= 3:
+            target = (3, settings.l3_min_lb, n_strong, "strong")
 
     forecast = None
     if target is not None:
-        target_level, target_lb = target
-        need = max(settings.strong_min_raw_n, n_strong)
+        target_level, target_lb, current_n, basis = target
+        minimum = settings.l1_min_n if target_level == 1 else settings.strong_min_raw_n
+        need = max(minimum, current_n)
         while (
             need < 10_000
             and lower_bound(k=need, n=need, kappa=settings.pooling_kappa, q=settings.lb_quantile)
             < target_lb
         ):
             need += 1
-        remaining = max(0, need - n_strong)
+        remaining = max(0, need - current_n)
         pace = n_recent / 30.0
         forecast = {
             "level": target_level,
             "clean_agreements_needed": need,
             "remaining_clean": remaining,
             "estimated_days": math.ceil(remaining / pace) if pace > 0 and remaining else 0,
+            "basis": basis,
+            "exam_required": target_level >= 2,
         }
 
     return {
@@ -74,6 +94,12 @@ def _checklist(
             "have": n_strong,
             "need": settings.strong_min_raw_n,
             "met": n_strong >= settings.strong_min_raw_n,
+        },
+        "history": {
+            "have": n_all,
+            "need": settings.l1_min_n,
+            "met": n_all >= settings.l1_min_n and lb_all >= settings.l1_min_lb,
+            "lower_bound": lb_all,
         },
         "recent": {
             "have": n_recent,
@@ -105,23 +131,21 @@ def _licence_payload(source_ids: tuple[str, ...] | None) -> dict[str, Any]:
             valid_until, exam_run_id = view.valid_until, view.exam_run_id
             reasons, level, lb = view.reasons, int(view.level), view.lower_bound
 
-            # Query last 5 ledger licence changes for this (class_key, action)
-            if source_ids is None:
-                cursor.execute(
-                    """
-                    SELECT seq, payload_json, created_at
-                    FROM ledger
-                    WHERE kind = 'licence_change'
-                      AND json_extract(payload_json, '$.class_key') = ?
-                      AND json_extract(payload_json, '$.action') = ?
-                      AND created_at COLLATE UTC_TIMESTAMP <= ?
-                    ORDER BY seq DESC LIMIT 5;
-                    """,
-                    (ck, act, as_of),
-                )
-                change_rows = cursor.fetchall()
-            else:
-                change_rows = []
+            # Query last 5 ledger licence changes for this (class_key, action). The
+            # pair is owner-scoped by this payload; the changes are task-level evidence.
+            cursor.execute(
+                """
+                SELECT seq, payload_json, created_at
+                FROM ledger
+                WHERE kind = 'licence_change'
+                  AND json_extract(payload_json, '$.class_key') = ?
+                  AND json_extract(payload_json, '$.action') = ?
+                  AND created_at COLLATE UTC_TIMESTAMP <= ?
+                ORDER BY seq DESC LIMIT 5;
+                """,
+                (ck, act, as_of),
+            )
+            change_rows = cursor.fetchall()
             history = []
             for cr in change_rows:
                 p = json.loads(cr["payload_json"]) if cr["payload_json"] else {}
@@ -136,29 +160,44 @@ def _licence_payload(source_ids: tuple[str, ...] | None) -> dict[str, Any]:
                     }
                 )
 
-            # Check for drift state / alarms
-            if source_ids is None:
-                cursor.execute(
-                    "SELECT cusum, baseline_err, last_alarm_at FROM drift_state WHERE class_key = ? AND action = ? AND (last_alarm_at IS NULL OR last_alarm_at COLLATE UTC_TIMESTAMP <= ?);",
-                    (ck, act, as_of),
-                )
-                d_row = cursor.fetchone()
-            else:
-                d_row = None
+            # Check for drift state / alarms. Drift is workspace-level state for the pair.
+            cursor.execute(
+                "SELECT cusum, baseline_err, last_alarm_at FROM drift_state WHERE class_key = ? AND action = ? AND (last_alarm_at IS NULL OR last_alarm_at COLLATE UTC_TIMESTAMP <= ?);",
+                (ck, act, as_of),
+            )
+            d_row = cursor.fetchone()
             drift_info = None
             if d_row:
                 drift_info = {
                     "cusum": d_row["cusum"],
                     "baseline_err": d_row["baseline_err"],
                     "last_alarm_at": d_row["last_alarm_at"],
+                    "scope": "workspace",
                 }
 
+            family = family_for_class(ck)
+            cap = get_action_cap(
+                act,
+                family=family,
+                sender_tier=ck.split("|")[-1] if family == "email_action" else None,
+                organizer_tier=ck.split("|")[1] if family == "invite_rsvp" and "|" in ck else None,
+            )
             checklist = _checklist(
-                level, act, n_strong, n_recent, view.exam_ok, exam_run_id, drift_info
+                level,
+                act,
+                n_strong,
+                n_recent,
+                n_all,
+                view.lb_all,
+                view.exam_ok,
+                exam_run_id,
+                drift_info,
+                cap,
             )
             licences.append(
                 {
                     "class_key": ck,
+                    "title": task_title(ck),
                     "action": act,
                     "level": level,
                     "lower_bound": lb,
@@ -178,6 +217,7 @@ def _licence_payload(source_ids: tuple[str, ...] | None) -> dict[str, Any]:
                     "reasons": reasons,
                     "drift": drift_info,
                     "history": history,
+                    "history_scope": "task",
                 }
             )
 

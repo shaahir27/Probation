@@ -13,6 +13,16 @@ interface ItemDetailViewProps {
   review: { busy: boolean; conflict: string | null; error: string | null; submit(proposalId: string, decision: ReviewDecision): Promise<string | null>; refresh(): void };
   onBack(): void;
 }
+
+const actionConsequence = (action: string): string =>
+  ({
+    ARCHIVE: "Removes it from Inbox. Undo for 7 days.",
+    TRASH: "Moves it to Trash. Undo for 7 days.",
+    REPLY: "Sends this reply. A sent message cannot be recalled.",
+    FORWARD: "Forwards this email. A sent message cannot be recalled.",
+    LEAVE: "Leaves the email unchanged.",
+    ABSTAIN: "No action will be taken.",
+  }[action] ?? "Probation records your decision before anything happens.");
 export function ItemDetailView({ id, item, authenticated, readOnly = false, review, onBack }: ItemDetailViewProps) {
   const read = useItemRead(id, authenticated);
   const detail = read.data ?? null;
@@ -30,7 +40,7 @@ export function ItemDetailView({ id, item, authenticated, readOnly = false, revi
   const sender = detail?.sender_key || item?.sender_key;
   return <article className="space-y-5" data-ui="email-detail">
     <a href={readOnly ? "#/watching" : "#/queue"} onClick={(event) => { event.preventDefault(); onBack(); }} className="detail-back min-h-11 inline-flex items-center gap-2 text-sm text-ink-secondary"><ArrowLeft aria-hidden="true" size={15} />{readOnly ? "Back to watching" : "Back to review"}</a>
-    <header className="space-y-3"><p className="text-xs text-ink-secondary">Email · {gateLabel}</p><h1 className="page-title break-words max-w-3xl">{text.subject}</h1><p className="text-sm text-ink-secondary">{action === "ABSTAIN" ? "Recommendation:" : "Requested action:"} <span className="text-ink">{reviewActionLabel(action)}</span></p></header>
+    <header className="space-y-3"><p className="text-xs text-ink-secondary">Email · {gateLabel}</p><h1 className="page-title break-words max-w-3xl">{text.subject}</h1><p className="text-sm text-ink-secondary">{action === "ABSTAIN" ? "Recommendation:" : "Requested action:"} <span className="text-ink">{reviewActionLabel(action)}</span></p><p className="text-xs leading-5 text-ink-tertiary">{actionConsequence(action)}</p></header>
     {readError !== null && <StatePanel state={readStatus === 401 || readStatus === 403 ? "locked" : "error"} title="Email details are unavailable" description={readError} onRetry={() => void read.refetch()} retryLabel="Try again" />}
     {read.isFetching && detail === null && readError === null && <p role="status" className="text-sm text-ink-secondary">Loading email details…</p>}
     {detail !== null && read.isStale && <p role="status" className="text-sm text-status-warning">This detail is out of date. A newer version may exist.</p>}
@@ -46,7 +56,11 @@ export function ItemDetailView({ id, item, authenticated, readOnly = false, revi
         <section aria-labelledby="why-title" className="space-y-3"><h2 id="why-title" className="section-heading">{action === "ABSTAIN" ? "About this decision" : "Why Probation suggested this"}</h2>
           {detail.explanation.summary_reason && <p className="section-caption">{detail.explanation.summary_reason}</p>}
           {detail.explanation.top_clues.length > 0 ? <ul className="space-y-3 text-sm text-ink-secondary">{detail.explanation.top_clues.map((clue,index) => <li key={`${clue}-${index}`} className="pl-3 border-l border-line">{clue}</li>)}</ul> : <p className="section-caption">{action === "ABSTAIN" ? "Probation has not suggested an action for this email." : "No explanation is available for this suggestion."}</p>}
-          <details className="text-sm"><summary className="min-h-11 cursor-pointer py-3 text-ink underline underline-offset-4">Details</summary><div className="space-y-2 text-xs leading-5 text-ink-secondary"><p>Task: {detail.class_key || "unavailable"}</p><p>Evidence cutoff: {formatWhen(detail.verification_as_of ?? detail.proposed_at)}</p><p>Evidence line: {String(detail.evidence.k_strong ?? 0)} matching choices out of {String(detail.evidence.n_strong ?? 0)}.</p><p>Current permission: level {String(detail.licence.level ?? 0)}.</p><p>Web facts can only restrict, never widen, what Probation may do.</p></div></details>
+          <p className="text-xs leading-5 text-ink-tertiary">The current permission is context for this kind of task, not approval for this email.</p>
+          <details className="text-sm"><summary className="min-h-11 cursor-pointer py-3 text-ink underline underline-offset-4">Details</summary><div className="space-y-2 text-xs leading-5 text-ink-secondary"><p>Task: {detail.class_key || "unavailable"}</p><p>Evidence cutoff: {formatWhen(detail.verification_as_of ?? detail.proposed_at)}</p><p>Evidence line: {String(detail.evidence.k_strong ?? 0)} matching choices out of {String(detail.evidence.n_strong ?? 0)}.</p><p>Current permission: level {String(detail.licence.level ?? 0)}.</p>{detail.draft?.model_id && <p>Reply draft model: {detail.draft.model_id}</p>}<p>Web facts can only restrict, never widen, what Probation may do.</p></div></details>
+        </section>
+        <section aria-labelledby="similar-title" className="space-y-3"><h2 id="similar-title" className="section-heading">Similar decisions</h2>
+          {detail.explanation.similar_cases.length > 0 ? <ul className="space-y-3 text-sm text-ink-secondary">{detail.explanation.similar_cases.slice(0, 3).map((past) => <li key={past.situation_id} className="space-y-1 rounded-lg border border-line bg-surface p-3"><p className="text-xs text-ink-tertiary">{Math.round((past.similarity <= 1 ? past.similarity * 100 : past.similarity))}% similar · {reviewActionLabel(past.action_taken)}</p><p className="text-sm">{parseEmailText(past.summary).subject || "Recorded decision"}</p></li>)}</ul> : <p className="section-caption">No similar recorded decisions are available for this email.</p>}
         </section>
         <VerificationCard card={detail.verification_card} asOf={detail.verification_as_of} />
       </aside>

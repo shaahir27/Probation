@@ -6,7 +6,7 @@ export function MobileNav({ currentTab, queueCount }: { currentTab: string; queu
     { id: "more", label: "More", icon: MoreHorizontal },
   ];
   return <nav aria-label="Main navigation" className="mobile-workspace-nav md:hidden">
-    {destinations.map(({ id, label, icon: Icon }) => <a key={id} href={id === "more" ? "#/more/connections" : `#/${id}`} aria-current={currentTab === id ? "page" : undefined}
+    {destinations.map(({ id, label, icon: Icon }) => <a key={id} href={`#/${id}`} aria-current={currentTab === id ? "page" : undefined}
       aria-label={id === "queue" ? `Review emails${queueCount > 0 ? `, ${queueCount} waiting` : ""}` : undefined}
       className={currentTab === id ? "is-current" : ""}>
       <Icon aria-hidden="true" size={18} strokeWidth={1.6} /><span>{label}</span>

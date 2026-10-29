@@ -1,4 +1,4 @@
-import { QueueItem } from "../api/types";
+import { QueueDigest, QueueGroup, QueueItem } from "../api/types";
 import { ReviewDecision } from "../components/queue/ReviewForm";
 import { QueueGate } from "../navigation";
 import { ItemDetailView } from "./ItemDetailView";
@@ -6,6 +6,11 @@ import { QueueView } from "./QueueView";
 
 interface ReviewWorkspaceProps {
   items: QueueItem[];
+  digests: QueueDigest[];
+  handledCount: number;
+  handledDigests: QueueGroup[];
+  expiredCount: number;
+  expiredDigests: QueueGroup[];
   gate: QueueGate;
   onGateChange(gate: QueueGate): void;
   selectedId: string | null;
@@ -23,10 +28,36 @@ interface ReviewWorkspaceProps {
 }
 
 export function ReviewWorkspace(props: ReviewWorkspaceProps) {
-  const { items, gate, onGateChange, selectedId, selectedItem, authenticated, review, onSelect, onBack } = props;
+  const {
+    items,
+    digests,
+    handledCount,
+    handledDigests,
+    expiredCount,
+    expiredDigests,
+    gate,
+    onGateChange,
+    selectedId,
+    selectedItem,
+    authenticated,
+    review,
+    onSelect,
+    onBack,
+  } = props;
   return <div className={`review-split ${selectedId ? "has-selection" : "no-selection"}`} data-ui="review-workspace">
     <div className="review-list-pane">
-      <QueueView items={items} gate={gate} onGateChange={onGateChange} onSelectItem={onSelect} selectedId={selectedId} />
+      <QueueView
+        items={items}
+        digests={digests}
+        handledCount={handledCount}
+        handledDigests={handledDigests}
+        expiredCount={expiredCount}
+        expiredDigests={expiredDigests}
+        gate={gate}
+        onGateChange={onGateChange}
+        onSelectItem={onSelect}
+        selectedId={selectedId}
+      />
     </div>
     <div className="review-detail-pane">
       {selectedId && (
