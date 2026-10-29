@@ -27,7 +27,7 @@ import { SignInView } from "./views/SignInView";
 import { ItemDetailView } from "./views/ItemDetailView";
 import { WatchingView } from "./views/WatchingView";
 import { RequestStatusView } from "./views/RequestStatusView";
-import { navigate, parseRoute, primaryPage, queueGate, setQueryFilter, Route, QueueGate } from "./navigation";
+import { moreTitle, navigate, parseRoute, primaryPage, queueGate, setQueryFilter, Route, QueueGate } from "./navigation";
 
 const TITLES: Record<string, string> = {
   home: "Overview",
@@ -208,7 +208,7 @@ function Workspace() {
 
       <div className="flex min-h-screen min-w-0 flex-1 flex-col pb-24 md:pb-6">
         <Header
-          title={TITLES[route.page] ?? "Probation"}
+          title={route.page === "more" ? moreTitle(route.section) : TITLES[route.page] ?? "Probation"}
           mode={replay.data?.mode ?? "live"}
           simulatedDate={replay.data?.simulated_date ?? undefined}
           profile={session.profile}
@@ -353,7 +353,7 @@ function Workspace() {
 
               {route.page === "more" && (
                 <MoreView
-                  section={route.section ?? "connections"}
+                  section={route.section ?? ""}
                   profile={session.profile}
                   authenticated={authenticated}
                 />

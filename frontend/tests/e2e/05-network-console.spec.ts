@@ -16,8 +16,8 @@ test("the golden read path logs no console errors and asks nothing off-origin", 
   await expect(page.getByRole("heading", { name: "Activity" })).toBeVisible();
   await page.goto("/#/permissions");
   await expect(page.getByRole("heading", { name: "Permissions" })).toBeVisible();
-  await page.goto("/#/more/insights");
-  await expect(page.getByRole("heading", { name: "More", exact: true })).toBeVisible();
+  await page.goto("/#/more/evidence");
+  await expect(page.getByRole("heading", { name: "Evidence", exact: true })).toBeVisible();
   await page.waitForTimeout(500);
 
   expect(guards.pageErrors, `page errors: ${guards.pageErrors.join("\n")}`).toEqual([]);

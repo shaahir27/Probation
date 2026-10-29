@@ -15,8 +15,10 @@ test("the demo navigation focuses on email review and its real outcomes", async 
   await expect(navigation.getByRole("link", { name: /Radar|Reading library|Habits|Chains|Calendar|Files/ })).toHaveCount(0);
   await page.goto("/#/more");
   const settings = page.getByRole("navigation", { name: "More destinations" });
-  await expect(settings.getByRole("link")).toHaveCount(10);
-  await expect(settings.getByRole("link", { name: "What I've learned" })).toBeVisible();
+  await expect(settings.getByRole("link")).toHaveCount(3);
+  for (const label of ["Evidence", "Access & privacy", "Record & rules"]) {
+    await expect(settings.getByRole("link", { name: label })).toBeVisible();
+  }
   await expect(settings.getByRole("link", { name: /Radar|Reading library|Follow-on patterns/ })).toHaveCount(0);
 });
 
@@ -52,37 +54,25 @@ test("every primary route renders its own screen", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "More", exact: true })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "More destinations" })).toBeVisible();
 
-  for (const section of ["connections", "insights", "metrics", "exams", "usage", "privacy", "activity", "settings", "help"]) {
+  for (const [section, label] of [["evidence", "Evidence"], ["access", "Access & privacy"], ["record", "Record & rules"]] as const) {
     await page.goto(`/#/more/${section}`);
-    await expect(page.getByRole("main").getByRole("heading", { name: "More", exact: true })).toBeVisible();
+    await expect(page.getByRole("main").getByRole("heading", { name: label, exact: true })).toBeVisible();
     await expect(
-      page.getByRole("navigation", { name: "More destinations" }).getByRole("link", { name: sectionLabel(section) }),
+      page.getByRole("navigation", { name: "More destinations" }).getByRole("link", { name: label }),
     ).toHaveAttribute("aria-current", "page");
   }
+  // Old URLs remain aliases into the three pages.
+  await page.goto("/#/more/insights");
+  await expect(page.getByRole("main").getByRole("heading", { name: "Evidence", exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("navigation", { name: "More destinations" }).getByRole("link", { name: "Evidence" }),
+  ).toHaveAttribute("aria-current", "page");
 
   await page.goto("/#/requests/synthetic-request-that-does-not-exist");
   await expect(page.getByRole("heading", { name: "Request status" })).toBeVisible();
   await expect(page.getByRole("alert").getByRole("heading", { name: "Status unavailable" })).toBeVisible();
 });
 
-function sectionLabel(section: string): string {
-  const labels: Record<string, string> = {
-    insights: "Performance",
-    metrics: "Counts & trends",
-    habits: "Learned about you",
-    chains: "Follow-on patterns",
-    exams: "Trick tests",
-    connections: "Connect apps",
-    usage: "Cost & usage",
-    privacy: "Privacy & web",
-    activity: "Integrity record",
-    settings: "Settings in use",
-    help: "Help & limits",
-    radar: "Radar",
-    library: "Reading library",
-  };
-  return labels[section] ?? section;
-}
 
 test("an unknown route is a clear not-found state, never a blank screen", async ({ page }) => {
   await page.goto("/#/nowhere-to-be-found");
@@ -107,10 +97,10 @@ test("a deep link survives a reload inside the owner session", async ({ page }) 
   await expect(page).toHaveURL(/#\/queue\/e2e-ask-2/);
   await expect(page.getByRole("heading", { name: "Sign in to your account" })).toHaveCount(0);
 
-  await page.goto("/#/more/settings");
+  await page.goto("/#/more/record");
   await page.reload();
   await expect(
-    page.getByRole("navigation", { name: "More destinations" }).getByRole("link", { name: "Settings in use" }),
+    page.getByRole("navigation", { name: "More destinations" }).getByRole("link", { name: "Record & rules" }),
   ).toHaveAttribute("aria-current", "page");
   await expect(page.getByRole("heading", { name: "Sign in to your account" })).toHaveCount(0);
 });

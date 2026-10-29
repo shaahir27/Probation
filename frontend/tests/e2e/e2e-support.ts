@@ -29,7 +29,9 @@ export function installGuards(page: Page, baseURL: string | undefined): Guards {
     if (message.type() === "error") guards.consoleErrors.push(message.text());
   });
   page.on("pageerror", (error) => guards.pageErrors.push(String(error)));
-  page.on("requestfailed", (request) => guards.failedRequests.push(`${request.method()} ${request.url()}`));
+  page.on("requestfailed", (request) =>
+    guards.failedRequests.push(`${request.method()} ${request.url()} ${request.failure()?.errorText ?? ""}`),
+  );
   page.on("request", (request) => {
     const url = new URL(request.url());
     if (url.pathname.startsWith("/api")) guards.apiRequests.push(`${request.method()} ${url.pathname}`);

@@ -19,8 +19,70 @@ export type Route =
 
 const primary = new Set<PrimaryRoute>(["home", "queue", "watching", "actions", "permissions"]);
 
+export interface MoreGroup {
+  id: "evidence" | "access" | "record";
+  label: string;
+  description: string;
+  sections: readonly string[];
+}
+
+/** Three honest pages; every old URL remains an alias into one of them. */
+export const MORE_GROUPS: readonly MoreGroup[] = [
+  {
+    id: "evidence",
+    label: "Evidence",
+    description: "What it predicted, how often it matched, the trick tests it passed, and the patterns it noticed.",
+    sections: ["insights", "metrics", "exams", "habits"],
+  },
+  {
+    id: "access",
+    label: "Access & privacy",
+    description: "What it can reach, what left the machine, and what the calls cost.",
+    sections: ["connections", "privacy", "usage"],
+  },
+  {
+    id: "record",
+    label: "Record & rules",
+    description: "The verified record, the fixed policy limits, and what this release does not support.",
+    sections: ["activity", "settings", "help"],
+  },
+];
+
+export const MORE_SECTION_LABELS: Record<string, string> = {
+  insights: "Performance",
+  metrics: "Counts & trends",
+  exams: "Trick tests",
+  habits: "What I've learned",
+  connections: "Connect apps",
+  privacy: "Privacy & web",
+  usage: "Cost & usage",
+  activity: "Integrity record",
+  settings: "Settings in use",
+  help: "Help & limits",
+};
+
+const GROUP_BY_ID = new Map(MORE_GROUPS.map((group) => [group.id, group]));
+const GROUP_BY_SECTION = new Map(
+  MORE_GROUPS.flatMap((group) => group.sections.map((section) => [section, group.id] as const)),
+);
+
+export function moreGroupFor(section?: string): MoreGroup["id"] | null {
+  if (!section) return null;
+  if (GROUP_BY_ID.has(section as MoreGroup["id"])) return section as MoreGroup["id"];
+  return GROUP_BY_SECTION.get(section) ?? null;
+}
+
+export function moreTitle(section?: string): string {
+  if (!section) return "More";
+  const group = moreGroupFor(section);
+  return group ? (GROUP_BY_ID.get(group)?.label ?? "More") : "More";
+}
+
 /** Every destination the More section router can render. */
 export const moreSections = new Set([
+  "evidence",
+  "access",
+  "record",
   "insights",
   "metrics",
   "habits",

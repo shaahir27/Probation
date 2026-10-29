@@ -26,3 +26,21 @@ test("routes preserve encoded opaque IDs and reject malformed hashes", () => {
   assert.deepEqual(navigation.parseRoute("#/queue/%ZZ"), { page: "not-found" });
   assert.deepEqual(navigation.parseRoute("#/more/unknown"), { page: "not-found" });
 });
+
+test("More groups are the only destinations and old URLs remain aliases", () => {
+  for (const id of ["evidence", "access", "record"]) {
+    assert.deepEqual(navigation.parseRoute(`#/more/${id}`), { page: "more", section: id });
+  }
+  for (const [legacy, group] of [
+    ["insights", "evidence"], ["metrics", "evidence"], ["exams", "evidence"], ["habits", "evidence"],
+    ["connections", "access"], ["privacy", "access"], ["usage", "access"],
+    ["activity", "record"], ["settings", "record"], ["help", "record"],
+  ]) {
+    assert.equal(navigation.moreGroupFor(legacy), group);
+    assert.deepEqual(navigation.parseRoute(`#/more/${legacy}`), { page: "more", section: legacy });
+  }
+  assert.equal(navigation.moreTitle(undefined), "More");
+  assert.equal(navigation.moreTitle("insights"), "Evidence");
+  assert.equal(navigation.moreTitle("connections"), "Access & privacy");
+  assert.equal(navigation.moreGroupFor("library"), null);
+});

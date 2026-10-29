@@ -158,7 +158,7 @@ test("the would-ask percentage uses all proposals and explains overlap", async (
     body.would_ask = 10;
     await route.fulfill({ response, json: body });
   });
-  await page.goto("/#/more/insights");
+  await page.goto("/#/more/evidence");
   await expect(page.getByText(/Would have asked:.*100% of proposals/)).toBeVisible();
   await expect(page.getByText(/can overlap with those results/)).toBeVisible();
 });

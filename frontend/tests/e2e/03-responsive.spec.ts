@@ -44,7 +44,7 @@ test("the mobile bar never covers the action it sits under", async ({ page }) =>
 
 test("secondary screens do not overflow either", async ({ page }) => {
   await signIn(page);
-  for (const route of ["/#/watching", "/#/actions", "/#/permissions", "/#/more", "/#/more/settings", "/#/more/insights"]) {
+  for (const route of ["/#/watching", "/#/actions", "/#/permissions", "/#/more", "/#/more/evidence", "/#/more/access", "/#/more/record"]) {
     for (const width of WIDTHS) {
       await page.setViewportSize({ width, height: 800 });
       await page.goto(route);

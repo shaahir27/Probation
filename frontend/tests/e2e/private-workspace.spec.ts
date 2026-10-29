@@ -46,7 +46,7 @@ test("sign-in stores no key in browser storage and shows the synthetic review it
   expect(await page.evaluate(() => [localStorage.length, sessionStorage.length])).toEqual([0, 0]);
 
   await page.getByRole("link", { name: /^Review emails/ }).click();
-  await expect(page.getByText("1 waiting")).toBeVisible();
+  await expect(page.getByText("1 waiting", { exact: true })).toBeVisible();
   await expect(page.getByText("Notice of renewal — payment due 5 November")).toBeVisible();
   await page.getByRole("button", { name: "Review email" }).click();
   await expect(page.getByRole("heading", { name: "Notice of renewal — payment due 5 November" })).toBeVisible();
