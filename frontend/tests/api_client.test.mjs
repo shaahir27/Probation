@@ -11,6 +11,14 @@ await writeFile(join(temp, "package.json"), '{"type":"module"}');
 await stageApiModules(temp, ["client", "validation"]);
 const { apiClient, conflictCode, ApiError } = await import(pathToFileURL(join(temp, "client.js")).href);
 
+test("a missing demo allowance explains how to recover instead of showing a raw code", async () => {
+  globalThis.fetch = async () => new Response(
+    JSON.stringify({ error: { code: "503", message: "scope_missing" } }), { status: 503 },
+  );
+  await assert.rejects(apiClient.demoAnalyze("Subject: Test\nA notice."),
+    (error) => error.status === 503 && /allowance/i.test(error.message) && error.message !== "scope_missing");
+});
+
 test("a 409 conflict keeps the server's semantic reason, not the numeric status", async () => {
   globalThis.fetch = async () => new Response(
     JSON.stringify({ error: { code: "409", message: "initial_decision_already_recorded" } }),

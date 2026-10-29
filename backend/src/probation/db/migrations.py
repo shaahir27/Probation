@@ -18,7 +18,10 @@ _SPEND_OBJECT = re.compile(
 # Rollback for the W3-D03 accounting objects. Dropping them restores the pre-P04 database:
 # no other table references them, and exposure_log.cost_units is left in place because it is
 # nullable and a DROP of a published column is not additive-reversible in SQLite.
-_SPEND_DROP = """DROP TRIGGER IF EXISTS llm_requests_no_history_update;
+_SPEND_DROP = """DROP TRIGGER IF EXISTS budget_cap_increases_no_update;
+DROP TRIGGER IF EXISTS budget_cap_increases_no_delete;
+DROP TABLE IF EXISTS budget_cap_increases;
+DROP TRIGGER IF EXISTS llm_requests_no_history_update;
 DROP INDEX IF EXISTS llm_requests_semantic_identity;
 DROP TRIGGER IF EXISTS llm_attempts_no_history_update;
 DROP TRIGGER IF EXISTS llm_attempts_no_delete;
@@ -256,8 +259,10 @@ def migrate_spend_accounting(conn: sqlite3.Connection) -> bool:
     """
     if conn.in_transaction or getattr(conn, "bound_role", None) is not None:
         raise ValueError("Migration requires a clean bootstrap connection")
+    from probation.db.budget_admin import migrate_budget_increases
+
     if _spend_applied(conn) and _exposure_cost_units_present(conn):
-        return False
+        return migrate_budget_increases(conn)
 
     script = Path(__file__).with_name("spend.sql").read_text(encoding="utf-8")
     conn.execute("BEGIN IMMEDIATE")
@@ -282,6 +287,7 @@ def migrate_spend_accounting(conn: sqlite3.Connection) -> bool:
     except BaseException:
         conn.rollback()
         raise
+    migrate_budget_increases(conn)
     return True
 
 

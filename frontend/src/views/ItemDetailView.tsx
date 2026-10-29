@@ -40,7 +40,23 @@ export function ItemDetailView({ id, item, authenticated, readOnly = false, revi
   const sender = detail?.sender_key || item?.sender_key;
   return <article className="space-y-5" data-ui="email-detail">
     <a href={readOnly ? "#/watching" : "#/queue"} onClick={(event) => { event.preventDefault(); onBack(); }} className="detail-back min-h-11 inline-flex items-center gap-2 text-sm text-ink-secondary"><ArrowLeft aria-hidden="true" size={15} />{readOnly ? "Back to watching" : "Back to review"}</a>
-    <header className="space-y-3"><p className="text-xs text-ink-secondary">Email · {gateLabel}</p><h1 className="page-title break-words max-w-3xl">{text.subject}</h1><p className="text-sm text-ink-secondary">{action === "ABSTAIN" ? "Recommendation:" : "Requested action:"} <span className="text-ink">{reviewActionLabel(action)}</span></p><p className="text-xs leading-5 text-ink-tertiary">{actionConsequence(action)}</p></header>
+    <header className="docket-ticket is-next detail-briefing">
+      <div className="docket-next">
+        <div className="docket-next-main">
+          <div className="docket-next-top">
+            <span className="docket-chip">{gateLabel}</span>
+            <span className="docket-gate">Email review</span>
+          </div>
+          <h1 className="docket-subject">{text.subject}</h1>
+          <p className="docket-sender">{senderDisplay(sender)}</p>
+        </div>
+        <div className="docket-next-side">
+          <p className="docket-recommend-label">{action === "ABSTAIN" ? "Recommendation:" : "Requested action:"}</p>
+          <p className="docket-recommend">{reviewActionLabel(action)}</p>
+          <p className="docket-reason">{actionConsequence(action)}</p>
+        </div>
+      </div>
+    </header>
     {readError !== null && <StatePanel state={readStatus === 401 || readStatus === 403 ? "locked" : "error"} title="Email details are unavailable" description={readError} onRetry={() => void read.refetch()} retryLabel="Try again" />}
     {read.isFetching && detail === null && readError === null && <p role="status" className="text-sm text-ink-secondary">Loading email details…</p>}
     {detail !== null && read.isStale && <p role="status" className="text-sm text-status-warning">This detail is out of date. A newer version may exist.</p>}

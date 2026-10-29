@@ -214,6 +214,8 @@ export interface LicenceItem {
   action: string;
   level: AutonomyLevel;
   lower_bound: number;
+  lb_strong?: number;
+  lb_all?: number;
   n_strong: number;
   k_strong: number;
   n_all: number;

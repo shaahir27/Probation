@@ -1,0 +1,31 @@
+# VCS and local secrets never enter the image
+.git
+.env
+*.env
+
+# Local runtime data; the image ships the committed demo/seed snapshot instead
+data/
+*.db
+*.db-wal
+*.db-shm
+!demo/seed/*.db
+
+# Python and Node artifacts
+__pycache__/
+*.py[cod]
+.venv/
+.venv*/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+node_modules/
+frontend/node_modules/
+frontend/dist/
+
+# Local-only records and scratch space
+build_history/
+docs/
+artifacts/
+.taste-skill/
+graphify-out/
+debug.log

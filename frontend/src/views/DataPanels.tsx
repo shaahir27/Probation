@@ -18,7 +18,7 @@ function errorState(error: unknown): { message: string; locked: boolean } | null
 }
 
 /** Recorded model and search spend, with the caveat that nothing recorded is nothing spent. */
-export function UsagePanel({ authenticated }: { authenticated: boolean }) {
+export function UsagePanel({ authenticated, profile }: { authenticated: boolean; profile?: "private" | "synthetic" | null }) {
   const read = useExposureRead(authenticated);
   const failure = errorState(read.error);
   if (failure !== null) {
@@ -46,6 +46,11 @@ export function UsagePanel({ authenticated }: { authenticated: boolean }) {
           <dd className="mt-1 text-2xl">{usage.calls}</dd>
         </div>
       </dl>
+      {profile === "synthetic" && <p className="rounded-xl border border-line bg-canvas p-3 text-xs leading-5 text-ink-secondary">
+        This workspace includes generated usage examples. Try it live adds real model calls.
+        The spend authority below tracks actual provider charges and outstanding reservations
+        separately from those examples.
+      </p>}
       <section
         className="space-y-3 rounded-2xl border border-line bg-surface p-4"
         aria-labelledby="budget-authority-title"

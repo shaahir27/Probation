@@ -62,6 +62,14 @@ import {
 const API_BASE = "/api";
 const CSRF_HEADER = "X-Probation-CSRF";
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+const DEMO_ERROR_COPY: Record<string, string> = {
+  scope_missing: "Live analysis has no spending allowance. Ask the demo owner to configure its model budget.",
+  cap_exceeded: "The model allowance is used up or reserved by another call. Recorded answers still work.",
+  budget_denied: "The model budget did not authorise this call. Check the demo's spending allowance.",
+  duplicate_request: "This analysis was already submitted. Check its recorded result before trying again.",
+  funded_demo_reset_denied: "This demo has a live model allowance. Reset is blocked to preserve its spending records.",
+  accounting_store_unavailable: "Model spending records are unavailable. No new analysis can start right now.",
+};
 
 export { ApiError };
 
@@ -202,6 +210,7 @@ async function request<T>(
       } else {
         if (detailCode) code = detailCode;
         if (detailMessage) message = detailMessage;
+        message = DEMO_ERROR_COPY[detailMessage] ?? DEMO_ERROR_COPY[detailCode] ?? message;
       }
     } catch {
       // Keep the safe message if the server response is not the documented error shape.

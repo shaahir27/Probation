@@ -12,6 +12,9 @@ STORE="${PROBATION_GMAIL_STORE:?PROBATION_GMAIL_STORE is required}"
 ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 SEED="$ROOT/demo/seed"
 
+# A reset must never erase the allowance or charges from real model calls.
+PYTHONPATH="$ROOT/backend/src${PYTHONPATH:+:$PYTHONPATH}" "${PYTHON:-python}" -m probation.db.demo_reset "$DB"
+
 restore() {
   src="$1"
   dst="$2"

@@ -24,6 +24,7 @@ from probation.config import settings
 from probation.core.clock import elapsed_seconds, operational_clock
 from probation.db.access import Role
 from probation.db.connection import get_role_connection
+from probation.db.demo_reset import ensure_resettable
 from probation.db.spend import SpendStore
 from probation.db.spend_types import default_lease_owner
 from probation.llm.budget import BudgetExceeded, units_to_usd
@@ -113,6 +114,8 @@ def demo_analyze(body: DemoAnalyzeBody, owner: Owner) -> dict[str, Any]:
         except BudgetExceeded as exc:
             raise HTTPException(status_code=503, detail=exc.code) from exc
         except JobFailure as exc:
+            if isinstance(exc.__cause__, BudgetExceeded):
+                raise HTTPException(status_code=503, detail=exc.__cause__.code) from exc
             raise HTTPException(status_code=503, detail=exc.code.value) from exc
         except httpx.HTTPError as exc:
             # A durable reservation already exists, so the attempt is held as ambiguous by
@@ -160,6 +163,10 @@ def demo_reset(owner: Owner) -> dict[str, Any]:
     }
     if not all(source.is_file() for source in sources):
         raise HTTPException(status_code=503, detail="demo_snapshot_unavailable")
+    try:
+        ensure_resettable(Path(settings.db_path))
+    except BudgetExceeded as exc:
+        raise HTTPException(status_code=409, detail=exc.code) from exc
     try:
         for source, target in sources.items():
             _restore(source, target)

@@ -1,0 +1,17 @@
+# Public demo reverse proxy for the deployed container.
+#
+# Replace the host line with your own domain or free subdomain, then
+# `systemctl reload caddy`: Caddy fetches the TLS certificate itself once DNS
+# points at the VM. The app container binds 127.0.0.1:8000 only, so this proxy
+# is the single public origin and the owner session cookie stays same-origin.
+demo.example.org {
+	# The live Try-it analysis is the only public surface that spends money.
+	# Limit it per client IP; everything else is recorded synthetic data.
+	@paid path /api/demo/analyze
+	rate_limit @paid {
+		zone paid_demo
+		rate 10r/m
+	}
+
+	reverse_proxy 127.0.0.1:8000
+}

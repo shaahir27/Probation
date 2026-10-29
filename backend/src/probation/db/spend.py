@@ -21,6 +21,7 @@ from probation.core.clock import Clock
 from probation.core.enums import ClockMode
 from probation.core.hashing import det_id
 from probation.db.access import Role, RoleAccess
+from probation.db.budget_admin import effective_cap
 from probation.db.spend_types import (
     AttemptReservation,
     SpendScope,
@@ -47,7 +48,7 @@ TRANSITIONS: dict[str, frozenset[str]] = {
     "reconciled": frozenset(),
     "never_dispatched": frozenset(),
 }
-_TABLES = ("budget_scopes", "llm_requests", "llm_attempts")
+_TABLES = ("budget_scopes", "llm_requests", "llm_attempts", "budget_cap_increases")
 
 
 class SpendStore:
@@ -140,7 +141,7 @@ class SpendStore:
                     model_id=str(row[3]),
                     period_rule=str(row[4]),
                     period_key=str(row[5]),
-                    cap_units=int(row[6]),
+                    cap_units=effective_cap(self._conn, str(row[0]), int(row[6])),
                     price_version=str(row[7]),
                 )
         raise BudgetExceeded(
@@ -281,7 +282,8 @@ class SpendStore:
                     raise BudgetExceeded(
                         "This request has another lease owner", code="spend_authority_denied"
                     )
-                scope_id, cap_units = str(head[0]), int(head[1])
+                scope_id = str(head[0])
+                cap_units = effective_cap(self._conn, scope_id, int(head[1]))
                 spent = self._sum_units(scope_id, ("reconciled",), "charged_units")
                 held = self._sum_units(scope_id, OPEN_STATES, "estimate_units")
                 if spent + held + estimate_units > cap_units:
@@ -338,13 +340,15 @@ class SpendStore:
         ).fetchone()
         now = self._now()
         caps = self._conn.execute(
-            "SELECT period_rule,period_key,cap_units FROM budget_scopes "
+            "SELECT scope_id,period_rule,period_key,cap_units FROM budget_scopes "
             "WHERE provider=? AND account_label=?",
             tuple(scope),
         ).fetchall()
         if runtime_cap is not None:
-            caps = [*caps, ("total", "total", runtime_cap)]
-        for rule, key, cap in caps:
+            caps = [*caps, (None, "total", "total", runtime_cap)]
+        for cap_scope, rule, key, cap in caps:
+            if cap_scope is not None:
+                cap = effective_cap(self._conn, str(cap_scope), int(cap))
             if key != period_key_for(rule, now):
                 continue
             prefix = "" if rule == "total" else key

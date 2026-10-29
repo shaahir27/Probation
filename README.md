@@ -12,20 +12,20 @@ Built for the **NVIDIA Global AI Hackathon** (Personal AI Track) using **NVIDIA 
 
 ## Demo access (for judges)
 
-The demo is a **synthetic workspace**: generated emails, derived permissions, and no real account.
+The deployed demo and the Docker image run a **synthetic demo workspace**: generated emails, derived permissions, recorded model usage, and no real account. **This is the mode in which the product is fullest without your own Gmail and API keys** — every screen (Overview, Review, Activity, Permissions and the three More pages) is populated from that workspace, so use it for the whole tour.
 
 1. Open the deployed demo URL, or run the container command under **Public demo in a container**.
-2. On the sign-in page click **Enter the demo workspace**. No password or key is typed.
-3. The workspace resets every six hours, and the banner in the app says so.
+2. On the sign-in page click **Enter the demo workspace**. That one click is the demo account: no email, no password, no key to type.
+3. Explore. The workspace resets to its generated snapshot every six hours, the banner in the app says so, and **Reset demo** restores the snapshot immediately.
 
-If the button is unavailable, use the owner-key form:
+If the button is unavailable (for example a local private-profile server), the sign-in page offers the owner-key form instead:
 
-| Field | Value |
+| Field | Value (synthetic demo only) |
 |---|---|
 | Owner key | `synthetic-demo-owner-key` |
 | Owner ID | `local-owner` (server-side; not entered on the page) |
 
-There is no email/password demo account: account routes are disabled in the synthetic profile. The button appears only when the server runs `APP_PROFILE=synthetic` with `PROBATION_DEMO_LOGIN=1`; the Docker image sets both. `make serve` without those variables runs the private profile, so it shows the private login and no demo button.
+There is no email/password demo account: account routes are disabled in the synthetic profile. The button appears only when the server runs `APP_PROFILE=synthetic` with `PROBATION_DEMO_LOGIN=1`; the Docker image sets both. `make serve` without those variables runs the **private product** instead: your own local account or owner key, your own Gmail, empty until you connect it. The two modes never share data, and the deployed container never contains a private credential.
 
 ---
 
@@ -71,7 +71,7 @@ Nemotron helps turn redacted text into structured data; it does not receive tool
 - **A mistake costs volume, not the history.** One disagreement in 40 decisions leaves the bound near 0.89; roughly another 40 clean decisions are needed to clear 0.95 again. Drift invalidates the exam, not the evidence: two undos inside 30 days raise an alarm and demote the licence, and one new passing exam restores it.
 - **The forecast is computed, not written by hand.** `GET /api/permissions` returns the checklist and inverts the same Beta lower bound that decides the level, so the screen cannot promise a volume the engine would refuse. `scripts/licence_ladder.py` prints the same table from the command line.
 
-The Permissions page shows the checklist per task: clean agreements against the configured need, recent volume, exam state, alarm state, and the remaining count with a day estimate from the recent decision pace.
+The Permissions page opens with the four-step ladder — Watching, Suggests, Acts with undo, Acts automatically — and how many tasks sit at each step. Below it, every task is a proof card: current level, clean agreements against the configured need on a progress bar, recent volume, exam and drift state, and the remaining count with a day estimate from the recent decision pace. A **Why?** panel on each card gives the reasons in plain words, and no-op actions (for example Leave as is) are stated as unable to earn a permission, so they never inflate the ladder.
 
 ---
 
@@ -80,10 +80,10 @@ The Permissions page shows the checklist per task: clean agreements against the 
 ### The live email path
 
 1. Sign in with a local **email and password** account, or use the **owner key** fallback. Passwords are verified against local scrypt hashes and local API clients receive a short-lived HS256 JWT; the browser itself uses only a short-lived, HttpOnly, SameSite=Strict owner session. Account login also returns a short-lived API token in its response body. A refresh keeps the session; sign-out destroys it server-side.
-2. Open **More → Connect apps**. **Connect Gmail** requests read-only access. **Connect with action access** completes read consent first, then opens a second Google consent for action access. If reading is already connected, use **Grant read, change and send**. Change and send are required for actions. Google access is separate from earned permission: you may approve one supported action even before Probation has earned autonomous permission. The API receives no Google tokens, callbacks or authorization URLs.
+2. Open **More → Access & privacy → Connect apps**. **Connect Gmail** requests read-only access. **Connect with action access** completes read consent first, then opens a second Google consent for action access. If reading is already connected, use **Grant read, change and send**. Change and send are required for actions. Google access is separate from earned permission: you may approve one supported action even before Probation has earned autonomous permission. The API receives no Google tokens, callbacks or authorization URLs.
 3. The setup verifies the exact read-only and write scopes, the configured test account and the approved native label (`Label_1`). The read and write refresh tokens live in separate owner-only directories; the write grant moves the connection from `SHADOW` to `ACTIVE`. A fresh OAuth grant is recorded as newer authorization than any earlier pause or revoke control.
 4. The supervised runtime starts **API, observation, Brain, Webfacts, Examiner, Resolver and Executor** roles. Observation reads only the approved label; the Executor alone holds the write grant and the approved operation manifest. The trusted supervisor detects changed Google grants and replaces only the affected credential-bearing worker. No backend restart is needed after consent.
-5. **Overview** is the review desk. **Review** is a Gmail-style inbox: a compact message list opens into a continuous reading pane with the email, the decision controls and the evidence. **Activity** records real effects; **Permissions** explains what is allowed for each task/action. **More** holds the connection controls, performance, counts, web privacy, cost, integrity, settings and limits.
+5. **Overview** is the review desk: what is waiting, the permission ladder, and a live trace of the redact → read → record pipeline. **Review** is a decision docket: the next decision leads with its recommendation, reason and evidence, older tickets sit in a compact list, and handled or expired work is summarised separately. Opening a ticket shows the email, the decision controls and the evidence side by side. **Activity** records real effects; **Permissions** explains what is allowed for each task/action. **More** holds three pages: **Evidence** (performance, counts, trick tests, learned patterns), **Access & privacy** (connections, web privacy, cost & usage) and **Record & rules** (integrity record, settings, help).
 6. The owner can grant action access, pause/resume the connection and disconnect it. Real provider effects in this build: **archive**, **trash** and **forward/send** were executed through the Executor and confirmed by provider receipts. Every eligible archive and trash undo was then executed and confirmed with the original labels restored; **reply** is only available when the pipeline produced a validated draft. No draft is fabricated.
 
 The live account's first request was a cold-start **ASK** — the product asking for a decision, which is the correct outcome for an account without earned permission. The Nemotron/Tavily path is wired and has separate D5 live evidence; the live review did not incur a new paid model or Tavily call.
@@ -92,14 +92,13 @@ The live account's first request was a cold-start **ASK** — the product asking
 
 | Where | What it demonstrates |
 |---|---|
-| **Overview** | Real read/action access, the next email, the review desk, permission snapshot and workspace connection state. |
-| **Review / item detail** | A Gmail-style message list and continuous reading pane: subject, preview, full body, the proposed action, evidence, web verification and the owner's exact decision controls. |
+| **Overview** | What is waiting next, the per-task permission ladder, the review desk, and a live redact → read → record trace with real token and redaction counts. |
+| **Review / item detail** | A decision docket: the next decision with its recommendation, reason and evidence; compact older tickets; a handled/expired summary. The ticket page shows the full email, the exact decision controls and an evidence rail (why this suggestion, similar recorded decisions, web check). |
 | **Activity** | What Probation actually did, pending/held/completed/undone/failed states, real provider results, and undo only where the server offers it. A completed undo reads as settled, never as “not completed yet.” |
-| **Permissions** | One task/action at a time: Watching, Suggests, Acts with undo, Acts automatically; evidence counts and caps. Level 0 is not presented as an earned permission. |
-| **More → Connect apps** | Gmail read access, separate action access, pause/resume and confirmed disconnect, plus Calendar and Drive clearly marked Planned. |
-| **More → Performance / Counts & trends / Trick tests** | The historical record, measured counts and code-graded exam history. |
-| **More → What I've learned** | Patterns mined from recorded decisions with support counts and a dismiss control; a dismissal never grants or removes a permission. |
-| **More → Privacy & web / Cost & usage / Integrity record / Settings / Help** | Exact web queries and sources, model/usage and spend authority, the hash-chained record, effective settings and limits. |
+| **Permissions** | The four-step ladder and one proof card per task/action: current level, clean agreements against the configured need, recent volume, exam and drift state, remaining count with a day estimate, and a plain-words **Why?** panel. Level 0 is not presented as an earned permission. |
+| **More → Evidence** | Historical performance, measured counts, code-graded trick-test history, and mined patterns with support counts and a dismiss control; a dismissal never grants or removes a permission. |
+| **More → Access & privacy** | Gmail read access and separate action access, pause/resume and confirmed disconnect, Calendar and Drive clearly marked Planned; exact web queries and sources; model usage and cost with the **Try it live** card and the spend authority. |
+| **More → Record & rules** | The hash-chained integrity record, the effective settings and fixed limits, and what this release does not support. |
 
 There are honest empty states where the private live account has no data — for example no Tavily calls for the cold-start item and no earned permission yet. The shipped synthetic workspace is populated; Probation does not fill the private account's empty states with sample rows.
 
@@ -113,7 +112,7 @@ There are honest empty states where the private live account has no data — for
 | **Google Calendar** | **Planned.** Shown in Connect apps; no connect action and no execution. |
 | **Google Drive** | **Planned.** Shown in Connect apps; no connect action and no execution. |
 | **Files** | Code exists in the wider engine; not part of this email release and not shown as a working workflow. |
-| **Habits** | **Prototype.** **More → What I've learned** lists mined patterns with support counts and a dismiss control; dismissal never changes a permission. |
+| **Habits** | **Prototype.** **More → Evidence → What I've learned** lists mined patterns with support counts and a dismiss control; dismissal never changes a permission. |
 | **Chains / Radar / Reading** | Not part of this focused release. Legacy deep links show an explicit unavailable explanation, never fake boards. |
 | **Local data import** | Command-line import only; there is no browser upload. |
 
@@ -156,7 +155,7 @@ The detailed authority is `docs/CONTRACT.md`, and the D6 API and frontend contra
 
 ### Interface
 
-The dashboard uses a light **Ledger & Signal** system: warm stone paper, forest ink, and one citron permit mark used only for state and focus. Review is a Gmail-style master–detail workspace — a compact message list, continuous reading pane, and a decision surface attached to the email rather than a stack of cards. Activity, Permissions and Connect apps are flat, rule-separated work surfaces. All colours meet body-text contrast on the paper ground.
+The dashboard uses a light **Ledger & Signal** system: warm stone paper, forest ink, and one citron permit mark used only for state and focus. Review is a decision docket — the next decision leads with its recommendation and evidence, older tickets stay compact, and a ticket opens into a reading pane with the email and decision controls on the left and the evidence rail on the right. Permissions reads as an earned ladder with one proof card per task. Activity, Connect apps and the three More pages are flat, rule-separated work surfaces. All colours meet body-text contrast on the paper ground.
 
 Fraunces (display) and Manrope (interface) are self-hosted from the app bundle; there is no remote font request at runtime. Both are SIL Open Font License 1.1.
 
@@ -178,8 +177,9 @@ The model mapping is fixed in configuration. There is no automatic model fallbac
 
 ### Local verification (28–29 October 2026)
 
-- The complete check gate passed **1,509 backend tests**, lint, formatting and both type checks. The dashboard passed its browser suite, **18 unit tests** and its production build.
+- The complete check gate passed **1,509 backend tests**, lint, formatting and both type checks. The dashboard passed its browser suite, **19 unit tests** and its production build.
 - Re-ran the complete gate on 29 October after the demo-workspace work: **1509 passed, 2 deselected**, with ruff, format and both mypy gates clean.
+- Final pre-submission gate on 29 October 2026: `python scripts/check.py` — **1514 passed, 2 deselected**, ruff, format and both mypy gates clean, protected fixture hashes unchanged; frontend `npx tsc --noEmit` clean, **19/19 unit tests**, **48/48 browser journeys** and a clean production build.
 - A newly labeled fictional Gmail message was ingested and processed by Nemotron Super with validated reader output. Its owner-approved archive and undo both have confirmed Executor/provider receipts; undo restored `INBOX` and preserved unrelated labels.
 - Reconnect now completes both consent steps and refreshes the affected worker. The Gmail history adapter parses the actual Google wire format; the fake provider now emits that same format. Undo refuses missing touched-label version proof.
 - The later research message encountered an unconfirmed model transport result and stopped before Tavily. Its web verification and a live sent reply remain **unverified**. Recorded synthetic D5 Tavily results are separate historical evidence, not a fresh check of that Gmail message.
@@ -190,8 +190,8 @@ The model mapping is fixed in configuration. There is no automatic model fallbac
 |---|---|
 | Frontend TypeScript | `npx tsc --noEmit` — clean |
 | Frontend production build | `npm run build` — passed |
-| Frontend unit tests | `npm run test:unit` — **18/18 passed** |
-| Full browser acceptance | `npx playwright test --reporter=list` — **41/41 passed** (system Chrome, built bundle, isolated synthetic workspaces) |
+| Frontend unit tests | `npm run test:unit` — **19/19 passed** |
+| Full browser acceptance | `npx playwright test --reporter=list` — **48/48 passed** (system Chrome, built bundle, isolated synthetic workspaces) |
 | Focused Gmail setup/ACL/runtime tests | granted-identity, reconnect, migration, token ACL, setup API, callback parser and live-role allowlist suites passed |
 | Gmail preflight | read and write token stores, ACLs and the fixed redirect `http://127.0.0.1:8765/` verified locally |
 | Gmail consents | read-only consent completed; separate read/change/send action consent completed; both token ACLs verified |
@@ -230,7 +230,7 @@ Nebius confirmed total across both scopes: **$0.005005** (29 succeeded, 8 failed
 
 ### One live model call the jury can trigger
 
-`POST /api/demo/analyze` accepts up to 4,000 characters and runs the registered `reader.mail.v4` job through the same gateway, durable spend authority and response cache as production. It returns the model id, input/output tokens, latency, this call's USD cost, the validated result and whether the answer came from cache. It is available only in the synthetic profile and returns `404` in private mode; with no configured model credential it returns `503 model_not_configured` rather than inventing numbers. The **More → Cost & usage** panel contains the **Try it live** card that calls it.
+`POST /api/demo/analyze` accepts up to 4,000 characters and runs the registered `reader.mail.v4` job through the same gateway, durable spend authority and response cache as production. It returns the model id, input/output tokens, latency, this call's USD cost, the validated result and whether the answer came from cache. It is available only in the synthetic profile and returns `404` in private mode; with no configured model credential it returns `503 model_not_configured` rather than inventing numbers. The **More → Access & privacy → Cost & usage** panel contains the **Try it live** card that calls it.
 
 ---
 
@@ -325,7 +325,7 @@ make.cmd serve-live
 make.cmd web
 ```
 
-Open `http://localhost:5173` (or the alternate local port `http://localhost:5174`) and sign in with a local email/password account, or choose **Use owner key instead** and enter `PROBATION_GMAIL_OWNER_API_KEY`. Then open **More → Connect apps**. An account created in the app starts with its own empty workspace and can connect its own Gmail; the owner-key route opens the workspace already bound to the configured local owner.
+Open `http://localhost:5173` (or the alternate local port `http://localhost:5174`) and sign in with a local email/password account, or choose **Use owner key instead** and enter `PROBATION_GMAIL_OWNER_API_KEY`. Then open **More → Access & privacy → Connect apps**. An account created in the app starts with its own empty workspace and can connect its own Gmail; the owner-key route opens the workspace already bound to the configured local owner.
 
 If port 8000 is occupied by another server, keep the single runtime on 8001 and point the frontend proxy at it before starting Vite:
 
@@ -341,7 +341,7 @@ Open `http://localhost:5173`. Do not run a separate plain API on 8000: access ch
 ### Connect Gmail
 
 1. Sign in with the local account, or use the owner-key fallback.
-2. **More → Connect apps → Connect Gmail** and approve **read-only Gmail access**.
+2. **More → Access & privacy → Connect apps → Connect Gmail** and approve **read-only Gmail access**.
 3. The setup child writes the read-only refresh token under the owner-only `data/private/` store and registers a `SHADOW` connection. It verifies the exact scope, account and label before persisting anything.
 4. The runtime then observes the approved label. The UI shows **Connected / read-only**; email processing and suggestions have their own separate state.
 5. **Grant read, change and send** starts a second consent that shows all three Gmail choices. Change and send are required for action access; choosing only read leaves the connection read-only. The write token is stored in a separate owner-only directory, never exposed to the API, Brain or Webfacts, and the connection moves to `ACTIVE`.
@@ -396,6 +396,7 @@ The snapshot is entirely synthetic. It contains:
 - **57 observed `LEAVE` decisions** that never count toward a licence but give the existing habit miner a real association: `You archived 99 of 99 emails with intent=fyi` and `You left 57 of 57 emails with intent=newsletter`.
 - **One passing exam** for the level-2 pair (20 base emails × 10 changes = 200 checks). This is the only hand-written engine row: it is labelled `"synthetic_demo": true` in `exam_runs.details_json` and its details satisfy `meaningful_exam`. The licence itself is derived by `derive_licences` from the outcomes, never copied from a constant. Running the exam board for real needs a fitted policy and a model edit provider; this snapshot labels the fixture instead of pretending the board ran.
 - **One synthetic Tavily record** and one matching `web_facts` entity for the cited renewal card, marked **Synthetic demonstration record**. It is recorded evidence, not a runtime call.
+- **152 synthetic model-usage records** (about **$0.058** priced from `config/prices.json`) so Cost & usage shows a realistic demo workload. They are labelled synthetic in the UI, and the provider spend authority stays **$0.00** because this workspace made no provider calls.
 - `scripts/demo_seed.py` regenerates the snapshot. The owner is read from `settings.probation_gmail_owner_id` (default `local-owner`), so the API and the seeded rows agree by construction.
 
 Cold-start verification from an empty runtime directory: bootstrap `{"profile":"synthetic","auth_required":false,"demo_login":true}`, **4 waiting / 168 already handled / 0 expired**, four derived task groups (two above level 0 plus the level-0 requests group with 12 decisions), **1** exam run (20 base / 200 checks), **2** mined habits, and **1** synthetic Tavily record. `scripts/demo_reset.sh` restored the exact snapshot hashes and the same counts.
@@ -424,6 +425,27 @@ APP_PROFILE=synthetic CLOCK_MODE=live PROBATION_DEMO_ALLOW_ANY_HOST=1 PROBATION_
   PYTHONPATH=backend/src python scripts/demo_boot.py
 ```
 
+### Deploying the demo to a VM (HTTPS)
+
+The image is self-contained: one origin serves the built dashboard and the API on port 8000, `demo_boot.py` copies the synthetic snapshot into `/data` on first start only, and an in-image cron restores the snapshot every six hours. A public deployment therefore needs only a VM, Docker and a TLS-terminating reverse proxy:
+
+1. Create an Ubuntu 24.04 VM (2 vCPU, 4 GB RAM, 40 GB disk). Allow SSH from your own IP plus ports 80 and 443, and point a domain or free subdomain at its public IP.
+2. Install Docker and Caddy on the VM, clone this repository there, and build: `docker build -t probation-demo .`
+3. Write the runtime secrets to `/opt/probation/.env` **on the VM only** (never in the repo, the image or the README): `LLM_API_KEY`, `TAVILY_API_KEY`, `BUDGET_HARD_LIMIT_USD=2`, `TAVILY_MAX_CALLS_PER_DAY=20`, and a random `PROBATION_GMAIL_OWNER_API_KEY`. Every other setting the image already pins correctly. Without the two provider keys the demo still works end to end; only **Try it live** then answers `503 model_not_configured` instead of spending money.
+4. Run the container bound to loopback only, with a persistent volume and log rotation:
+
+   ```bash
+   docker run -d --name probation --restart unless-stopped \
+     --env-file /opt/probation/.env \
+     -p 127.0.0.1:8000:8000 \
+     --log-opt max-size=10m --log-opt max-file=3 \
+     -v probation-demo-data:/data probation-demo
+   ```
+
+5. Put Caddy in front with the committed `Caddyfile` (replace the example host with your domain, then `systemctl reload caddy`). Caddy fetches the certificate, keeps a single public origin so the owner session cookie stays same-origin, and rate-limits `/api/demo/analyze` per client IP — the only public surface that can spend money.
+
+No database seeding is required on the VM: the snapshot ships inside the image and is copied only when `/data` is empty, so a restart never overwrites the workspace a judge already saw. The container holds no private Gmail credential, no `.env` from this machine, and no real personal data.
+
 ---
 
 ## Security and privacy
@@ -444,8 +466,8 @@ APP_PROFILE=synthetic CLOCK_MODE=live PROBATION_DEMO_ALLOW_ANY_HOST=1 PROBATION_
 - Gmail writes are limited to the approved manifest: **archive**, **trash**, **forward-to-self** and a reviewed **reply** only when a validated draft exists. There is no third-party recipient, permanent delete, settings change or automatic retry.
 - Live **undo** is proven for archive and trash: all four eligible requests have confirmed Executor attempts and restored original labels. Undo still fails closed when the provider's state or history evidence is incomplete, and a forward/send cannot be recalled. A refused undo is reported as refused and changes nothing.
 - **Google Calendar and Google Drive are planned**, not implemented.
-- Files, chains, Radar and Reading are not part of this focused email release. Their legacy routes state that they are unavailable; they do not render fake data. **More → What I've learned** lists habits mined from recorded decisions and lets the owner dismiss one; a dismissal hides the sentence and never grants or removes a permission.
-- No public deployment, hosted multi-user service, real personal data, mobile app, push notifications or hosted URL is claimed here. Local accounts exist only on this machine. Deployment is a separate step and was intentionally not performed.
+- Files, chains, Radar and Reading are not part of this focused email release. Their legacy routes state that they are unavailable; they do not render fake data. **More → Evidence → What I've learned** lists habits mined from recorded decisions and lets the owner dismiss one; a dismissal hides the sentence and never grants or removes a permission.
+- No hosted multi-user service, real personal data, mobile app or push notifications are claimed here. Local accounts exist only on this machine. The supported public path is the single-tenant synthetic demo container described under **Deploying the demo to a VM (HTTPS)**; once a URL is live it is recorded here with a last-checked date.
 - The six-case Super smoke is not accuracy, a Gmail score or an autonomy result.
 - The live demo item is a cold-start request for approval; it does not claim that a model draft was produced for that specific email.
 - The local cost panel reflects the app's recorded spend; the cumulative D5 accounting authority is a separate record. Neither is a provider invoice.

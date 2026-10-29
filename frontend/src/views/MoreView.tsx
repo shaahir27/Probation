@@ -13,10 +13,10 @@ interface MoreViewProps { section: string; profile: "private" | "synthetic" | nu
 
 const OUTSIDE_DEMO = new Set(["chains", "radar", "library"]);
 
-function Section({ id, children }: { id: string; children: ReactNode }) {
+function Section({ id, children, heading = true }: { id: string; children: ReactNode; heading?: boolean }) {
   const title = MORE_SECTION_LABELS[id] ?? id;
   return <div id={`more-${id}`} className="scroll-mt-24 space-y-3">
-    <h2 id={`more-${id}-title`} tabIndex={-1} className="font-serif text-[22px] font-normal tracking-[-0.015em]">{title}</h2>
+    {heading && <h2 id={`more-${id}-title`} tabIndex={-1} className="font-serif text-[22px] font-normal tracking-[-0.015em]">{title}</h2>}
     {children}
   </div>;
 }
@@ -88,7 +88,7 @@ export function MoreView({ section, profile, authenticated }: MoreViewProps) {
       <Section id="metrics">
         {metrics.data ? <MetricsPanel metrics={metrics.data} /> : metrics.isLoading ? <StatePanel state="loading" title="Loading counts" description="Reading recorded activity." /> : metrics.error !== null ? <StatePanel state="error" title="Counts are unavailable" description="Could not read recorded counts." onRetry={() => void metrics.refetch()} /> : null}
       </Section>
-      <Section id="exams">
+      <Section id="exams" heading={false}>
         {exams.data ? <ExamsPanel exams={exams.data.runs} busy={commands.busyKey !== null} error={commands.error} onRun={runExam} /> : exams.isLoading ? <StatePanel state="loading" title="Loading tests" description="Reading recorded tests." /> : exams.error !== null ? <StatePanel state="error" title="Tests are unavailable" description="Could not read recorded tests." onRetry={() => void exams.refetch()} /> : null}
       </Section>
       <Section id="habits">
@@ -97,15 +97,15 @@ export function MoreView({ section, profile, authenticated }: MoreViewProps) {
     </div>}
 
     {groupDef?.id === "access" && <div className="space-y-10">
-      <Section id="connections"><ConnectionsPanel profile={profile} /></Section>
+      <Section id="connections" heading={false}><ConnectionsPanel profile={profile} /></Section>
       <Section id="privacy"><PrivacyPanel authenticated={authenticated} /></Section>
-      <Section id="usage"><UsagePanel authenticated={authenticated} /></Section>
+      <Section id="usage"><UsagePanel authenticated={authenticated} profile={profile} /></Section>
     </div>}
 
     {groupDef?.id === "record" && <div className="space-y-10">
       <Section id="activity"><ActivityPanel authenticated={authenticated} /></Section>
       <Section id="settings"><SettingsPanel authenticated={authenticated} /></Section>
-      <Section id="help"><HelpPanel profile={profile} /></Section>
+      <Section id="help" heading={false}><HelpPanel profile={profile} /></Section>
     </div>}
 
     {groupDef === null && sectionId !== undefined && OUTSIDE_DEMO.has(sectionId) && <UnavailablePanel title="Outside this email demo" reason="This workflow is not part of the focused email demonstration. Probation has no accepted end-to-end workflow to offer here." scope="Use Overview, Review, Activity and Permissions for this demonstration." />}

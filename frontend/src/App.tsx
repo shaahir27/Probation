@@ -51,8 +51,8 @@ function DemoResetButton() {
     try {
       await apiClient.resetDemo();
       window.location.reload();
-    } catch {
-      setError("The demo could not be reset. Try again.");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "The demo could not be reset. Try again.");
       setBusy(false);
     }
   };
@@ -218,7 +218,7 @@ function Workspace() {
         <main className="mx-auto w-full max-w-[1280px] flex-1 px-5 py-7 sm:px-6 lg:px-8">
           {session.profile === "synthetic" && (
             <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-surface px-4 py-2 text-xs leading-5 text-ink-secondary">
-              <p>Synthetic workspace. It resets every 6 hours from a generated snapshot; the private product keeps your own history and never uses these rows.</p>
+              <p>Synthetic workspace. These emails and past choices are fictional. Try it live makes real model calls.</p>
               <DemoResetButton />
             </div>
           )}

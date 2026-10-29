@@ -400,6 +400,56 @@ def _append_licence_history(
     return situation_ids
 
 
+def _seed_usage(conn) -> None:  # type: ignore[no-untyped-def]
+    """Recorded model usage for the synthetic workspace, priced from the real table.
+
+    These are demo records, not provider charges: the spend-authority tables stay empty
+    and the UI labels them as synthetic. Tokens and costs are internally consistent.
+    """
+    from decimal import ROUND_CEILING, Decimal
+
+    from probation.config import settings
+    from probation.llm.budget import load_price_table
+
+    table = load_price_table(WORKTREE / "config" / "prices.json")
+    specs = (
+        ("reader", settings.model_reader, 120, 2000, 30, 180, 10),
+        ("reader", settings.model_writer, 24, 2400, 40, 200, 15),
+        ("writer", settings.model_writer, 8, 4000, 80, 500, 20),
+    )
+    index = 0
+    for call_kind, model, count, in_base, in_step, out_base, out_step in specs:
+        rates = table.get(model)
+        if rates is None:
+            continue
+        rate_in, rate_out = rates
+        for position in range(count):
+            tokens_in = in_base + (position % 7) * in_step
+            tokens_out = out_base + (position % 5) * out_step
+            cost = (Decimal(tokens_in) * rate_in + Decimal(tokens_out) * rate_out) / Decimal(
+                1_000_000
+            )
+            units = int((cost * Decimal(100_000_000)).to_integral_value(rounding=ROUND_CEILING))
+            conn.execute(
+                """INSERT INTO exposure_log (id,situation_id,call_kind,model_id,tokens_in,
+                tokens_out,redaction_counts_json,cost_usd,cost_units,created_at)
+                VALUES (?,? ,?,?,?,?,'{}',?,?,?)""",
+                (
+                    f"demo-usage-{index}",
+                    "sit-lic-0",
+                    call_kind,
+                    model,
+                    tokens_in,
+                    tokens_out,
+                    float(cost),
+                    units,
+                    f"2026-10-20T10:{position % 60:02d}:{(position * 7) % 60:02d}Z",
+                ),
+            )
+            index += 1
+    conn.commit()
+
+
 def _seed_earned_licence(conn) -> None:  # type: ignore[no-untyped-def]
     """A synthetic history the engine can license, plus one labelled exam fixture.
 
@@ -499,6 +549,7 @@ def _seed_earned_licence(conn) -> None:  # type: ignore[no-untyped-def]
     from probation.engine.habits import mine_habits
 
     mine_habits(conn, as_of="2026-10-29T12:00:00Z")
+    _seed_usage(conn)
 
     operators = operators_for_class(LICENCE_CLASS_KEY)
     started_at = "2026-10-20T12:00:00Z"
