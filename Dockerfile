@@ -9,6 +9,7 @@ RUN npm run build
 FROM python:3.12-slim AS runtime
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app/backend/src \
     APP_PROFILE=synthetic \
     CLOCK_MODE=live \
     PROBATION_DEMO_ALLOW_ANY_HOST=1 \
